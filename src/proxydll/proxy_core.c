@@ -108,10 +108,10 @@ static void Emit(const void* p, DWORD n) {
 static HMODULE g_orig = 0;
 static volatile LONG g_count = 0;
 static __declspec(thread) int g_in = 0;
-static __declspec(thread) int g_skip_nested = 0;   /* 本条调用没记录，post 也别记 */
+static __declspec(thread) int g_next_skip = 0;     /* 下一条调用的 pre 是否被跳过 */
 
 /* 每次调用的「原返回地址」栈：宿主可能在 Step 里回调再进我们的导出，所以要按线程嵌套 */
-typedef struct { uint32_t id; uint32_t ret; } Pending;
+typedef struct { uint32_t id; uint32_t ret; int skip; } Pending;
 static __declspec(thread) Pending g_pend[16];
 static __declspec(thread) int g_pdepth = 0;
 static __declspec(thread) uint32_t g_lastret = 0;
@@ -123,7 +123,7 @@ static int Readable(const void* p) {
 
 /* cdecl( unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx ) */
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
-    if (g_in) return;
+    if (g_in) { g_next_skip = 1; return; }
     if (id == 0 || (int)id >= g_n_exports) return;
 
     FARPROC fn = g_slot[id];
@@ -134,7 +134,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     }
     if (!fn) return;              /* 解析失败：由调用方 jmp 0 暴露问题 */
     if (g_file == INVALID_HANDLE_VALUE) return;
-    if (g_skip[id]) { g_skip_nested = 1; return; }
+    if (g_skip[id]) { g_next_skip = 1; return; }
 
     g_in = 1;
     {
@@ -167,8 +167,10 @@ void __cdecl save_ret(unsigned id, uint32_t orig_ret) {
     if (d < 16) {
         g_pend[d].id = id;
         g_pend[d].ret = orig_ret;
+        g_pend[d].skip = g_next_skip;   /* 跳过意图随栈一起压，嵌套也不会吃错 */
         g_pdepth = d + 1;
     }
+    g_next_skip = 0;
 }
 
 static void NoteBody(void* body) {
@@ -221,14 +223,15 @@ static void DumpStepDigest(void) {
 /* 原 DLL 返回后：取出原返回地址，记录返回值 + 出参内存，返回原返回地址给桩去 jmp */
 uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     uint32_t orig_ret = 0;
+    int skip = 0;
     int d = g_pdepth - 1;
     if (d >= 0 && d < 16) {
         orig_ret = g_pend[d].ret;
+        skip = g_pend[d].skip;
         g_pdepth = d;
     }
     g_lastret = retval;
-    if (g_skip_nested) {          /* 这条调用没记 pre，post 也不记，保持 pre/post 1:1 */
-        g_skip_nested = 0;
+    if (skip) {   /* 这条调用没记 pre，post 也不记，保持 pre/post 1:1 */
         if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
         else if (id == g_id_step) DumpStepDigest();
         return orig_ret;
