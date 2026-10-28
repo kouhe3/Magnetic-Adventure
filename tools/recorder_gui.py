@@ -326,6 +326,14 @@ class App:
             self.status.set(f"找不到 {exe}")
             return None
         self.proc = subprocess.Popen([exe], cwd=GAME_DIR)
+        # 起游戏后把前台焦点给它：否则录制的是别的窗口上的点击
+        for _ in range(20):
+            h, _r = find_window(self.proc.pid)
+            if h:
+                u.ShowWindow(h, 9)
+                u.SetForegroundWindow(h)
+                break
+            time.sleep(0.5)
         os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
         with open(PID_FILE, "w") as f:
             f.write(str(self.proc.pid))
