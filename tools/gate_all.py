@@ -46,7 +46,8 @@ def main():
     rows = []
     for rec in recs:
         name = os.path.basename(os.path.dirname(rec)).replace("rec_", "")
-        cmd = [PY, os.path.join(ROOT, "tools", "gate.py"), rec, "--name", name]
+        cmd = [PY, os.path.join(ROOT, "tools", "gate.py"),
+               os.path.dirname(rec), "--name", name]
         if a.visual:
             cmd.append("--visual")
         if a.skip_capture:

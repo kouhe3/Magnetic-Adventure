@@ -77,6 +77,7 @@
 | F58 | totem 关门禁 **PASS**：520,192 调用 / 2,172 步 / 19,173 超差 body-state / bounded 9→11；抓包那次（原版 DLL 跑录制）逐次点击 0.98–0.998，min 0.9814 = 通关 | L4 | `work/gate_20261028_204435.json` | 已验证 | 关卡覆盖 |
 | F59 | **抓包 dump 64B 会截断多边形 def**：def = 24 + 8×顶点数，7 边形要 80B；被截断的后两个顶点在重放里变成 0，形状变小（面积 4.23 vs 6.51 ⇒ 质量 1.27 vs 1.95，差 54%），伪装成"物理分歧"。修成 **128B**（日志 v02，解析器按 magic 兼容 v01）。leash 关重抓后首个分歧从 **step 1 的 mass** 退到 **step 169 的 sleepTime（0 vs 0.16）**，前 168 步逐字段一致，bounded 16→16 平线 | L4 | `src/proxydll/proxy_core.c`、`tools/ffi.py`、`work/gate_leash.json` | 已验证 | 抓包保真度 |
 | F60 | **决策（用户）：门禁只用 FFI 重放**——`no_crash`（抓到的调用全部执行完）+ `bounded`（每步超差 body 数不增长，跳过加载期、比中位数）。视觉 A/B 默认关闭（`--visual` 才开），因为同 DLL 连跑噪声 0.27 > 信号；自适应拖拽（按下时模板匹配重定位目标）实测失误率更高，默认关闭（`--anchor` 才开）；游戏内行为由用户人工验证。实测：leash 关 1,079,295 调用 / 3,890 步 / bounded 16→16 PASS，首个分歧 step 169 sleepTime(0 vs 0.16) | L4 | `tools/gate.py --help`、`work/gate_leash.json` | 已验证 | 验证策略 |
+| F61 | **流程简化为「录制=抓 FFI，人工验证」**：面板启动游戏时自动装代理 DLL（`b2Physics.dll`=proxy，真身 `b2Physics_orig.dll`）、把 `B2PROXY_LOG` 指到录制目录的 `ffi.bin`；人正常玩一关，STOP 直接杀进程。之后 `python tools/gate.py work/rec_xxx --name <关卡>` 自动发现目录里的 `ffi.bin`（跳过重放抓包），只做离线重放判定（no_crash + bounded）。修好的 DLL 用面板的「试玩替换 DLL（不录制）」按钮人工验证。鼠标重放不再是流程一部分（成功率约 50%，噪声大于信号） | L4 | `tools/recorder_gui.py`、`tools/gate.py`、`tools/gate_all.py` | 已验证 | 工作流 |
 
 ## 影响对齐方案的硬约束
 

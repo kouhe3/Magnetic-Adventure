@@ -19,6 +19,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import os
+import shutil
 import subprocess
 import sys
 import queue
@@ -29,6 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import record as rec  # noqa: E402  复用钩子结构体、grab_window
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROXY_DLL = os.path.join(ROOT, "build", "proxy", "Release", "b2Physics.dll")
+OURS_DLL = os.path.join(ROOT, "build", "Release", "b2Physics.dll")
 GAME_DIR = os.path.join(ROOT, "work", "integration")
 PID_FILE = os.path.join(ROOT, "work", "game_pid.txt")
 
@@ -299,6 +302,11 @@ class App:
                                 bg="#c0392b", fg="white", command=self.stop_all, state="disabled")
         self.b_stop.pack(side="left", padx=4)
 
+        row2 = tk.Frame(self.root)
+        row2.pack(pady=(0, 4))
+        tk.Button(row2, text="试玩替换 DLL（不录制）", width=26,
+                  command=self.play_ours).pack(side="left", padx=4)
+
         self.idle = tk.BooleanVar(value=False)
         tk.Checkbutton(self.root, text="同时记录空闲鼠标移动（默认只记按住时的拖拽轨迹）",
                        variable=self.idle, command=self.toggle_idle).pack(anchor="w", padx=12)
@@ -318,6 +326,23 @@ class App:
             self.root.after(int(selftest * 1000), self.stop_all)
 
     # --- 动作 ---
+    def install_proxy(self):
+        """录制 = 用原版逻辑跑 + 抓 FFI：代理 DLL 占位，b2Physics_orig.dll 放真身。"""
+        orig = os.path.join(GAME_DIR, "b2Physics_orig.dll")
+        if not os.path.exists(orig):
+            src = os.path.join(ROOT, "bin", "gametop", "b2Physics.dll")
+            if os.path.exists(src):
+                shutil.copyfile(src, orig)
+        proxy = PROXY_DLL
+        target = os.path.join(GAME_DIR, "b2Physics.dll")
+        if os.path.exists(proxy):
+            try:
+                shutil.copyfile(proxy, target)
+                return True
+            except OSError:
+                return False
+        return False
+
     def launch(self):
         if self.proc and self.proc.poll() is None:
             return self.proc.pid
@@ -325,7 +350,10 @@ class App:
         if not os.path.exists(exe):
             self.status.set(f"找不到 {exe}")
             return None
-        self.proc = subprocess.Popen([exe], cwd=GAME_DIR)
+        env = dict(os.environ)
+        if self.session and self.session.out_dir:
+            env["B2PROXY_LOG"] = os.path.join(self.session.out_dir, "ffi.bin")
+        self.proc = subprocess.Popen([exe], cwd=GAME_DIR, env=env)
         # 起游戏后把前台焦点给它：否则录制的是别的窗口上的点击
         for _ in range(20):
             h, _r = find_window(self.proc.pid)
@@ -340,14 +368,37 @@ class App:
         return self.proc.pid
 
     def start_game(self):
+        # 先建 session 目录（FFI 日志要写进去），再起游戏
+        if not self.session:
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            out_dir = os.path.join(ROOT, "work", f"rec_{stamp}")
+            os.makedirs(out_dir, exist_ok=True)
+            self.session = Session(out_dir)
+            self.session.on_update = self.refresh
+            self.out.set(f"输出：{os.path.relpath(out_dir, ROOT)}")
+        self.install_proxy()
         pid = self.launch()
         if not pid:
             return
         self.b_start.config(state="disabled")
         self.b_stop.config(state="normal")
         self.b_record.config(state="normal", text="暂停录制")
-        self.begin_session(pid)
-        self.status.set(f"游戏已启动 pid={pid}，录制中…")
+        self.session.begin(pid)          # 鼠标事件（附赠）+ FFI 由代理写 ffi.bin
+        self.status.set(f"游戏已启动 pid={pid}，录制中（FFI: {os.path.basename(self.session.out_dir)}/ffi.bin）")
+
+    def play_ours(self):
+        """人工试玩：装我们的 DLL，起游戏，不抓 FFI。"""
+        try:
+            shutil.copyfile(OURS_DLL, os.path.join(GAME_DIR, "b2Physics.dll"))
+        except OSError as ex:
+            self.status.set(f"换 DLL 失败：{ex}")
+            return
+        self.session = None
+        pid = self.launch()
+        if pid:
+            self.b_start.config(state="normal")
+            self.b_stop.config(state="normal")
+            self.status.set(f"试玩替换 DLL：pid={pid}（build/Release/b2Physics.dll）")
 
     def begin_session(self, pid):
         stamp = time.strftime("%Y%m%d_%H%M%S")

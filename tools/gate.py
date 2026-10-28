@@ -149,7 +149,7 @@ def bounded(step_bad):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("rec")
+    ap.add_argument("rec", help="录制目录（含 events.jsonl + ffi.bin）或 .jsonl 路径")
     ap.add_argument("--name", default="level")
     ap.add_argument("--ffi", default="")
     ap.add_argument("--skip-capture", action="store_true")
@@ -160,6 +160,15 @@ def main():
     ap.add_argument("--dll-b", default=os.path.join(ROOT, "build", "Release", "b2Physics.dll"))
     a = ap.parse_args()
 
+    rec = a.rec
+    if os.path.isdir(rec):
+        events = os.path.join(rec, "events.jsonl")
+        if os.path.exists(events):
+            a.rec = events
+        cand = os.path.join(rec, "ffi.bin")
+        if os.path.exists(cand) and not a.ffi:
+            a.ffi = cand
+            a.skip_capture = True      # 面板已经用代理录好了 FFI，不用再重放抓一遍
     ffi = a.ffi or os.path.join(ROOT, "work", f"ffi_{a.name}.bin")
     report = {"name": a.name, "rec": a.rec, "ffi": ffi}
 
