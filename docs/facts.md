@@ -51,6 +51,8 @@
 | F32 | 形状描述的**实测**字段顺序（探针逐槽置 1.0 后读回）：`+0` body、`+4` **friction**、`+8` **restitution**、`+12` **density**、`+16` sensor、`+20/+24` center（Box）/ localPosition（Circle）、`+28/+32` halfWidth/halfHeight（Box）/ `+28` radius（Circle）。F15 原来写的 density@+4/friction@+8 顺序错误，已按实测更正 | L3 | `build/probe_b2physics.exe <dll> sdef <i>`（i=0..7）对原 DLL 实测 | 已证 | T2.2 形状 |
 | F33 | **替换 DLL 首次行为对齐**：同一场景（world(AABB,gravity) → CreateBody → 0.5×0.5 box(density=1) → SetMassFromShapes → Step 60×1/60）下，原 DLL 与 `build/Release/b2Physics.dll` 输出逐项相同：density=1.000、mass=1.0000、center=(0,0)、I=0.1667、t60 pos=(0,-5.083333)、vel=(0,-10.000000)、angle=0 | L4 | `build/probe_b2physics.exe bin/baseline/b2Physics.dll box` vs `... build/Release/b2Physics.dll box` | 已证 | T2.3 起点 |
 | F34 | 关节工厂的输入同样是「world 在前的记录结构」，反汇编实测：公共头 `+0` world、`+4` body1、`+8` body2；Distance：`+0C` anchor1(vec2)、`+14` anchor2、`+1C` collideConnected(byte)；Revolute：`+0C` anchor(vec2)、`+14` enableLimit(u8)、`+18` lowerAngle、`+1C` upperAngle、`+20` enableMotor(u8)、`+24` motorSpeed、`+28` maxMotorTorque、`+2C` collideConnected | L2 | `b2Physics.dll` 0x10001E20 / 0x10001EA0 反汇编 | 已证 | T2.2 关节 |
+| F35 | 替换 DLL 现导出**全部 87 个** `b2_*`，`check_exports` 对原 DLL 零差异（名字/序号）；关节族已实现：Distance/Revolute/Prismatic/Gear/Pulley 五个工厂 + 19 个读写器，工厂输入按 F34 布局 | L3 | `python tools/check_exports.py build/Release/b2Physics.dll` | 已证 | T2.2 完成 |
+| F36 | 差分扩展到关节：两 body（0.4 方块、density=1、SetMassFromShapes）+ Distance / Revolute 关节，60 步后原 DLL 与替换 DLL 的 body 位置与角度**逐位相同**（如 rev: b1=(0,-5.083333,0) b2=(2,-5.083333,0)） | L4 | `build/probe_b2physics.exe <dll> joint dist|rev` | 已证 | T2.3 部分 |
 
 ## 影响对齐方案的硬约束
 

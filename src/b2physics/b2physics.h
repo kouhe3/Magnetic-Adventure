@@ -35,6 +35,23 @@ struct B2ShapeDefC {         // 形状描述公共头（F32 实测：+4 摩擦�
     float a, b, c, d;        // +20/+24 center 或 localPos；+28/+32 半宽高 或 radius / 顶点
 };
 
+// 关节工厂输入（F34：world/body1/body2 公共头）
+struct B2JointCommonC { b2World* world; b2Body* body1; b2Body* body2; };
+struct B2DistanceJointC : B2JointCommonC { B2Vec2C anchor1, anchor2; unsigned char collide; };
+struct B2RevoluteJointC : B2JointCommonC {
+    B2Vec2C anchor; unsigned char enableLimit; float lower, upper;
+    unsigned char enableMotor; float motorSpeed, maxMotorTorque; unsigned char collide;
+};
+struct B2PrismaticJointC : B2JointCommonC {
+    B2Vec2C anchor, axis; unsigned char enableLimit; float lower, upper;
+    unsigned char enableMotor; float motorSpeed, maxMotorForce; unsigned char collide;
+};
+struct B2GearJointC : B2JointCommonC { b2Joint* joint1; b2Joint* joint2; float ratio; };
+struct B2PulleyJointC : B2JointCommonC {
+    B2Vec2C groundAnchor1, groundAnchor2, localAnchor1, localAnchor2;
+    float length1, length2, ratio; unsigned char collide;
+};
+
 struct B2XFormC { float x, y, angle; };     // GetXForm 输出 / SetXForm 输入
 struct B2FilterC { unsigned short category, mask; short group; };
 struct B2MassDataC { float mass; float cx, cy; float I; };

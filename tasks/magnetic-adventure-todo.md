@@ -8,7 +8,7 @@
 - [x] T1.2 Lua 源码导出 + diff 依据：F04
 - [x] T1.3 资产索引 依据：F06、F08
 - [x] T2.1 b2Physics ABI 契约 依据：F07
-- [ ] T2.2 b2Physics C++ 实现 依据：F07
+- [x] T2.2 b2Physics C++ 实现 依据：F07
 - [ ] T2.3 物理差分 依据：F07
 - [ ] T2.4 Squall 行为契约 依据：F06
 - [ ] T2.5 Squall C++ 实现 依据：F06

@@ -27,7 +27,7 @@ target_include_directories(box2d PUBLIC
 # ---- b2Physics 兼容 DLL（导出清单见 src/b2physics/*.def）----
 add_library(b2physics SHARED
   src/b2physics/b2physics.cpp
-  src/b2physics/b2physics-partial.def)
+  src/b2physics/b2physics.def)
 target_include_directories(b2physics PRIVATE
   src/b2physics
   ${B2_ROOT}

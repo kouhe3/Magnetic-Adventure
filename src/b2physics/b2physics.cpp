@@ -350,3 +350,189 @@ B2API int b2_Shape_TestPoint(b2Shape* shape, const B2XFormC* xf, const float* p)
     f.R.Set(xf->angle);
     return shape->TestPoint(f, V(p)) ? 1 : 0;
 }
+
+// ---------------------------------------------------------------- Joints
+
+// 工厂：输入布局见 docs/facts.md F34
+B2API void* b2_World_Joint_Distance(const B2DistanceJointC* d) {
+    b2DistanceJointDef def;
+    def.Initialize(d->body1, d->body2, V(d->anchor1), V(d->anchor2));
+    def.collideConnected = d->collide != 0;
+    return d->world->CreateJoint(&def);
+}
+
+B2API void* b2_World_Joint_Revolute(const B2RevoluteJointC* d) {
+    b2RevoluteJointDef def;
+    def.Initialize(d->body1, d->body2, V(d->anchor));
+    def.enableLimit = d->enableLimit != 0;
+    def.lowerAngle = d->lower;
+    def.upperAngle = d->upper;
+    def.enableMotor = d->enableMotor != 0;
+    def.motorSpeed = d->motorSpeed;
+    def.maxMotorTorque = d->maxMotorTorque;
+    def.collideConnected = d->collide != 0;
+    return d->world->CreateJoint(&def);
+}
+
+B2API void* b2_World_Joint_Prismatic(const B2PrismaticJointC* d) {
+    b2PrismaticJointDef def;
+    def.Initialize(d->body1, d->body2, V(d->anchor), V(d->axis));
+    def.enableLimit = d->enableLimit != 0;
+    def.lowerTranslation = d->lower;
+    def.upperTranslation = d->upper;
+    def.enableMotor = d->enableMotor != 0;
+    def.motorSpeed = d->motorSpeed;
+    def.maxMotorForce = d->maxMotorForce;
+    def.collideConnected = d->collide != 0;
+    return d->world->CreateJoint(&def);
+}
+
+B2API void* b2_World_Joint_Gear(const B2GearJointC* d) {
+    b2GearJointDef def;
+    def.body1 = d->body1;
+    def.body2 = d->body2;
+    def.joint1 = d->joint1;
+    def.joint2 = d->joint2;
+    def.ratio = d->ratio;
+    def.collideConnected = false;
+    return d->world->CreateJoint(&def);
+}
+
+B2API void* b2_World_Joint_Pulley(const B2PulleyJointC* d) {
+    b2PulleyJointDef def;
+    def.Initialize(d->body1, d->body2, V(d->groundAnchor1), V(d->groundAnchor2),
+                   V(d->localAnchor1), V(d->localAnchor2), d->ratio);
+    def.collideConnected = d->collide != 0;
+    return d->world->CreateJoint(&def);
+}
+
+namespace {
+
+template <class T>
+T* As(b2Joint* j) {
+    return static_cast<T*>(j);
+}
+
+}  // namespace
+
+B2API void b2_Joint_EnableLimit(b2Joint* j, int enable) {
+    switch (j->m_type) {
+        case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableLimit(enable != 0); break;
+        case e_prismaticJoint: As<b2PrismaticJoint>(j)->EnableLimit(enable != 0); break;
+        default: break;
+    }
+}
+
+B2API void b2_Joint_EnableMotor(b2Joint* j, int enable) {
+    switch (j->m_type) {
+        case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableMotor(enable != 0); break;
+        case e_prismaticJoint: As<b2PrismaticJoint>(j)->EnableMotor(enable != 0); break;
+        default: break;
+    }
+}
+
+B2API void* b2_Joint_GetAnchor1(void* out, b2Joint* j) {
+    *(b2Vec2*)out = j->GetAnchor1();
+    return out;
+}
+
+B2API void* b2_Joint_GetAnchor2(void* out, b2Joint* j) {
+    *(b2Vec2*)out = j->GetAnchor2();
+    return out;
+}
+
+B2API void* b2_Joint_GetBody1(b2Joint* j) { return j->m_body1; }
+B2API void* b2_Joint_GetBody2(b2Joint* j) { return j->m_body2; }
+
+B2API float b2_Joint_GetJointAngle(b2Joint* j) {
+    if (j->m_type != e_revoluteJoint) return 0.0f;
+    return As<b2RevoluteJoint>(j)->GetJointAngle();
+}
+
+B2API float b2_Joint_GetJointTranslation(b2Joint* j) {
+    if (j->m_type != e_prismaticJoint) return 0.0f;
+    return As<b2PrismaticJoint>(j)->GetJointTranslation();
+}
+
+B2API int b2_Joint_GetJointType(b2Joint* j) {
+    switch (j->m_type) {
+        case e_revoluteJoint: return 0;
+        case e_prismaticJoint: return 1;
+        case e_distanceJoint: return 2;
+        case e_pulleyJoint: return 3;
+        case e_gearJoint: return 4;
+        default: return -1;
+    }
+}
+
+B2API void* b2_Joint_GetLimits(b2Joint* j, float* lower, float* upper) {
+    switch (j->m_type) {
+        case e_revoluteJoint:
+            *lower = As<b2RevoluteJoint>(j)->GetLowerLimit();
+            *upper = As<b2RevoluteJoint>(j)->GetUpperLimit();
+            break;
+        case e_prismaticJoint:
+            *lower = As<b2PrismaticJoint>(j)->GetLowerLimit();
+            *upper = As<b2PrismaticJoint>(j)->GetUpperLimit();
+            break;
+        default:
+            *lower = *upper = 0.0f;
+            break;
+    }
+    return j;
+}
+
+B2API float b2_Joint_GetMotorSpeed(b2Joint* j) {
+    switch (j->m_type) {
+        case e_revoluteJoint: return As<b2RevoluteJoint>(j)->GetMotorSpeed();
+        case e_prismaticJoint: return As<b2PrismaticJoint>(j)->GetMotorSpeed();
+        default: return 0.0f;
+    }
+}
+
+B2API void* b2_Joint_GetReactionImpulse(void* out, b2Joint* j) {
+    *(b2Vec2*)out = j->GetReactionForce(1.0f);
+    return out;
+}
+
+B2API float b2_Joint_GetReactionTorqImpulse(b2Joint* j) { return j->GetReactionTorque(1.0f); }
+
+B2API int b2_Joint_IsLimitEnabled(b2Joint* j) {
+    switch (j->m_type) {
+        case e_revoluteJoint: return As<b2RevoluteJoint>(j)->IsLimitEnabled() ? 1 : 0;
+        case e_prismaticJoint: return As<b2PrismaticJoint>(j)->IsLimitEnabled() ? 1 : 0;
+        default: return 0;
+    }
+}
+
+B2API int b2_Joint_IsMotorEnabled(b2Joint* j) {
+    switch (j->m_type) {
+        case e_revoluteJoint: return As<b2RevoluteJoint>(j)->IsMotorEnabled() ? 1 : 0;
+        case e_prismaticJoint: return As<b2PrismaticJoint>(j)->IsMotorEnabled() ? 1 : 0;
+        default: return 0;
+    }
+}
+
+B2API void b2_Joint_SetLimits(b2Joint* j, float lower, float upper) {
+    switch (j->m_type) {
+        case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetLimits(lower, upper); break;
+        case e_prismaticJoint: As<b2PrismaticJoint>(j)->SetLimits(lower, upper); break;
+        default: break;
+    }
+}
+
+B2API void b2_Joint_SetMaxMotorForce(b2Joint* j, float force) {
+    if (j->m_type == e_prismaticJoint) As<b2PrismaticJoint>(j)->SetMaxMotorForce(force);
+}
+
+B2API void b2_Joint_SetMaxMotorTorque(b2Joint* j, float torque) {
+    if (j->m_type == e_revoluteJoint) As<b2RevoluteJoint>(j)->SetMaxMotorTorque(torque);
+}
+
+B2API void b2_Joint_SetMotorSpeed(b2Joint* j, float speed) {
+    switch (j->m_type) {
+        case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetMotorSpeed(speed); break;
+        case e_prismaticJoint: As<b2PrismaticJoint>(j)->SetMotorSpeed(speed); break;
+        default: break;
+    }
+}

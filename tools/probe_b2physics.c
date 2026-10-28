@@ -83,6 +83,76 @@ int main(int argc, char** argv) {
     printf("t0 pos=(%.4f,%.4f) vel=(%.4f,%.4f) angle=%.4f sleeping=%d bullet=%d adamp=%.3f\n",
            p.x, p.y, v.x, v.y, ga(body), isl(body), isb(body), gad ? gad(body) : -1.0f);
 
+    if (argc > 2 && strcmp(argv[2], "joint") == 0 && argc > 3 && strcmp(argv[3], "dist") == 0) {
+        // 两个 body + distance joint，重力下摆 60 步
+        d.b12 = 1;
+        void* b1 = cb(&d);
+        void* b2 = cb(&d);
+        typedef void* (*fnSetXForm)(void* body, const void* xf);
+        fnSetXForm sx = (fnSetXForm)sym(m, "b2_Body_SetXForm");
+        // 给两个 body 加 0.4x0.4 方块并算质量，使关节真正受力
+        { typedef void* (*fnCS)(const void*); fnCS cs = (fnCS)sym(m, "b2_Body_CreateShape_Box");
+          typedef void (*fnMS)(void*); fnMS ms = (fnMS)sym(m, "b2_Body_SetMassFromShapes");
+          struct { void* body; float friction, restitution, density; unsigned char sensor;
+                   float cx, cy, hw, hh; } sd;
+          memset(&sd, 0, sizeof(sd));
+          sd.friction = 0.3f; sd.density = 1.0f; sd.hw = 0.2f; sd.hh = 0.2f;
+          sd.body = b1; cs(&sd); ms(b1);
+          sd.body = b2; cs(&sd); ms(b2); }
+        struct { float x, y, a; } xf = {2.0f, 0.0f, 0.0f};
+        sx(b2, &xf);
+        struct { void* world; void* b1; void* b2; Vec2 a1, a2; unsigned char collide; } jd;
+        memset(&jd, 0, sizeof(jd));
+        jd.world = w; jd.b1 = b1; jd.b2 = b2; jd.a1.x = 0; jd.a1.y = 0; jd.a2.x = 2; jd.a2.y = 0;
+        typedef void* (*fnDist)(const void*);
+        fnDist jf = (fnDist)sym(m, "b2_World_Joint_Distance");
+        void* j = jf ? jf(&jd) : 0;
+        printf("dist joint=%p\n", j);
+        fnStep st = (fnStep)sym(m, "b2_World_Step");
+        for (int i = 0; i < 60; ++i) st(w, 1.0f / 60.0f, 10, 10);
+        Vec2 p1 = {0, 0}, p2 = {0, 0};
+        fnGetPosition g = (fnGetPosition)sym(m, "b2_Body_GetPosition");
+        g(&p1, b1); g(&p2, b2);
+        printf("dist t60 b1=(%.6f,%.6f) b2=(%.6f,%.6f)\n", p1.x, p1.y, p2.x, p2.y);
+        return 0;
+    }
+
+    if (argc > 2 && strcmp(argv[2], "joint") == 0 && argc > 3 && strcmp(argv[3], "rev") == 0) {
+        d.b12 = 1;
+        void* b1 = cb(&d);
+        void* b2 = cb(&d);
+        typedef void* (*fnSetXForm2)(void* body, const void* xf);
+        fnSetXForm2 sx = (fnSetXForm2)sym(m, "b2_Body_SetXForm");
+        struct { float x, y, a; } xf = {0.0f, 0.0f, 0.0f};
+        sx(b1, &xf);
+        xf.x = 2.0f; sx(b2, &xf);
+        { typedef void* (*fnCS)(const void*); fnCS cs = (fnCS)sym(m, "b2_Body_CreateShape_Box");
+          typedef void (*fnMS)(void*); fnMS ms = (fnMS)sym(m, "b2_Body_SetMassFromShapes");
+          struct { void* body; float friction, restitution, density; unsigned char sensor;
+                   float cx, cy, hw, hh; } sd;
+          memset(&sd, 0, sizeof(sd));
+          sd.friction = 0.3f; sd.density = 1.0f; sd.hw = 0.2f; sd.hh = 0.2f;
+          sd.body = b1; cs(&sd); ms(b1);
+          sd.body = b2; cs(&sd); ms(b2); }
+        struct { void* world; void* b1; void* b2; Vec2 anchor; unsigned char enableLimit;
+                 float lower, upper; unsigned char enableMotor; float motorSpeed, maxTorque;
+                 unsigned char collide; } jd;
+        memset(&jd, 0, sizeof(jd));
+        jd.world = w; jd.b1 = b1; jd.b2 = b2;
+        typedef void* (*fnRev)(const void*);
+        fnRev jf = (fnRev)sym(m, "b2_World_Joint_Revolute");
+        void* j = jf ? jf(&jd) : 0;
+        printf("rev joint=%p\n", j);
+        fnStep st = (fnStep)sym(m, "b2_World_Step");
+        for (int i = 0; i < 60; ++i) st(w, 1.0f / 60.0f, 10, 10);
+        Vec2 p1 = {0, 0}, p2 = {0, 0};
+        fnGetPosition g = (fnGetPosition)sym(m, "b2_Body_GetPosition");
+        fnGetAngle ga2 = (fnGetAngle)sym(m, "b2_Body_GetAngle");
+        g(&p1, b1); g(&p2, b2);
+        printf("rev t60 b1=(%.6f,%.6f,%.4f) b2=(%.6f,%.6f,%.4f)\n", p1.x, p1.y, ga2(b1), p2.x, p2.y, ga2(b2));
+        return 0;
+    }
+
     if (argc > 2 && strcmp(argv[2], "sdef") == 0) {
         int idx = argc > 3 ? atoi(argv[3]) : 0;
         struct { void* body; float f[8]; } sd;
