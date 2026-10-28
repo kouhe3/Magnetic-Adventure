@@ -14,11 +14,6 @@ endif()
 set(B2_ROOT ${CMAKE_SOURCE_DIR}/vendor/box2d-2.0.2/Box2D)
 file(GLOB_RECURSE B2_SOURCES CONFIGURE_DEPENDS ${B2_ROOT}/*.cpp)
 add_library(box2d STATIC ${B2_SOURCES})
-# 原 DLL 是 2008 年前后的 MSVC 构建，x86 默认走 x87（/arch:IA32)；我们用默认 SSE2
-# 会带来 1e-5 级的浮点抖动（重放逐步比对里能看到）。对齐到 IA32 再验一次。
-if(MSVC)
-  target_compile_options(box2d PRIVATE /arch:IA32)
-endif()
 set_target_properties(box2d PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_include_directories(box2d PUBLIC
   ${B2_ROOT}
@@ -46,9 +41,6 @@ target_include_directories(b2physics PRIVATE
   ${B2_ROOT}/Dynamics/Controllers)
 target_link_libraries(b2physics PRIVATE box2d)
 target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
-if(MSVC)
-  target_compile_options(b2physics PRIVATE /arch:IA32)
-endif()
 target_link_options(b2physics PRIVATE "/MAP")
 set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

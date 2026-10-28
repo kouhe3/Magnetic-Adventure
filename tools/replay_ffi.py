@@ -15,6 +15,7 @@
 退出码 0 = 无差异；1 = 有差异；-1 = 中途异常/崩溃。
 """
 import argparse
+import json
 import ctypes
 import os
 import pathlib
@@ -332,13 +333,14 @@ def main():
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--quiet', action='store_true')
     ap.add_argument('--ignore', default='b2_World_SetContactListenerCallBack,b2_World_SetContactFilterCallBack')
+    ap.add_argument('--json', action='store_true', help='输出一行 JSON 供 gate.py 解析')
     a = ap.parse_args()
     ffi.load_names()
     protos = parse_protos()
     missing = [n for n in ffi.NAMES[1:] if n not in protos]
     if missing:
         print(f'missing protos ({len(missing)}): {missing[:6]}')
-    r = Replayer(a.dll, protos, a.quiet)
+    r = Replayer(a.dll, protos, a.quiet or a.json)
     print(f'dll={a.dll}\nprotos={len(protos)} log={a.log}')
     rc = r.run(a.log, a.start, a.max, set(a.ignore.split(',')))
     print(f'calls replayed={r.n} skipped={sum(r.skipped.values())} '
@@ -346,6 +348,18 @@ def main():
     if r.skipped:
         top = sorted(r.skipped.items(), key=lambda kv: -kv[1])[:8]
         print('skipped top:', ', '.join(f'{k}={v}' for k, v in top))
+    if a.json:
+        print(json.dumps({
+            'ok': True,
+            'calls': r.n,
+            'steps': r.stats['steps'],
+            'bodies': r.stats['bodies'],
+            'bodies_bad': r.stats['bodies_bad'],
+            'mismatches': len(r.mismatches),
+            'first_digest': r.first_digest,
+            'step_bad': r.step_bad,
+        }, ensure_ascii=False))
+        return 0
     print(f'steps={r.stats["steps"]} bodies={r.stats["bodies"]} '
           f'bodies_bad={r.stats["bodies_bad"]} digest_bad={r.stats["digest_bad"]}')
     if r.step_bad:
