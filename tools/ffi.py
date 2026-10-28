@@ -3,6 +3,7 @@
 日志 = 20 字节头 + 交替的记录：
   kind=0 PreRec  (344B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
   kind=1 PostRec ( 80B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
+  kind=2 摘要：u32 kind,seq,count,reserved + count×52B{ptr,flags,7×state,mass,invMass,I,invI}
 
 用法:
   python tools/ffi.py stats  <log>
@@ -53,6 +54,19 @@ def records(path):
                 if len(rest) < POST.size - 4:
                     return
                 yield ('post', POST.unpack(b + rest))
+            elif kind == 2:
+                rest = f.read(12)          # seq, count, reserved
+                if len(rest) < 12:
+                    return
+                seq, count, _ = struct.unpack('<III', rest)
+                bodies = []
+                if count:
+                    raw = f.read(52 * count)
+                    if len(raw) < 52 * count:
+                        return
+                    for i in range(count):
+                        bodies.append(struct.unpack_from('<II11f', raw, i * 52))
+                yield ('digest', (seq, bodies))
             else:
                 raise SystemExit(f'bad kind {kind} at {f.tell()}')
 
@@ -92,9 +106,13 @@ def main():
     picked = []
     pending = None   # 最近一条匹配 want 的 pre，等待其 post
 
+    digests = 0
     for kind, v in records(path):
         if kind == 'hdr':
             hdr = v
+            continue
+        if kind == 'digest':
+            digests += 1
             continue
         if kind == 'post':
             rid, retval = v[1], v[2]
@@ -117,7 +135,8 @@ def main():
     pid, game, orig = hdr
 
     if cmd == 'stats':
-        print(f'pid={pid} game={game:#010x} orig={orig:#010x} calls={sum(counts.values())} rets={sum(posts.values())}')
+        print(f'pid={pid} game={game:#010x} orig={orig:#010x} calls={sum(counts.values())} '
+              f'rets={sum(posts.values())} digests={digests}')
         for name, c in sorted(counts.items(), key=lambda kv: -kv[1]):
             print(f'{c:9d}  {name}')
         return

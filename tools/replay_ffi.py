@@ -75,7 +75,11 @@ class Replayer:
         self.mismatches = []
         self.skipped = {}
         self.n = 0
-        self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0}
+        self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0,
+                      'steps': 0, 'bodies': 0, 'digest_bad': 0, 'bodies_bad': 0}
+        self.first_digest = None
+        self.step_bad = {}
+        self.last_step_ok = False
         self.call_mem = {}
 
     def fnb(self, name, restype):
@@ -153,10 +157,73 @@ class Replayer:
             self.note(n, name, 'out', f'+{off:#x} got={a:#010x} want={b:#010x}')
             return
 
+    # --- post-Step 状态比对 ---
+    def check_digest(self, seq, bodies):
+        if not bodies:
+            return
+        self.stats['steps'] += 1
+        self.stats['bodies'] += len(bodies)
+        for rec in bodies:
+            bad = False
+            ptr, flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia = rec
+            ours = self.ptrmap.get(ptr)
+            if not ours:
+                self.note_digest(seq, ptr, 'body', 'missing', ptr)
+                self.stats['bodies_bad'] = self.stats.get('bodies_bad', 0) + 1
+                continue
+            try:
+                f = ctypes.c_float.from_address
+                i16 = ctypes.c_uint16.from_address
+                got = (i16(ours).value, f(ours + 148).value, f(ours + 68).value,
+                       f(ours + 72).value, f(ours + 76).value, f(ours + 8).value,
+                       f(ours + 12).value, f(ours + 60).value,
+                       f(ours + 124).value, f(ours + 128).value,
+                       f(ours + 132).value, f(ours + 136).value)
+            except Exception as ex:  # noqa: BLE001
+                self.note_digest(seq, ptr, 'read', str(ex), 0)
+                self.stats['bodies_bad'] = self.stats.get('bodies_bad', 0) + 1
+                continue
+            want = (flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia)
+            names = ('flags', 'sleepTime', 'vx', 'vy', 'w', 'px', 'py', 'angle',
+                     'mass', 'invMass', 'I', 'invI')
+            for n, a, b in zip(names, got, want):
+                if n == 'flags':
+                    if int(a) != int(b):
+                        self.note_digest(seq, ptr, n, f'{a} -> {b}', 1,
+                                         f'{px:.3f},{py:.3f}')
+                        bad = True
+                        break
+                else:
+                    tol = {'sleepTime': 1e-3, 'vx': 1e-4, 'vy': 1e-4, 'w': 1e-4,
+                           'px': 1e-5, 'py': 1e-5, 'angle': 1e-5,
+                           'mass': 1e-4, 'invMass': 1e-4, 'I': 1e-4, 'invI': 1e-4}.get(n, 1e-5)
+                    if a == b or abs(a - b) <= tol:
+                        continue
+                    self.note_digest(seq, ptr, n, f'{a:.7g} -> {b:.7g}', 2,
+                                     f'{px:.3f},{py:.3f}')
+                    bad = True
+                    break
+            if bad:
+                self.stats['bodies_bad'] += 1
+
+    def note_digest(self, seq, body, field, detail, kind, where=''):
+        self.stats['digest_bad'] += 1
+        self.step_bad[seq] = self.step_bad.get(seq, 0) + 1
+        if os.environ.get('DIGEST_ALL') or (self.first_digest is None and not self.quiet):
+            print(f'  DIGEST step {seq} body {body:#x} @({where}) {field}: {detail}')
+        if self.first_digest is None:
+            self.first_digest = {'step': seq, 'body': f'{body:#x}', 'field': field,
+                                 'detail': detail, 'kind': kind}
+
     def run(self, log, start, maxcalls, ignore):
         pending = None
         for kind, v in ffi.records(log):
             if kind == 'hdr':
+                continue
+            if kind == 'digest':
+                if os.environ.get('DIGEST_DEBUG') and self.stats['steps'] < 3:
+                    print(f'  [dbg] digest seq={v[0]} bodies={len(v[1])} last_step_ok={self.last_step_ok}')
+                self.check_digest(v[0], v[1])
                 continue
             if kind == 'post':
                 if pending:
@@ -235,6 +302,7 @@ class Replayer:
                 PROGRESS.write_text(f'{self.n} {name}', encoding='utf-8')
             if self.n <= int(__import__('os').environ.get('TRACE_FIRST', '0')):
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
+            self.last_step_ok = name == 'b2_World_Step'
             got = f(*call_args)
             dbg = os.environ.get('DD_N')
             if dbg and self.n == int(dbg) and name.startswith('b2_Body_'):
@@ -271,6 +339,12 @@ def main():
     if r.skipped:
         top = sorted(r.skipped.items(), key=lambda kv: -kv[1])[:8]
         print('skipped top:', ', '.join(f'{k}={v}' for k, v in top))
+    print(f'steps={r.stats["steps"]} bodies={r.stats["bodies"]} '
+          f'bodies_bad={r.stats["bodies_bad"]} digest_bad={r.stats["digest_bad"]}')
+    if r.step_bad:
+        print('bad per step (first 8):', dict(sorted(r.step_bad.items())[:8]))
+    if r.first_digest:
+        print(f'first digest divergence: {r.first_digest}')
     print(f'mismatches={len(r.mismatches)}')
     if r.mismatches:
         print(f'first: {r.mismatches[0]}')

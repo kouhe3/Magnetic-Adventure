@@ -43,6 +43,15 @@ extern const int g_n_exports;
 extern const char* const g_names[];
 extern FARPROC g_slot[];
 
+/* post-Step 状态摘要：代理自己记下 CreateBody 返回的 body，每步 dump 一次状态。
+ * 字段偏移见 docs/facts.md F26（flags+0, pos+8/+12, sweep.a+60, lv+68/+72, av+76, sleepTime+148）。 */
+#define MAX_BODIES 512
+static void* g_bodies[MAX_BODIES];
+static int g_nbodies = 0;
+static uint32_t g_id_step = 0;
+static uint32_t g_id_create_body = 0;
+static long g_step_no = 0;
+
 static HANDLE g_file = INVALID_HANDLE_VALUE;
 static HMODULE g_orig = 0;
 static volatile LONG g_count = 0;
@@ -108,6 +117,53 @@ void __cdecl save_ret(unsigned id, uint32_t orig_ret) {
     }
 }
 
+static void NoteBody(void* body) {
+    int i;
+    if (!body) return;
+    for (i = 0; i < g_nbodies; ++i)
+        if (g_bodies[i] == body) return;
+    if (g_nbodies < MAX_BODIES) g_bodies[g_nbodies++] = body;
+}
+
+typedef struct { uint32_t kind, seq, count, reserved; } DigestHdr;
+typedef struct {
+    uint32_t ptr, flags;
+    float sleepTime, vx, vy, w, px, py, angle;
+    float mass, invMass, I, invI;
+} BodyDigest;
+
+static void DumpStepDigest(void) {
+    BodyDigest buf[MAX_BODIES];
+    DigestHdr hdr;
+    int i, n = 0;
+    DWORD written = 0;
+    if (g_file == INVALID_HANDLE_VALUE) return;
+    for (i = 0; i < g_nbodies; ++i) {
+        char* b = (char*)g_bodies[i];
+        if (IsBadReadPtr(b, 152)) continue;
+        buf[n].ptr = (uint32_t)(uintptr_t)b;
+        buf[n].flags = *(unsigned short*)(b + 0);
+        buf[n].sleepTime = *(float*)(b + 148);
+        buf[n].vx = *(float*)(b + 68);
+        buf[n].vy = *(float*)(b + 72);
+        buf[n].w = *(float*)(b + 76);
+        buf[n].px = *(float*)(b + 8);
+        buf[n].py = *(float*)(b + 12);
+        buf[n].angle = *(float*)(b + 60);
+        buf[n].mass = *(float*)(b + 124);
+        buf[n].invMass = *(float*)(b + 128);
+        buf[n].I = *(float*)(b + 132);
+        buf[n].invI = *(float*)(b + 136);
+        ++n;
+    }
+    hdr.kind = 2;
+    hdr.seq = (uint32_t)++g_step_no;
+    hdr.count = (uint32_t)n;
+    hdr.reserved = 0;
+    WriteFile(g_file, &hdr, sizeof hdr, &written, NULL);
+    if (n) WriteFile(g_file, buf, (DWORD)(n * sizeof(BodyDigest)), &written, NULL);
+}
+
 /* 原 DLL 返回后：取出原返回地址，记录返回值 + 出参内存，返回原返回地址给桩去 jmp */
 uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     uint32_t orig_ret = 0;
@@ -117,6 +173,8 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         g_pdepth = d;
     }
     g_lastret = retval;
+    if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
+    else if (id == g_id_step) DumpStepDigest();
     if (g_file != INVALID_HANDLE_VALUE && !g_in) {
         PostRec r;
         DWORD written = 0;
@@ -169,6 +227,10 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             g_orig = LoadLibraryA(orig);
         }
 
+        for (i = 0; i < g_n_exports; ++i) {
+            if (g_names[i] && !strcmp(g_names[i], "b2_World_Step")) g_id_step = (uint32_t)i;
+            if (g_names[i] && !strcmp(g_names[i], "b2_World_CreateBody")) g_id_create_body = (uint32_t)i;
+        }
         n = GetEnvironmentVariableA("B2PROXY_LOG", log, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(log, self, "b2ffi.log");
         g_file = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ, NULL,
