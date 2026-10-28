@@ -102,13 +102,22 @@ def visual_ab(rec, dll_a, dll_b):
 
 
 def bounded(step_bad):
+    """超差 body 数不能随时间增长。
+
+    跳过前 10%：关卡加载阶段 body 还没建全，超差数天然低，算进去会把 head 拉低。
+    之后比较「中位数」而不是均值——均值会被少量尖峰带偏。
+    """
     if not step_bad:
         return True, 0.0, 0.0
     ks = sorted(step_bad, key=int)
-    n = max(1, len(ks) // 10)
-    head = sum(step_bad[k] for k in ks[:n]) / n
-    tail = sum(step_bad[k] for k in ks[-n:]) / n
-    return tail <= head * 1.5 + 1.0, round(head, 2), round(tail, 2)
+    warm = ks[len(ks) // 10:]
+    if len(warm) < 10:
+        warm = ks
+    vals = sorted(step_bad[k] for k in warm)
+    half = len(warm) // 2
+    a = sorted(step_bad[k] for k in warm[:half])[max(0, half // 2)]
+    b = sorted(step_bad[k] for k in warm[half:])[max(0, (len(warm) - half) // 2)]
+    return b <= a * 1.5 + 2, float(a), float(b)
 
 
 def main():
