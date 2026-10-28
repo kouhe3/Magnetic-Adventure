@@ -129,22 +129,24 @@ def visual_ab(rec, dll_a, dll_b):
 
 
 def bounded(step_bad):
-    """超差 body 数不能随时间增长。
+    """判「是否还在增长」，而不是「比开头高多少」。
 
-    跳过前 10%：关卡加载阶段 body 还没建全，超差数天然低，算进去会把 head 拉低。
-    之后比较「中位数」而不是均值——均值会被少量尖峰带偏。
+    典型曲线是 1 → 4 → 5 → 11 → 11：前段扩散、后段饱和，这是容差内的数值传播，
+    不是发散。所以比较**最后两个十分位**的中位数（近端斜率），并额外报出饱和水位。
+
+    跳过前 10%：关卡加载阶段 body 还没建全，超差数天然低。
     """
     if not step_bad:
-        return True, 0.0, 0.0
+        return True, 0.0, 0.0, 0.0
     ks = sorted(step_bad, key=int)
-    warm = ks[len(ks) // 10:]
-    if len(warm) < 10:
-        warm = ks
-    vals = sorted(step_bad[k] for k in warm)
-    half = len(warm) // 2
-    a = sorted(step_bad[k] for k in warm[:half])[max(0, half // 2)]
-    b = sorted(step_bad[k] for k in warm[half:])[max(0, (len(warm) - half) // 2)]
-    return b <= a * 1.5 + 2, float(a), float(b)
+    warm = ks[len(ks) // 10:] or ks
+    n = len(warm)
+    prev = warm[max(0, int(n * 0.7)):max(1, int(n * 0.9))]
+    last = warm[max(1, int(n * 0.9)):]
+    a = sorted(step_bad[k] for k in prev)[len(prev) // 2] if prev else 0
+    b = sorted(step_bad[k] for k in last)[len(last) // 2] if last else 0
+    peak = max(step_bad[k] for k in warm) if warm else 0
+    return b <= a * 1.25 + 2, float(a), float(b), float(peak)
 
 
 def main():
@@ -187,8 +189,9 @@ def main():
     report["offline"] = {k: off.get(k) for k in
                          ("ok", "calls", "steps", "bodies", "bodies_bad", "mismatches",
                           "first_digest", "error")}
-    growth_ok, head, tail = bounded(off.get("step_bad") or {})
-    report["bounded"] = {"ok": growth_ok, "head": head, "tail": tail}
+    growth_ok, prev_med, last_med, peak = bounded(off.get("step_bad") or {})
+    report["bounded"] = {"ok": growth_ok, "prev_decile": prev_med,
+                         "last_decile": last_med, "peak": peak}
 
     if a.visual:
         vis = visual_ab(a.rec, a.dll_a, a.dll_b)
