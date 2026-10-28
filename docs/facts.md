@@ -68,6 +68,7 @@
 | F49 | `b2_Body_SetXForm` 必须转调 `b2Body::SetXForm(pos, angle)`：原 DLL `0x10003560` 除 m_xf/m_sweep 外还重算 `sweep.c = pos + R*localCenter`、`c0/a0`，并同步 broadphase proxy 后 `Commit`，越界时置 frozen 并销毁 proxy。手写字段会漏掉这些——离线重放的首条出参漂移就是它暴露的 | L2-A | 反编译 `0x10001A40`/`0x10003560` + `tools/replay_ffi.py` | 已验证 | 行为对齐 |
 | F50 | **A/B 重放基线**：同一条 827 事件的录制，分别在 GameTop 原版与替换 DLL 下重放（`tools/ab.py`，各起一次游戏），逐次点击画面对录制参照帧做归一化互相关：原版 mean 0.918 / min 0.833，替换 mean 0.913 / min 0.771；除第 8 次（关卡切换瞬态）外**单点差 ≤0.005**。说明在该关该流程上替换 DLL 的画面行为与原版一致到重放噪声级别 | L4 | `tools/ab.py`、`work/ab_result.json` | 已验证 | 行为对齐回归基线 |
 | F51 | **post-Step 状态摘要**：代理每步 dump 45 个 body 的 `flags/sleepTime/速度/位置/角度/质量/惯量`（52B/body），离线重放逐步比对。结果：从**第 1 步**起就有约 14/45 个 body 超出容差（速度 1e-4、位置 1e-5、质量 1e-4），但差值**有界不增长**；`/arch:IA32`（x87）与 SSE2 结果几乎相同（5.748836 vs 5.748835），排除浮点模式；质量/惯量逐位一致，排除形状几何错误。**结论：#1165 的 `0 vs 1.6e-5` 速度差属于休眠阈值噪声，不是结构性错误** | L4 | `src/proxydll/proxy_core.c`（digest）、`tools/replay_ffi.py`、`work/ffi_dig2.bin` | 已验证 | 行为对齐判据 |
+| F52 | **Mail 关 FFI 抓包 + 离线重放**：Play→Map→信件关整段 653,033 次调用 / 2,846 步 / 280 MB；离线重放 653k 调用全部执行、无崩溃；逐步状态比对 71,150 个 body-state，24,804 个超差（容差 速度 1e-4、位置 1e-5），第 1 步即出现，每步超差数 2→9 后**平台化不增长**。Step 参数扫描：vi/pi=20/20（抓包值）24804 最优 / 10-10=25672 / 8-8=27244 / 10-3=26794 / 8-3=25690 → 原版包装层**原样转发**迭代次数，差异不来自 Step 参数 | L4 | `work/ffi_mail.bin`、`tools/replay_ffi.py` | 已验证 | 关卡级行为比对 |
 
 ## 影响对齐方案的硬约束
 

@@ -277,6 +277,13 @@ class Replayer:
             ret_t, params = self.protos[name]
             self.call_mem = {}
             call_args = []
+            if name == 'b2_World_Step':
+                _vi = os.environ.get('B2_STEP_VI')
+                _pi = os.environ.get('B2_STEP_PI')
+                if _vi:
+                    args = list(args); args[2] = int(_vi)
+                if _pi:
+                    args = list(args); args[3] = int(_pi)
             ok = True
             buf0 = None
             for i in range(len(params)):
@@ -342,7 +349,10 @@ def main():
     print(f'steps={r.stats["steps"]} bodies={r.stats["bodies"]} '
           f'bodies_bad={r.stats["bodies_bad"]} digest_bad={r.stats["digest_bad"]}')
     if r.step_bad:
-        print('bad per step (first 8):', dict(sorted(r.step_bad.items())[:8]))
+        ks = sorted(r.step_bad)
+        pick = [ks[0], ks[len(ks)//4], ks[len(ks)//2], ks[3*len(ks)//4], ks[-1]]
+        print('bad per step (head/mid/tail):', {k: r.step_bad[k] for k in dict.fromkeys(pick)},
+              'max', max(r.step_bad.values()))
     if r.first_digest:
         print(f'first digest divergence: {r.first_digest}')
     print(f'mismatches={len(r.mismatches)}')
