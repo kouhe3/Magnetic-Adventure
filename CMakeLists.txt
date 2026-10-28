@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(MagneticAdventureCpp LANGUAGES CXX)
+project(MagneticAdventureCpp LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,4 +43,16 @@ target_link_libraries(b2physics PRIVATE box2d)
 target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
 target_link_options(b2physics PRIVATE "/MAP")
 set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- 转发 DLL（proxy）：占住 b2Physics.dll 文件名，加载 b2Physics_orig.dll，
+#      记录每次导出的实参 + 指针内存，然后把调用原样尾跳给原 DLL。
+#      依据：docs/facts.md F34/F38；生成器 tools/gen_proxy.py。
+add_library(b2physics_proxy SHARED
+  src/proxydll/proxy_core.c
+  src/proxydll/proxy_stubs.c
+  src/proxydll/proxy.def)
+target_link_options(b2physics_proxy PRIVATE /MAP)
+set_target_properties(b2physics_proxy PROPERTIES OUTPUT_NAME b2Physics
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
