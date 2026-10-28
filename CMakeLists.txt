@@ -4,7 +4,7 @@ project(MagneticAdventureCpp LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(MSVC)
-  add_compile_options(/W3 /MP /EHsc)
+  add_compile_options(/W3 /MP /EHsc /utf-8)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
@@ -23,3 +23,21 @@ target_include_directories(box2d PUBLIC
   ${B2_ROOT}/Dynamics/Contacts
   ${B2_ROOT}/Dynamics/Joints
   ${B2_ROOT}/Dynamics/Controllers)
+
+# ---- b2Physics 兼容 DLL（导出清单见 src/b2physics/*.def）----
+add_library(b2physics SHARED
+  src/b2physics/b2physics.cpp
+  src/b2physics/b2physics-partial.def)
+target_include_directories(b2physics PRIVATE
+  src/b2physics
+  ${B2_ROOT}
+  ${B2_ROOT}/Common
+  ${B2_ROOT}/Collision
+  ${B2_ROOT}/Collision/Shapes
+  ${B2_ROOT}/Dynamics
+  ${B2_ROOT}/Dynamics/Contacts
+  ${B2_ROOT}/Dynamics/Joints
+  ${B2_ROOT}/Dynamics/Controllers)
+target_link_libraries(b2physics PRIVATE box2d)
+target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
+set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics)

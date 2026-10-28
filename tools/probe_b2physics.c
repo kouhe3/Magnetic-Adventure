@@ -34,11 +34,11 @@ int main(int argc, char** argv) {
     if (!m) { printf("LoadLibrary failed %lu\n", GetLastError()); return 3; }
 
     Vec2 g = {0.0f, -10.0f};
-    void* ctx = 0;
+    struct { Vec2 lo, hi; } aabb = {{-100.0f, -100.0f}, {100.0f, 100.0f}};
     fnCreateWorld cw = (fnCreateWorld)sym(m, "b2_CreateWorld");
     if (!cw) return 4;
-    void* w = cw(&ctx, &g);
-    printf("world=%p ctx=%p\n", w, ctx);
+    void* w = cw(&aabb, &g);
+    printf("world=%p\n", w);
     if (!w) return 5;
 
     // 宿主实测的 body def 形状: { b2World* world; float f4, f8; u8 b12, b13, b14; }
@@ -82,6 +82,30 @@ int main(int argc, char** argv) {
     fnGetAngularDamping gad = (fnGetAngularDamping)sym(m, "b2_Body_GetAngularDamping");
     printf("t0 pos=(%.4f,%.4f) vel=(%.4f,%.4f) angle=%.4f sleeping=%d bullet=%d adamp=%.3f\n",
            p.x, p.y, v.x, v.y, ga(body), isl(body), isb(body), gad ? gad(body) : -1.0f);
+
+    if (argc > 2 && strcmp(argv[2], "box") == 0) {
+        // 建体 + 0.5x0.5 方块 + 重力步进，用于与原 DLL 差分
+        d.f4 = 0; d.f8 = 0; d.b12 = 1; d.b13 = 0; d.b14 = 0;
+        void* b2 = cb(&d);
+        struct { void* body; float density, friction, restitution; unsigned char sensor;
+                 float cx, cy, hw, hh; } sd;
+        memset(&sd, 0, sizeof(sd));
+        sd.body = b2; sd.density = 1.0f; sd.friction = 0.3f; sd.hw = 0.5f; sd.hh = 0.5f;
+        fnCreateShapeBox cs = (fnCreateShapeBox)sym(m, "b2_Body_CreateShape_Box");
+        void* sh = cs ? cs(&sd) : 0;
+        fnSetMassFromShapes ms = (fnSetMassFromShapes)sym(m, "b2_Body_SetMassFromShapes");
+        if (ms) ms(b2);
+        printf("box shape=%p\n", sh);
+        fnStep st = (fnStep)sym(m, "b2_World_Step");
+        for (int i = 0; i < 60; ++i) st(w, 1.0f / 60.0f, 10, 10);
+        Vec2 p2 = {0, 0}, v2 = {0, 0};
+        fnGetPosition gpx = (fnGetPosition)sym(m, "b2_Body_GetPosition");
+        fnGetVelocity gvx = (fnGetVelocity)sym(m, "b2_Body_GetVelocity");
+        fnGetAngle gax = (fnGetAngle)sym(m, "b2_Body_GetAngle");
+        gpx(&p2, b2); gvx(&v2, b2);
+        printf("box t60 pos=(%.6f,%.6f) vel=(%.6f,%.6f) angle=%.6f\n", p2.x, p2.y, v2.x, v2.y, gax(b2));
+        return 0;
+    }
 
     if (argc > 2 && strcmp(argv[2], "torque") == 0) {
         int b13 = argc > 3 ? atoi(argv[3]) : 0;
