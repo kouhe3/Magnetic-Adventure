@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import queue
 import threading
 import time
 
@@ -95,6 +96,15 @@ class Session:
         self.thread = None
         self.hooks = []
         self.on_update = None
+        self.q = queue.Queue()          # 事件 → 写盘线程
+        self.shotq = queue.Queue()      # 截图请求 → 截图线程
+        self.record_idle_moves = False  # 默认不记空闲移动（只有按住拖拽才记轨迹）
+        self.drag = 0
+        self.move_hz = 62               # 拖拽轨迹采样上限（16ms）
+        self.writer = threading.Thread(target=self._write_loop, daemon=True)
+        self.shotter = threading.Thread(target=self._shot_loop, daemon=True)
+        self.writer.start()
+        self.shotter.start()
 
     # --- 录制 ---
     def begin(self, pid):
@@ -111,46 +121,71 @@ class Session:
                        nx=round((x - l) / max(1, w), 4),
                        ny=round((y - t) / max(1, h), 4))
         row.update(kw)
-        with self.lock:
-            self.jsonl.write(json.dumps(row, ensure_ascii=False) + "\n")
-            self.jsonl.flush()
-            self.events += 1
+        self.q.put(row)            # 钩子回调里只入队，I/O 交给写盘线程
+        self.events += 1
         if self.on_update:
             self.on_update()
 
+    def _write_loop(self):
+        while True:
+            row = self.q.get()
+            if row is None:
+                break
+            batch = [row]
+            while len(batch) < 256:
+                try:
+                    nxt = self.q.get_nowait()
+                except queue.Empty:
+                    break
+                if nxt is None:
+                    self.q.put(None)
+                    break
+                batch.append(nxt)
+            with self.lock:
+                self.jsonl.write(''.join(json.dumps(r, ensure_ascii=False) + "\n" for r in batch))
+                self.jsonl.flush()
+
+    def _shot_loop(self):
+        while True:
+            item = self.shotq.get()
+            if item is None:
+                break
+            path, rect = item
+            try:
+                rec.grab_screen(rect, path)
+            except Exception:
+                pass
+
     def _shot(self, tag):
-        if not self.hwnd:
-            self.hwnd, self.rect = find_window(self.pid)
-            if not self.hwnd:
-                return None
+        """只预生成文件名并丢给截图线程：GL 窗口抓屏 + PNG 编码都不能占着钩子。"""
         name = os.path.join(self.shots, f"click_{self.clicks:04d}_{tag}.png")
-        # GL 窗口用 GetDC(hwnd)+BitBlt 会得到黑底；抓屏幕矩形才是所见即所得
         _, rect = find_window(self.pid)
         if rect:
             self.rect = rect
-        try:
-            if rec.grab_screen(rect or self.rect, name):
-                return name
-        except Exception:
-            pass
-        return None
+        self.shotq.put((name, rect or self.rect))
+        return name
 
     def _mouse(self, code, wparam, lparam):
         if code >= 0:
             ms = ctypes.cast(lparam, ctypes.POINTER(rec.MSLLHOOKSTRUCT)).contents
             x, y = ms.pt.x, ms.pt.y
             if wparam == WM_MOUSEMOVE:
+                if not (self.record_idle_moves or self.drag):
+                    return u.CallNextHookEx(None, code, wparam, lparam)
                 now = time.time()
-                if now - self.last_move >= 0.02:
+                step = 1.0 / max(1, self.move_hz)
+                if now - self.last_move >= step:
                     self.last_move = now
-                    self._emit("move", x, y)
+                    self._emit("move", x, y, drag=bool(self.drag))
             elif wparam in (WM_LBUTTONDOWN, WM_RBUTTONDOWN):
                 self.clicks += 1
+                self.drag = 1
                 tag = "left" if wparam == WM_LBUTTONDOWN else "right"
                 path = self._shot(tag)          # 点击瞬间截图
                 self._emit("down", x, y, button=tag, shot=path)
             elif wparam in (WM_LBUTTONUP, WM_RBUTTONUP):
                 self._emit("up", x, y, button="left" if wparam == WM_LBUTTONUP else "right")
+                self.drag = 0
             elif wparam == WM_MOUSEWHEEL:
                 d = (ms.mouseData >> 16) & 0xFFFF
                 self._emit("wheel", x, y, delta=d if d < 0x8000 else d - 0x10000)
@@ -187,6 +222,10 @@ class Session:
         self.running = False
         if self.thread:
             self.thread.join(timeout=2)
+        self.q.put(None)
+        self.shotq.put(None)
+        self.writer.join(timeout=2)
+        self.shotter.join(timeout=2)
         with self.lock:
             try:
                 self.jsonl.close()
@@ -211,7 +250,7 @@ class App:
 
         self.root = tk.Tk()
         self.root.title("Magnetic Adventure 录制面板")
-        self.root.geometry("460x220+0+0")   # 固定在左上角，避免盖住游戏窗口
+        self.root.geometry("600x270+0+0")   # 固定在左上角，避免盖住游戏窗口
         self.root.attributes("-topmost", True)
 
         tk.Label(self.root, text="① 启动游戏 → ② 录制 → ③ STOP 杀进程",
@@ -219,13 +258,17 @@ class App:
 
         row = tk.Frame(self.root)
         row.pack(pady=4)
-        self.b_start = tk.Button(row, text="启动游戏并录制", width=18, command=self.start_game)
+        self.b_start = tk.Button(row, text="启动游戏并录制", width=16, command=self.start_game)
         self.b_start.pack(side="left", padx=4)
-        self.b_record = tk.Button(row, text="开始录制", width=12, command=self.toggle_record, state="disabled")
+        self.b_record = tk.Button(row, text="开始录制", width=10, command=self.toggle_record, state="disabled")
         self.b_record.pack(side="left", padx=4)
-        self.b_stop = tk.Button(row, text="STOP（停录 + 杀游戏）", width=22,
+        self.b_stop = tk.Button(row, text="STOP：停录 + 杀游戏", width=20,
                                 bg="#c0392b", fg="white", command=self.stop_all, state="disabled")
         self.b_stop.pack(side="left", padx=4)
+
+        self.idle = tk.BooleanVar(value=False)
+        tk.Checkbutton(self.root, text="同时记录空闲鼠标移动（默认只记按住时的拖拽轨迹）",
+                       variable=self.idle, command=self.toggle_idle).pack(anchor="w", padx=12)
 
         self.status = tk.StringVar(value="未启动")
         tk.Label(self.root, textvariable=self.status, anchor="w", justify="left").pack(
@@ -274,10 +317,16 @@ class App:
         self.out.set(f"输出：{os.path.relpath(out_dir, ROOT)}")
         self.refresh()
 
+    def toggle_idle(self):
+        if self.session:
+            self.session.record_idle_moves = bool(self.idle.get())
+
     def refresh(self):
         if not self.session:
             return
-        self.status.set(f"录制中：{self.session.events} 事件 / {self.session.clicks} 次点击")
+        mode = "全部移动" if self.idle.get() else "仅拖拽"
+        self.status.set(f"录制中：{self.session.events} 事件 / {self.session.clicks} 次点击"
+                        f"  · 移动采样 {self.session.move_hz} Hz（{mode}）")
 
     def toggle_record(self):
         if not self.session:
