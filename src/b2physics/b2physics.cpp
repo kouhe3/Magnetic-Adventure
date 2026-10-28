@@ -18,6 +18,53 @@
 
 #include "b2physics.h"
 
+// ---- 诊断：把访问违例的地址/模块/调用栈写进 B2PHYSICS_LOG ----
+#include <windows.h>
+static LONG CALLBACK VexHandler(PEXCEPTION_POINTERS p) {
+    const char* path = std::getenv("B2PHYSICS_LOG");
+    if (!path) return EXCEPTION_CONTINUE_SEARCH;
+    if (p->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) return EXCEPTION_CONTINUE_SEARCH;
+    if (FILE* f = std::fopen(path, "a")) {
+        void* addr = p->ExceptionRecord->ExceptionAddress;
+        HMODULE mod = nullptr;
+        char name[MAX_PATH] = "?";
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCSTR)addr, &mod) && mod) {
+            GetModuleFileNameA(mod, name, MAX_PATH);
+        }
+        std::fprintf(f, "AV at %p %s+0x%llx", addr, name,
+                     (unsigned long long)(mod ? (char*)addr - (char*)mod : 0));
+        if (p->ExceptionRecord->NumberParameters >= 2) {
+            std::fprintf(f, " op=%llu target=%p",
+                         (unsigned long long)p->ExceptionRecord->ExceptionInformation[0],
+                         (void*)p->ExceptionRecord->ExceptionInformation[1]);
+        }
+        std::fprintf(f, "\n  stack:");
+        DWORD* esp = (DWORD*)p->ContextRecord->Esp;
+        for (int i = 0; i < 10; ++i) {
+            void* ra = (void*)esp[i];
+            HMODULE m2 = nullptr;
+            char n2[MAX_PATH] = "?";
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCSTR)ra, &m2) && m2) {
+                GetModuleFileNameA(m2, n2, MAX_PATH);
+                std::fprintf(f, " %s+0x%llx", n2, (unsigned long long)((char*)ra - (char*)m2));
+            }
+        }
+        std::fputc('\n', f);
+        std::fclose(f);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH && std::getenv("B2PHYSICS_LOG")) {
+        AddVectoredExceptionHandler(1, VexHandler);
+    }
+    return TRUE;
+}
+
+
 namespace {
 
 void TraceDetail(const char* fmt, ...) {

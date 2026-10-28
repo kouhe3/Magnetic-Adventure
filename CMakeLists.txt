@@ -41,5 +41,6 @@ target_include_directories(b2physics PRIVATE
   ${B2_ROOT}/Dynamics/Controllers)
 target_link_libraries(b2physics PRIVATE box2d)
 target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
+target_link_options(b2physics PRIVATE "/MAP")
 set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
