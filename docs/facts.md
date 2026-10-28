@@ -60,6 +60,7 @@
 | F41 | 存档 `%APPDATA%\Magnet's Story\hg_lmpgl.prf` = UTF-16LE + **单字节 XOR 0xB8**，正文是 `<Player>` 下的 `key = "value"` 文本；字段：UserName/SoundsVolume/MusicVolume/FullScreen/LastCompleteLevel/CompletedLevels/Active。把 `LastCompleteLevel="1"`、`CompletedLevels="e0"` 后点 Play **直接进入解谜关**（截图 `work/unlocked.png`），无需再打教程。3DM 汉化版 exe 里仍是 `hg_lmpgl.prf` 文件名，未见改路径 | L2/L4 | `tools/profile.py` 解码 + 改值 + 实机进入解谜关 | 已证 | 自动化开局/跳过教程 |
 | F42 | 退出游戏时打开网页是 **GameTop 包装层**的行为，不在原游戏里：`game.exe` 0x52ED30 调用 `ShellExecuteA(0, "open", "http://www.gametop.com/stats/magneticadventure.html", 0, 0, SW_SHOWNORMAL)`（只开页面，不携带本地数据）；该 URL 字符串只存在于 GameTop 版 `game.exe`，汉化版 `AMagneticAdventure.exe` 中 `gametop.com`/`ShellExecute` 均为 0 次 | L2 | IDA 0x52ED30 反汇编 + 两版 exe 字节统计 | 已证 | 复刻时省略（或做成开关） |
 | F43 | **汉化版与 GameTop 版存档格式相同、位置相同**：两版 exe 都含 `\Magnet's Story` + `hg_lmpgl.prf`；让汉化版从零写一份，得到 324 B、同为 UTF-16LE+0xB8 异或、字段集合一致（UserName/SoundsVolume/MusicVolume/FullScreen/LastCompleteLevel/CompletedLevels/Active），与 GameTop 版差异仅 `LastCompleteLevel` 的值。存档在启动时被截断、退出时重写；进程被杀会留下 0 字节文件（表现为“存档空了”） | L2/L4 | 两版 exe 字符串 + 实跑汉化版生成 profile 并 diff（`tools/profile.py`） | 已证 | 存档互转/备份策略 |
+| F44 | 关卡解锁由 profile 的 `LastCompleteLevel` 驱动（Map 页亮点=已解锁）：设为 **32** 时第一大区块全部点亮、第二区块部分点亮；设为 **999** 时地图回到只有第一关（越界值被当成无效/重置）。即“可改档解锁”，但字段是索引而非完成数，需进一步逆出上限值才能全解锁 | L4 | `tools/profile.py set LastCompleteLevel <n>` + `work/map_32.png` / `work/map_999.png` | 待证 | 跳过教程/解锁关卡 |
 
 ## 影响对齐方案的硬约束
 
