@@ -1,8 +1,8 @@
 """解析转发 DLL 的 FFI 日志（src/proxydll/ + tools/gen_proxy.py）。
 
 日志 = 20 字节头 + 交替的记录：
-  kind=0 PreRec  (344B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
-  kind=1 PostRec ( 80B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
+  kind=0 PreRec  (536B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
+  kind=1 PostRec (144B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
   kind=2 摘要：u32 kind,seq,count,reserved + count×52B{ptr,flags,7×state,mass,invMass,I,invI}
 
 用法:
@@ -17,8 +17,11 @@ import struct
 import sys
 
 HDR = struct.Struct('<8sIII')
-PRE = struct.Struct('<IIIII I 32I 64s 64s 64s')   # 24 + 128 + 192 = 344
-POST = struct.Struct('<IIII 64s')           # 16 + 64 = 80
+PRE2 = struct.Struct('<IIIII I 32I 128s 128s 128s')   # v02: 24 + 128 + 384 = 536
+POST2 = struct.Struct('<IIII 128s')                   # v02: 16 + 128 = 144
+PRE1 = struct.Struct('<IIIII I 32I 64s 64s 64s')      # v01: 344
+POST1 = struct.Struct('<IIII 64s')                    # v01: 80
+PRE, POST = PRE2, POST2
 
 NAMES = [None]
 
@@ -36,7 +39,12 @@ def load_names():
 def records(path):
     with open(path, 'rb') as f:
         magic, pid, game, orig = HDR.unpack(f.read(HDR.size))
-        if magic[:7] != b'B2FFI01':
+        global PRE, POST
+        if magic[:7] == b'B2FFI02':
+            PRE, POST = PRE2, POST2
+        elif magic[:7] == b'B2FFI01':
+            PRE, POST = PRE1, POST1
+        else:
             raise SystemExit(f'bad magic {magic!r}')
         yield ('hdr', (pid, game, orig))
         while True:

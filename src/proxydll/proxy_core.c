@@ -14,7 +14,7 @@
 #include <string.h>
 
 #define ARG_DWORDS 32
-#define MEM_DUMP 64
+#define MEM_DUMP 128   /* 多边形 def 最多 24+8*8=88B，64 会截断顶点 */
 
 #pragma pack(push, 4)
 /* kind=0：调用前；kind=1：调用后（只看得到返回值与出参） */
@@ -243,7 +243,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
                 uint32_t orig_base;
             } hdr;
             DWORD written = 0;
-            memcpy(hdr.magic, "B2FFI01", 8);
+            memcpy(hdr.magic, "B2FFI02", 8);   /* 02: MEM_DUMP 64->128 */
             hdr.pid = GetCurrentProcessId();
             hdr.game_base = (uint32_t)(uintptr_t)GetModuleHandleA(NULL);
             hdr.orig_base = (uint32_t)(uintptr_t)g_orig;

@@ -119,7 +119,7 @@ class Replayer:
             self.scratch[key] = buf
         if mem:
             data = bytearray(mem)
-            for off in range(0, 64, 4):
+            for off in range(0, len(data) - 3, 4):
                 d, = struct.unpack_from('<I', data, off)
                 if d in self.ptrmap:
                     struct.pack_into('<I', data, off, self.ptrmap[d])

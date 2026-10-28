@@ -67,7 +67,34 @@ def capture(rec, ffi_out):
                "--shot", os.path.join(ROOT, "work", "gate_shot.png"), "--post", "1.5"])
     kill_game()
     time.sleep(0.5)
-    return os.path.exists(ffi_out) and os.path.getsize(ffi_out) > 0, out.stdout[-300:]
+    return os.path.exists(ffi_out) and os.path.getsize(ffi_out) > 0, out.stdout
+
+
+def capture_with_retry(rec, ffi_out, tries=3):
+    """拖拽可能没抓中物体导致这次重放没通关——重放没通关时语料只覆盖半关，重试到通关为止。"""
+    last = None
+    for i in range(tries):
+        ok, tail = capture(rec, ffi_out)
+        score = None
+        done = False
+        for line in reversed((tail or "").strip().splitlines()):
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                j = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            # 通关看尾部点击：前两次点击是刻意点 intro 加速，分数天然低
+            sc = [c.get("score", 0) for c in j.get("clicks", [])][-3:]
+            score = round(sum(sc) / len(sc), 4) if sc else None
+            done = score is not None and score >= 0.85
+            break
+        last = (ok, tail, score, i + 1)
+        print(f'  capture attempt {i+1}: ok={ok} min_score={score} done={done}')
+        if ok and done:
+            return ok, tail, score, i + 1
+    return last
 
 
 def offline(ffi_log, dll):
@@ -135,8 +162,9 @@ def main():
     report = {"name": a.name, "rec": a.rec, "ffi": ffi}
 
     if not a.skip_capture:
-        ok, tail = capture(a.rec, ffi)
-        report["capture"] = {"ok": ok, "tail": tail,
+        ok, tail, score, tries = capture_with_retry(a.rec, ffi)
+        report["capture"] = {"ok": ok, "tail": (tail or "")[-300:], "min_score": score,
+                             "tries": tries,
                              "size_mb": round(os.path.getsize(ffi) / 1048576, 1) if ok else 0}
         if not ok:
             report["verdict"] = "FAIL"

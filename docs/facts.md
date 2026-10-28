@@ -75,6 +75,7 @@
 | F56 | **门禁越界判定口径修正**：原「首 10% 均值 vs 末 10% 均值」会把关卡加载期（body 尚未建全、超差数天然低）算进 head，导致平线序列被误判为增长。改为**跳过前 10% 热身、比中位数**（末段 ≤ 首段×1.5+2）。修正后：信件关 9.0→9.0 PASS；`get the map` 关（1,161,139 次调用 / 4,798 步 / 36,722 超差）8.0→8.0 PASS，其逐步超差数从头到尾平在 8（max 11） | L4 | `work/series_203820.json`、`work/gate_mail.json`、`work/gate_20261028_203820.json` | 已验证 | 门禁判据 |
 | F57 | **`b2_World_DestroyJoint` 的 ABI 是 `(world, joint)`**：FFI 抓包里 arg0 == CreateBody def 里的 world（`0x222e0048`），此前按 `(joint)` 实现——totem 关第一次销毁关节就把 world 当 b2Joint 解引用，崩在写 `0x8C`（离线重放第 244,767 次调用）。修复后离线重放 520,192 次调用跑完、真机重放进程存活、第 3 次点击起画面分 0.99 | L2-A | `work/ffi_20261028_204435.bin`、`src/b2physics/b2physics.cpp` | 已验证 | 崩溃修复 |
 | F58 | totem 关门禁 **PASS**：520,192 调用 / 2,172 步 / 19,173 超差 body-state / bounded 9→11；抓包那次（原版 DLL 跑录制）逐次点击 0.98–0.998，min 0.9814 = 通关 | L4 | `work/gate_20261028_204435.json` | 已验证 | 关卡覆盖 |
+| F59 | **抓包 dump 64B 会截断多边形 def**：def = 24 + 8×顶点数，7 边形要 80B；被截断的后两个顶点在重放里变成 0，形状变小（面积 4.23 vs 6.51 ⇒ 质量 1.27 vs 1.95，差 54%），伪装成"物理分歧"。修成 **128B**（日志 v02，解析器按 magic 兼容 v01）。leash 关重抓后首个分歧从 **step 1 的 mass** 退到 **step 169 的 sleepTime（0 vs 0.16）**，前 168 步逐字段一致，bounded 16→16 平线 | L4 | `src/proxydll/proxy_core.c`、`tools/ffi.py`、`work/gate_leash.json` | 已验证 | 抓包保真度 |
 
 ## 影响对齐方案的硬约束
 
