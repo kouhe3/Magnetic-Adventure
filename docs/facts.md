@@ -18,6 +18,8 @@
 | F09 | 基线 exe 的 Authenticode 目录（RVA 0x3E0000、size 0x1558）超出文件尾（0x28BA8E），签名不可校验 → 该 exe 在签名后被改动过 | L2 | `probe/peinfo.py` 输出的 security 目录 + 文件长度 | 已证 | 基线可信度 |
 | F10 | `AMagneticAdventure_dl_setup-1.exe` 不是 MSI：PE32 `setup.exe`、52,839,512 B、资源段 52.7 MB、CompanyName `Powered by Masque Publishing`、ProductVersion 1.0.0.3、创建于 2012-04-19、`GameShield` | L2 | `7z l "C:/Users/K/Downloads/Programs/AMagneticAdventure_dl_setup-1.exe"` | 已证 | 第三参照版本 |
 | F11 | pak 内没有字体文件：`.ttf`/`.fnt` 文件名字符串 0 处、OTTO/TTC 签名 0 处 → 文本只能来自系统字体渲染或预烘焙位图 | L2 | `probe/pakscan.py` + 字节签名扫描 | 待证 | 文本渲染路径复刻 |
+| F12 | 两版发行的 `b2Physics.dll`（md5 `5b1d145b774fb60165dbd185691532e9`）与 `Squall.dll`（md5 `73a950e4a10e714d6d4f0ff3886b6a93`）**字节相同**；`lua51.dll` **不同**（基线 `80a7660c4abf30212f37139ec93e1dfb` vs GameTop `9dd71b50331760748669b5c83ab670eb`） | L2 | `md5sum` 两目录同名 DLL | 已证 | 保留原 DLL 时须绑定对应版本 |
+| F13 | Pak 前 32 条在 `[u8 namelen][name][stamp 0xF399B000][u32 off][u32 size]` 下自洽且偏移连续；第 33 条（`baloon_1.png`）起边界差 1 字节，静态推断不足 | L2 | `probe/pakscan.py` 变体 + `data` 0x342 处 hexdump | 待证 | T0.1 改动态断点 |
 
 ## 影响对齐方案的硬约束
 
