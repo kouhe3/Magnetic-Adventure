@@ -1,0 +1,88 @@
+ordinal,name,rva,size,argc,arg_usage
+1,b2_Body_ApplyForce,0x10001B20,20,3,arg0=mov arg1=mov arg2=mov
+2,b2_Body_ApplyImpulse,0x10001AB0,20,3,arg0=mov arg1=mov arg2=mov
+3,b2_Body_ApplyTorque,0x10001B70,38,2,arg0=mov arg1=fadd
+4,b2_Body_ClearShapes,0x100019E0,35,1,arg0=mov
+5,b2_Body_CreateShape_Box,0x10001870,193,1,arg0=fld+fstp+mov
+6,b2_Body_CreateShape_Circle,0x10001940,122,1,arg0=mov
+7,b2_Body_CreateShape_Polygon,0x10001700,354,1,arg0=mov
+8,b2_Body_DestroyShape,0x10001A10,13,2,arg0=mov arg1=mov
+9,b2_Body_GetAngle,0x10001AA0,8,1,arg0=mov
+10,b2_Body_GetAngularDamping,0x10001A30,11,1,arg0=mov
+11,b2_Body_GetIsSleeping,0x10001C10,18,1,arg0=mov
+12,b2_Body_GetLocalPoint,0x10001D90,77,3,arg0=mov arg1=mov arg2=mov
+13,b2_Body_GetLocalVector,0x10001D10,44,3,arg0=mov arg1=mov arg2=mov
+14,b2_Body_GetMass,0x10001BE0,35,2,arg0=mov arg1=mov
+15,b2_Body_GetOmega,0x10001B40,8,1,arg0=mov
+16,b2_Body_GetPosition,0x10001A80,20,2,arg0=mov arg1=mov
+17,b2_Body_GetShapeList,0x100019D0,8,1,arg0=mov
+18,b2_Body_GetUserData,0x10001BA0,11,1,arg0=mov
+19,b2_Body_GetVelocity,0x10001AD0,20,2,arg0=mov arg1=mov
+20,b2_Body_GetWorld,0x100019C0,8,1,arg0=mov
+21,b2_Body_GetWorldPoint,0x10001D40,70,3,arg0=mov arg1=mov arg2=mov
+22,b2_Body_GetWorldVector,0x10001CE0,44,3,arg0=mov arg1=mov arg2=mov
+23,b2_Body_GetXForm,0x10001A60,26,2,arg0=mov arg1=mov
+24,b2_Body_IsBullet,0x10001CC0,18,1,arg0=mov
+25,b2_Body_IsFrozen,0x10001C80,18,1,arg0=mov
+26,b2_Body_PutToSleep,0x10001C30,35,1,arg0=mov
+27,b2_Body_SetAngularDamping,0x10001A20,15,2,arg0=mov arg1=fld
+28,b2_Body_SetBullet,0x10001CA0,25,2,arg0=mov arg1=cmp
+29,b2_Body_SetMass,0x10001BD0,16,2,arg0=mov arg1=mov
+30,b2_Body_SetMassFromShapes,0x10001BC0,12,1,arg0=mov
+31,b2_Body_SetOmega,0x10001B50,28,2,arg0=mov arg1=fld
+32,b2_Body_SetUserData,0x10001BB0,15,2,arg0=mov arg1=mov
+33,b2_Body_SetVelocity,0x10001AF0,36,2,arg0=mov arg1=mov
+34,b2_Body_SetXForm,0x10001A40,21,2,arg0=mov arg1=mov
+35,b2_Body_WakeUp,0x10001C60,21,1,arg0=mov
+36,b2_CreateWorld,0x100013B0,40,2,arg0=mov arg1=mov
+37,b2_DestroyWorld,0x100013E0,26,1,arg0=mov
+38,b2_GetMaxPolygonVertices,0x100011C0,6,0,
+39,b2_Joint_EnableLimit,0x100023D0,155,2,arg0=mov arg1=mov
+40,b2_Joint_EnableMotor,0x10002650,155,2,arg0=mov arg1=mov
+41,b2_Joint_GetAnchor1,0x100021B0,20,2,arg0=mov arg1=mov
+42,b2_Joint_GetAnchor2,0x100021D0,21,2,arg0=mov arg1=mov
+43,b2_Joint_GetBody1,0x10002190,8,1,arg0=mov
+44,b2_Joint_GetBody2,0x100021A0,8,1,arg0=mov
+45,b2_Joint_GetJointAngle,0x10002230,63,1,arg0=fld+fstp+mov
+46,b2_Joint_GetJointTranslation,0x10002270,41,1,arg0=mov
+47,b2_Joint_GetJointType,0x10002130,53,1,arg0=mov
+48,b2_Joint_GetLimits,0x10002350,113,3,arg0=mov arg1=mov arg2=mov
+49,b2_Joint_GetMotorSpeed,0x10002560,80,1,arg0=mov
+50,b2_Joint_GetReactionImpulse,0x100021F0,27,2,arg0=mov arg1=mov
+51,b2_Joint_GetReactionTorqImpulse,0x10002210,18,1,arg0=mov
+52,b2_Joint_IsLimitEnabled,0x10002470,80,1,arg0=mov
+53,b2_Joint_IsMotorEnabled,0x100026F0,80,1,arg0=mov
+54,b2_Joint_SetLimits,0x100022A0,175,3,arg0=mov arg1=fld arg2=fld
+55,b2_Joint_SetMaxMotorForce,0x10002600,75,2,arg0=mov arg1=fld
+56,b2_Joint_SetMaxMotorTorque,0x100025B0,75,2,arg0=mov arg1=fld
+57,b2_Joint_SetMotorSpeed,0x100024C0,155,2,arg0=mov arg1=fld
+58,b2_Shape_GetBody,0x100014D0,8,1,arg0=mov
+59,b2_Shape_GetCirclePos,0x10001590,63,2,arg0=mov arg1=mov
+60,b2_Shape_GetCircleRadius,0x100015D0,40,1,arg0=mov
+61,b2_Shape_GetDensity,0x10001530,8,1,arg0=mov
+62,b2_Shape_GetFilter,0x10001640,22,2,arg0=mov arg1=mov
+63,b2_Shape_GetFriction,0x10001540,8,1,arg0=mov
+64,b2_Shape_GetNext,0x100014E0,8,1,arg0=mov
+65,b2_Shape_GetRestitution,0x10001550,8,1,arg0=mov
+66,b2_Shape_GetSensor,0x10001610,8,1,arg0=mov
+67,b2_Shape_GetShapeType,0x100014F0,42,1,arg0=mov
+68,b2_Shape_SetDensity,0x10001560,12,2,arg0=mov arg1=fld
+69,b2_Shape_SetFilter,0x10001620,22,2,arg0=mov arg1=mov
+70,b2_Shape_SetFriction,0x10001570,12,2,arg0=mov arg1=fld
+71,b2_Shape_SetRestitution,0x10001580,12,2,arg0=mov arg1=fld
+72,b2_Shape_SetSensor,0x10001600,12,2,arg0=mov arg1=mov
+73,b2_Shape_TestPoint,0x10001660,156,3,arg0=mov arg1=mov arg2=mov
+74,b2_World_ClearJoints,0x10001DF0,34,1,arg0=mov
+75,b2_World_CreateBody,0x10001400,119,1,arg0=mov
+76,b2_World_DestroyBody,0x10001480,15,2,arg0=mov arg1=mov
+77,b2_World_DestroyJoint,0x10001DE0,15,2,arg0=mov arg1=mov
+78,b2_World_Joint_Distance,0x10001E20,119,1,arg0=mov
+79,b2_World_Joint_Gear,0x100020D0,81,1,arg0=mov
+80,b2_World_Joint_Prismatic,0x10001F50,184,1,arg0=mov
+81,b2_World_Joint_Pulley,0x10002010,183,1,arg0=mov
+82,b2_World_Joint_Revolute,0x10001EA0,170,1,arg0=mov
+83,b2_World_ReFilter,0x10001350,30,1,arg0=mov
+84,b2_World_SetContactFilterCallBack,0x10001390,24,2,arg0=mov arg1=mov
+85,b2_World_SetContactListenerCallBack,0x10001370,24,2,arg0=mov arg1=mov
+86,b2_World_SetGravity,0x100014B0,26,2,arg0=mov arg1=mov
+87,b2_World_Step,0x10001490,28,4,arg0=mov arg1=fld arg2=mov arg3=mov
