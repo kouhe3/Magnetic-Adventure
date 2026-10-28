@@ -50,6 +50,7 @@
 | F31 | 自建 `build/Release/b2Physics.dll` 已产出：63 个导出（World/Body/Shape 全族），`tools/check_exports.py` 显示**序号零错位**，缺 24 个关节函数；差分探针（建体+0.5 方块+`SetMassFromShapes`+60 步）显示行为差异：原 DLL 的体不动（质量仍为 0/静态），我们的体正常下落 → 形状描述布局或 `SetMassFromShapes` 约定仍未对齐 | L3 | `build/probe_b2physics.exe <dll> box` | 待证 | 下一步：形状 def 字段实测 |
 | F32 | 形状描述的**实测**字段顺序（探针逐槽置 1.0 后读回）：`+0` body、`+4` **friction**、`+8` **restitution**、`+12` **density**、`+16` sensor、`+20/+24` center（Box）/ localPosition（Circle）、`+28/+32` halfWidth/halfHeight（Box）/ `+28` radius（Circle）。F15 原来写的 density@+4/friction@+8 顺序错误，已按实测更正 | L3 | `build/probe_b2physics.exe <dll> sdef <i>`（i=0..7）对原 DLL 实测 | 已证 | T2.2 形状 |
 | F33 | **替换 DLL 首次行为对齐**：同一场景（world(AABB,gravity) → CreateBody → 0.5×0.5 box(density=1) → SetMassFromShapes → Step 60×1/60）下，原 DLL 与 `build/Release/b2Physics.dll` 输出逐项相同：density=1.000、mass=1.0000、center=(0,0)、I=0.1667、t60 pos=(0,-5.083333)、vel=(0,-10.000000)、angle=0 | L4 | `build/probe_b2physics.exe bin/baseline/b2Physics.dll box` vs `... build/Release/b2Physics.dll box` | 已证 | T2.3 起点 |
+| F34 | 关节工厂的输入同样是「world 在前的记录结构」，反汇编实测：公共头 `+0` world、`+4` body1、`+8` body2；Distance：`+0C` anchor1(vec2)、`+14` anchor2、`+1C` collideConnected(byte)；Revolute：`+0C` anchor(vec2)、`+14` enableLimit(u8)、`+18` lowerAngle、`+1C` upperAngle、`+20` enableMotor(u8)、`+24` motorSpeed、`+28` maxMotorTorque、`+2C` collideConnected | L2 | `b2Physics.dll` 0x10001E20 / 0x10001EA0 反汇编 | 已证 | T2.2 关节 |
 
 ## 影响对齐方案的硬约束
 
