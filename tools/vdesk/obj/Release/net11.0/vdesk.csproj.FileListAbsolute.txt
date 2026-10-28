@@ -1,0 +1,15 @@
+C:\tmp\Magnetic Adventure\tools\vdesk\bin\Release\net11.0\vdesk.exe
+C:\tmp\Magnetic Adventure\tools\vdesk\bin\Release\net11.0\vdesk.deps.json
+C:\tmp\Magnetic Adventure\tools\vdesk\bin\Release\net11.0\vdesk.runtimeconfig.json
+C:\tmp\Magnetic Adventure\tools\vdesk\bin\Release\net11.0\vdesk.dll
+C:\tmp\Magnetic Adventure\tools\vdesk\bin\Release\net11.0\vdesk.pdb
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.GeneratedMSBuildEditorConfig.editorconfig
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.AssemblyInfoInputs.cache
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.AssemblyInfo.cs
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.csproj.CoreCompileInputs.cache
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.dll
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\refint\vdesk.dll
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.pdb
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.genruntimeconfig.cache
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\ref\vdesk.dll
+C:\tmp\Magnetic Adventure\tools\vdesk\obj\Release\net11.0\vdesk.csproj.Up2Date
