@@ -222,9 +222,11 @@ B2API void b2_World_DestroyBody(b2World* world, b2Body* body) {
     body->m_world->DestroyBody(body);
 }
 
-B2API void b2_World_DestroyJoint(b2Joint* joint) {
+// 实测（FFI 抓包）：宿主传的是 (world, joint) —— arg0 与 CreateBody def 里的 world 相同。
+// 之前按 (joint) 实现，从未被调用过；totem 关第一次销毁关节就崩在 world 当 joint 解引用。
+B2API void b2_World_DestroyJoint(b2World* world, b2Joint* joint) {
     TRACE("b2_World_DestroyJoint");
-    joint->m_body1->m_world->DestroyJoint(joint);
+    world->DestroyJoint(joint);
 }
 
 B2API void b2_World_ClearJoints(b2World* world) {

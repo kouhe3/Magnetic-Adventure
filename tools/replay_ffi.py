@@ -31,7 +31,15 @@ REC_CAP = 256
 PROGRESS = ROOT / 'work' / 'replay_progress.txt'
 
 
+DLL_OBJECTS = ('b2World', 'b2Body', 'b2Shape', 'b2Joint')
+
+
 def parse_protos():
+    """返回 name -> (ret, [(是否指针, 类型串), ...])。
+
+    区分 DLL 对象指针（b2World/b2Body/b2Shape/b2Joint）和宿主内存指针（def/缓冲区）：
+    前者的地址必须来自原版返回值，重放时靠 ptrmap 翻译；后者用 scratch 模拟。
+    """
     src = (ROOT / 'src' / 'b2physics' / 'b2physics.cpp').read_text(encoding='utf-8')
     pat = re.compile(r'B2API\s+([A-Za-z_][\w\s\*]*?)\s+(b2_\w+)\s*\(([^)]*)\)\s*\{')
     out = {}
@@ -44,9 +52,14 @@ def parse_protos():
             for piece in body.split(','):
                 piece = piece.strip()
                 if piece:
-                    params.append('*' in piece)
+                    params.append(('*' in piece, piece))
         out[name] = (ret, params)
     return out
+
+
+def is_dll_object(type_str):
+    t = type_str.replace('const', '').replace('*', '').strip()
+    return t in DLL_OBJECTS
 
 
 def restype_of(ret):
@@ -76,7 +89,7 @@ class Replayer:
         self.mismatches = []
         self.skipped = {}
         self.n = 0
-        self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0,
+        self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0, 'unmapped': 0,
                       'steps': 0, 'bodies': 0, 'digest_bad': 0, 'bodies_bad': 0}
         self.first_digest = None
         self.step_bad = {}
@@ -288,12 +301,17 @@ class Replayer:
             ok = True
             buf0 = None
             for i in range(len(params)):
-                if not params[i]:
+                if not params[i][0]:
                     call_args.append(args[i])
                     continue
                 if 'CallBack' in name:
                     call_args.append(0)          # 回调指针不能瞎调，给 NULL
                     continue
+                if params[i][1].find('*') >= 0 and is_dll_object(params[i][1]) \
+                        and args[i] and args[i] not in self.ptrmap:
+                    ok = False      # DLL 对象指针没映射到：这条调用不能凭空造一个
+                    self.stats['unmapped'] = self.stats.get('unmapped', 0) + 1
+                    break
                 val, good = self.translate(name, args[i], i, v)
                 if not good:
                     ok = False
@@ -306,7 +324,7 @@ class Replayer:
                 continue
             restype = restype_of(ret_t)
             f = self.fn(name, restype, len(params))
-            if self.n % 64 == 0:
+            if self.n % int(os.environ.get('PROGRESS_EVERY', '8')) == 0:
                 PROGRESS.write_text(f'{self.n} {name}', encoding='utf-8')
             if self.n <= int(__import__('os').environ.get('TRACE_FIRST', '0')):
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
@@ -360,6 +378,7 @@ def main():
             'step_bad': r.step_bad,
         }, ensure_ascii=False))
         return 0
+    print(f'unmapped_object_args={r.stats.get("unmapped", 0)}')
     print(f'steps={r.stats["steps"]} bodies={r.stats["bodies"]} '
           f'bodies_bad={r.stats["bodies_bad"]} digest_bad={r.stats["digest_bad"]}')
     if r.step_bad:
