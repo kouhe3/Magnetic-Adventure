@@ -230,61 +230,64 @@ class Replayer:
                                  'detail': detail, 'kind': kind}
 
     def run(self, log, start, maxcalls, ignore):
-        pending = None
+        """日志是**嵌套**的：原版在 CreateJoint / Step 里会触发宿主回调，宿主再调我们的导出，
+        所以 pre/post 必须按栈（LIFO）配对，不能假设相邻。
+        """
+        stack = []
         for kind, v in ffi.records(log):
             if kind == 'hdr':
                 continue
             if kind == 'digest':
-                if os.environ.get('DIGEST_DEBUG') and self.stats['steps'] < 3:
-                    print(f'  [dbg] digest seq={v[0]} bodies={len(v[1])} last_step_ok={self.last_step_ok}')
                 self.check_digest(v[0], v[1])
                 continue
             if kind == 'post':
-                if pending:
-                    n, name, ret_t, got, buf, seq = pending
-                    pending = None
-                    want = v[2]
-                    self.compare_out(n, name, buf, v[4])
-                    rt = restype_of(ret_t)
-                    if rt is None:
-                        self.stats['void'] += 1
-                    elif rt is ctypes.c_float:
-                        self.stats['float_skip'] += 1
-                    elif ret_t.endswith('*'):
-                        self.stats['ret'] += 1
-                        if want == 0:
-                            if got:
-                                self.note(n, name, 'ret', f'got={got:#x} want=null')
-                        elif want in self.ptrmap:
-                            if got != self.ptrmap[want]:
-                                self.note(n, name, 'ret',
-                                          f'got={got:#x} want(mapped)={self.ptrmap[want]:#x}')
-                        else:
-                            self.ptrmap[want] = got
-                            self.rev[got] = want
+                rec = stack.pop() if stack else None
+                if rec is None:
+                    continue
+                n, name, ret_t, got, buf, seq, rid = rec
+                if rid != v[1]:
+                    self.stats['pair_mismatch'] = self.stats.get('pair_mismatch', 0) + 1
+                want = v[2]
+                self.compare_out(n, name, buf, v[4])
+                rt = restype_of(ret_t)
+                if rt is None:
+                    self.stats['void'] += 1
+                elif rt is ctypes.c_float:
+                    self.stats['float_skip'] += 1
+                elif ret_t.endswith('*'):
+                    self.stats['ret'] += 1
+                    if want == 0:
+                        if got:
+                            self.note(n, name, 'ret', f'got={got:#x} want=null')
+                    elif want in self.ptrmap:
+                        if got != self.ptrmap[want]:
+                            self.note(n, name, 'ret',
+                                      f'got={got:#x} want(mapped)={self.ptrmap[want]:#x}')
                     else:
-                        self.stats['ret'] += 1
-                        if rt is ctypes.c_bool:
-                            got = int(bool(got))
-                            want = int(bool(want))
-                        if got != want:
-                            if got in (0, 1) and (want & 0xFF) == got:
-                                self.stats['bool'] = self.stats.get('bool', 0) + 1
-                            else:
-                                self.note(n, name, 'ret', f'got={got:#x} want={want:#x}')
+                        self.ptrmap[want] = got
+                        self.rev[got] = want
+                else:
+                    self.stats['ret'] += 1
+                    if rt is ctypes.c_bool:
+                        got = int(bool(got))
+                        want = int(bool(want))
+                    if got != want:
+                        if got in (0, 1) and (want & 0xFF) == got:
+                            self.stats['bool'] = self.stats.get('bool', 0) + 1
+                        else:
+                            self.note(n, name, 'ret', f'got={got:#x} want={want:#x}')
                 continue
 
-            rid, ret_addr, ecx, edx, seq = v[1], v[2], v[3], v[4], v[5]
+            rid, seq = v[1], v[5]
             args = v[6:38]
             name = ffi.NAMES[rid] if 0 < rid < len(ffi.NAMES) else None
-            if name is None or name not in self.protos:
+            if name is None or name not in self.protos or name in ignore:
                 self.skipped[name or f'#{rid}'] = self.skipped.get(name or f'#{rid}', 0) + 1
-                continue
-            if name in ignore:
-                self.skipped[name] = self.skipped.get(name, 0) + 1
+                stack.append(None)
                 continue
             self.n += 1
             if self.n < start:
+                stack.append(None)
                 continue
             if maxcalls and self.n - start >= maxcalls:
                 break
@@ -305,11 +308,11 @@ class Replayer:
                     call_args.append(args[i])
                     continue
                 if 'CallBack' in name:
-                    call_args.append(0)          # 回调指针不能瞎调，给 NULL
+                    call_args.append(0)
                     continue
                 if params[i][1].find('*') >= 0 and is_dll_object(params[i][1]) \
                         and args[i] and args[i] not in self.ptrmap:
-                    ok = False      # DLL 对象指针没映射到：这条调用不能凭空造一个
+                    ok = False
                     self.stats['unmapped'] = self.stats.get('unmapped', 0) + 1
                     break
                 val, good = self.translate(name, args[i], i, v)
@@ -321,25 +324,16 @@ class Replayer:
                     buf0 = self.scratch[(name, 0, args[0])]
             if not ok:
                 self.skipped[name] = self.skipped.get(name, 0) + 1
+                stack.append(None)
                 continue
             restype = restype_of(ret_t)
             f = self.fn(name, restype, len(params))
             if self.n % int(os.environ.get('PROGRESS_EVERY', '8')) == 0:
                 PROGRESS.write_text(f'{self.n} {name}', encoding='utf-8')
-            if self.n <= int(__import__('os').environ.get('TRACE_FIRST', '0')):
+            if self.n <= int(os.environ.get('TRACE_FIRST', '0')):
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
-            self.last_step_ok = name == 'b2_World_Step'
             got = f(*call_args)
-            dbg = os.environ.get('DD_N')
-            if dbg and self.n == int(dbg) and name.startswith('b2_Body_'):
-                bod = call_args[1] if len(call_args) > 1 else None
-                if bod:
-                    sl = self.fnb('b2_Body_GetIsSleeping', ctypes.c_bool)(bod)
-                    fl = ctypes.c_uint16.from_address(bod).value
-                    st = ctypes.c_float.from_address(bod + 148).value
-                    vx = ctypes.c_float.from_address(bod + 68).value
-                    print(f'  DBG body={bod:#x} asleep={sl} flags={fl:#06x} sleepTime={st:.3f} vx={vx:.3e}')
-            pending = (self.n, name, ret_t, got, buf0, seq)
+            stack.append((self.n, name, ret_t, got, buf0, seq, rid))
         return 0
 
 

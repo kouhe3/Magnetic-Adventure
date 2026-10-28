@@ -15,6 +15,7 @@
 | fist totem | `rec_20261028_204435` | 520,192 | 2,172 | 19,173 | 9 → 11 | PASS | v01；暴露 `DestroyJoint(world,joint)` ABI 错误 |
 | on a leash（钥匙） | `rec_20261028_205505` | 1,079,295 | 3,890 | 57,355 | 16 → 16 | PASS | v02；首个分歧 step 169 `sleepTime 0→0.16` |
 | all bottled up | `rec_20261028_212917` | 752,963 | 2,507 | 55,134 | 23 → 23 | PASS | 首个分歧 step 2 `sleepTime 0.02→0` |
+| the trap | `rec_20261028_213156` | 796,019 | 3,407 | 32,634 | 10 → 10 | PASS | 暴露重放器 pre/post 配对缺陷（嵌套调用） |
 | the squared box | `rec_20261028_212735` | 279,306 | 2,837 | 16,675 | 7 → 5 | PASS | v02；首个分歧 step 165 `sleepTime 0→0.12` |
 
 ## 共同特征
