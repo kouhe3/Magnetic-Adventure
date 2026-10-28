@@ -40,6 +40,9 @@
 | F21 | 宿主在 `sub_595E00` 里通过 `sub_595CA0(L, "名字", 函数)` 注册 **144 个 Lua 全局函数**（名字是 ASCII C 字符串：`Do_Command`、`Add_WoodBox`、`Set_PhysParams`…），每个绑定对应 137–1400 B 的 Delphi 函数；其中 122 个能在提取出的 Lua 脚本里找到调用 | L2 | IDA：`sub_595E00` 反编译 + `mapping/lua-bindings.csv`；Lua 侧 `work/pak_baseline/*.lua` 交叉比对 | 已证 | M3 Lua 绑定面 |
 | F22 | 两版资源索引共 727 个条目：`same` 543、`diff` 161、`only_a` 19、`only_b` 4；每个 PNG 记录尺寸与像素 hash，每个 OGG 记录页数与流数 | L2 | `python tools/assetindex.py bin/baseline/data bin/gametop/data mapping/assets.csv` | 已证 | T4 帧/PCM 比对基准 |
 | F23 | pak 装载链：`sub_52E750`（游戏初始化）→ `sub_563980`（建 pak 对象，含两个内存流）→ `sub_563D00`（打开 `"data"`：读 4 B 头长、25 B magic，把 TOC 复制进内存流）→ 打日志 `"[Pak] - done"`；与 F05 的格式一致 | L2 | IDA 反编译 + 0x52E8B2 处调用点 | 已证 | M3 pak 读取复刻 |
+| F24 | 原 `b2Physics.dll` 的包装层**直接读写 Box2D 内部字段**（不是纯 API 封装）：body+8/+12 = `m_xf.position`、+60 = `m_sweep.a`、+68/+72 = `m_linearVelocity`、+76 = `m_angularVelocity`、+152 = `m_userData`；world+103004 = `m_gravity`；`SetVelocity/SetOmega` 还会清 `m_flags & ~8` 并把 +148 置 0（唤醒语义） | L2 | `work/b2physics-decomp/{001,003,015,016,019,031,032,033,034,086}_*.c` | 已证 | 必须用同代 Box2D 布局复刻 |
+| F25 | `vendor/box2d-2.0.1`（Google Code 存档）在本机 VS18 x86 下编译通过（`build/Release/box2d.lib`）；`tools/check_exports.py` 对原 DLL 校验：87 个名字与序号完全一致 | L3 | `cmake --build build --config Release --target box2d`；`python tools/check_exports.py bin/baseline/b2Physics.dll` | 已证 | T2.2 基线 |
+| F26 | 精确小版本仍未定：Google Code 存档只有 2.0.1 / 2.2.0，GitHub 仓库历史从 2009-08（2.1 改名 `b2Transform`）开始，无 2.0.x tag/tarball | L2 | Wayback CDX + `git log --all` | 待证 | 以 2.0.1 为基线，差异由 T2.3 差分暴露 |
 
 ## 影响对齐方案的硬约束
 
