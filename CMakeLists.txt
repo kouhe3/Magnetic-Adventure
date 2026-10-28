@@ -14,6 +14,7 @@ endif()
 set(B2_ROOT ${CMAKE_SOURCE_DIR}/vendor/box2d-2.0.2/Box2D)
 file(GLOB_RECURSE B2_SOURCES CONFIGURE_DEPENDS ${B2_ROOT}/*.cpp)
 add_library(box2d STATIC ${B2_SOURCES})
+set_target_properties(box2d PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_include_directories(box2d PUBLIC
   ${B2_ROOT}
   ${B2_ROOT}/Common
@@ -40,4 +41,5 @@ target_include_directories(b2physics PRIVATE
   ${B2_ROOT}/Dynamics/Controllers)
 target_link_libraries(b2physics PRIVATE box2d)
 target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
-set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics)
+set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
