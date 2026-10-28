@@ -20,6 +20,9 @@
 | F11 | pak 内没有字体文件：`.ttf`/`.fnt` 文件名字符串 0 处、OTTO/TTC 签名 0 处 → 文本只能来自系统字体渲染或预烘焙位图 | L2 | `probe/pakscan.py` + 字节签名扫描 | 待证 | 文本渲染路径复刻 |
 | F12 | 两版发行的 `b2Physics.dll`（md5 `5b1d145b774fb60165dbd185691532e9`）与 `Squall.dll`（md5 `73a950e4a10e714d6d4f0ff3886b6a93`）**字节相同**；`lua51.dll` **不同**（基线 `80a7660c4abf30212f37139ec93e1dfb` vs GameTop `9dd71b50331760748669b5c83ab670eb`） | L2 | `md5sum` 两目录同名 DLL | 已证 | 保留原 DLL 时须绑定对应版本 |
 | F13 | Pak 前 32 条在 `[u8 namelen][name][stamp 0xF399B000][u32 off][u32 size]` 下自洽且偏移连续；第 33 条（`baloon_1.png`）起边界差 1 字节，静态推断不足 | L2 | `probe/pakscan.py` 变体 + `data` 0x342 处 hexdump | 待证 | T0.1 改动态断点 |
+| F14 | `b2Physics.dll` 导出 **87 个 `b2_*` 函数（序号 1–87，全 `__cdecl`）** + `DllEntryPoint`；内部静态链接 **Box2D 2.0.x**（`b2PolygonDef`/`b2CircleDef` 带 vftable，`b2_GetMaxPolygonVertices()` 硬编码 8）与静态 CRT（只导入 KERNEL32） | L2 | IDA：`survey_binary` + `b2_Body_CreateShape_Box`/`b2_Body_CreateShape_Circle`/`b2_GetMaxPolygonVertices` 反编译；清单 `mapping/b2physics-exports.csv` | 已证 | T2.1/T2.2 |
+| F15 | 包装层收的是**扁平 C 结构**而非 C++ 对象：形状描述 +4=density、+8=friction、+12=restitution、+16=isSensor；Box 用 +20/+24=center、+28/+32=halfExtent；Circle 用 +20/+24=localPos、+28=radius；Polygon 用 +20=顶点数、+28=顶点数组（步长 8） | L2 | IDA 反编译 `b2_Body_CreateShape_{Box,Circle,Polygon}` | 已证 | Lua 绑定结构体兼容 |
+| F16 | `b2World` 分配 0x19288 字节；`b2_World_CreateBody` 栈上构造 0x3C 字节 body def；`b2Filter` 6 字节写在 `shape+34`；变换输入为 `{b2Vec2 position; float angle}`（`b2_Shape_TestPoint` 展开 cos/sin） | L2 | IDA 反编译 @0x100013B0、0x10001400、0x10001620、0x10001660 | 已证 | ABI 契约 |
 
 ## 影响对齐方案的硬约束
 
