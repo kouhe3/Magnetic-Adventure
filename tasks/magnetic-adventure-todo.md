@@ -1,7 +1,7 @@
 # TODO — Magnetic Adventure 复刻
 
 - [x] T0.1 pak 记录字段规格（动态断点） 依据：F05、F13
-- [ ] T0.2 汉化落点归因（两版对照运行） 依据：F08
+- [x] T0.2 汉化落点归因（两版对照运行） 依据：F08
 - [ ] T0.3 IDA：b2Physics.dll + game.exe 导出 依据：F01、F02、F07
 - [ ] T0.4 oracle 采集（帧/PCM/存档/窗口参数） 依据：F03、F06
 - [x] T1.1 tools/pak 只读解析 依据：F05
