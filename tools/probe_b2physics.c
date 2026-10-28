@@ -1,153 +1,105 @@
-// 对 b2Physics.dll 做 ABI 行为探针：加载真实 DLL，按候选签名调用，打印状态。
-// 用法: probe_b2physics.exe <dll> <variant>
-//   variant=ptr  : b2_CreateWorld(b2Vec2* gravity, int doSleep)
-//   variant=flt  : b2_CreateWorld(float gx, float gy)
+// b2Physics.dll ABI 探针：加载真 DLL，按已验证的签名调用，打印可观测状态。
+// 已验证（docs/facts.md F29）：b2_CreateWorld(void* ctx, const b2Vec2* gravity)。
+// 用法: probe_b2physics.exe <dll> [pair <c>|slot <i>|step]
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct { float x, y; } Vec2;
+typedef void* (*fnCreateWorld)(void* ctx, const void* gravity);
+typedef int (*fnStep)(void* w, float dt, int vi, int pi);
+typedef void* (*fnCreateBody)(const void* def);
+typedef void* (*fnCreateShapeBox)(const void* def);
+typedef void* (*fnGetPosition)(void* out, void* body);
+typedef void* (*fnGetVelocity)(void* out, void* body);
+typedef float (*fnGetAngle)(void* body);
+typedef int (*fnIsSleeping)(void* body);
+typedef int (*fnIsBullet)(void* body);
+typedef void* (*fnSetMassFromShapes)(void* body);
+typedef float (*fnGetAngularDamping)(void* body);
+typedef void* (*fnSetXForm)(void* body, const void* xf);
+typedef void* (*fnApplyTorque)(void* body, float t);
 
-typedef void* (*fnCreateWorld)(const void*, int);
-typedef void* (*fnCreateWorldF)(float, float);
-typedef int (*fnStep)(void*, float, int, int);
-typedef void* (*fnCreateBody)(const void*);
-typedef void* (*fnCreateShapeBox)(const void*);
-typedef void* (*fnGetPosition)(void*, void*);
-typedef float (*fnGetAngle)(void*);
-typedef void (*fnGetVelocity)(void*, void*);
-
-static void* must(HMODULE m, const char* n) {
+static void* sym(HMODULE m, const char* n) {
     void* p = (void*)GetProcAddress(m, n);
     if (!p) printf("MISSING %s\n", n);
     return p;
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) { printf("usage: %s <dll> <ptr|flt>\n", argv[0]); return 2; }
     setvbuf(stdout, NULL, _IONBF, 0);
+    if (argc < 2) { printf("usage: %s <dll> [pair c|slot i|step]\n", argv[0]); return 2; }
     HMODULE m = LoadLibraryA(argv[1]);
     if (!m) { printf("LoadLibrary failed %lu\n", GetLastError()); return 3; }
-    printf("loaded %s\n", argv[1]);
-    { typedef int (*fnMax)(void); fnMax fm=(fnMax)GetProcAddress(m,"b2_GetMaxPolygonVertices"); printf("maxpoly=%d\n", fm?fm():-1); }
 
-    void* w = 0;
-    if (strcmp(argv[2], "ptr") == 0) {
-        Vec2 g = {0.0f, -10.0f};
-        fnCreateWorld f = (fnCreateWorld)must(m, "b2_CreateWorld");
-        if (f) w = f(&g, 1);
-    } else if (strcmp(argv[2], "out") == 0) {
-        Vec2 g = {0.0f, -10.0f}; void* slot = 0;
-        fnCreateWorld f = (fnCreateWorld)must(m, "b2_CreateWorld");
-        if (f) { w = f(&slot, &g); printf("slot=%p\n", slot); }
-    } else if (strcmp(argv[2], "null") == 0) {
-        Vec2 g = {0.0f, -10.0f};
-        fnCreateWorld f = (fnCreateWorld)must(m, "b2_CreateWorld");
-        if (f) w = f(0, &g);
-    } else if (strcmp(argv[2], "one") == 0) {
-        Vec2 g = {0.0f, -10.0f};
-        fnCreateWorld f = (fnCreateWorld)must(m, "b2_CreateWorld");
-        if (f) w = f((void*)1, &g);
-    } else {
-        Vec2 g = {0.0f, -10.0f};
-        fnCreateWorldF f = (fnCreateWorldF)must(m, "b2_CreateWorld");
-        if (f) w = f(g.x, g.y);
-    }
-    printf("world=%p\n", w);
-    if (!w) return 4;
+    Vec2 g = {0.0f, -10.0f};
+    void* ctx = 0;
+    fnCreateWorld cw = (fnCreateWorld)sym(m, "b2_CreateWorld");
+    if (!cw) return 4;
+    void* w = cw(&ctx, &g);
+    printf("world=%p ctx=%p\n", w, ctx);
+    if (!w) return 5;
 
-    if (strcmp(argv[2], "pair") == 0) {
-        int c = argc > 3 ? atoi(argv[3]) : 0;
-        struct { void* world; float x, y; unsigned char a, b, cc; } d;
-        memset(&d, 0, sizeof(d));
-        d.world = w;
-        if (c != 1 && c != 3) { d.x = 1.0f; d.y = 2.0f; }
-        if (c != 2 && c != 3) d.a = 1;
-        fnCreateBody cb0 = (fnCreateBody)must(m, "b2_World_CreateBody");
-        void* b = cb0 ? cb0(&d) : 0;
-        printf("pair%d body=%p", c, b);
-        if (b) {
-            fnGetPosition g0 = (fnGetPosition)must(m, "b2_Body_GetPosition");
-            Vec2 p0 = {0, 0}; g0(&p0, b);
-            printf(" pos=(%.3f,%.3f)", p0.x, p0.y);
-        }
-        printf("\n");
-        return 0;
-    }
+    // 宿主实测的 body def 形状: { b2World* world; float f4, f8; u8 b12, b13, b14; }
+    struct Def { void* world; float f4, f8; unsigned char b12, b13, b14; };
+    struct Def d;
+    memset(&d, 0, sizeof(d));
+    d.world = w;
 
-    if (strcmp(argv[2], "bdef") == 0) {
-        // 假设: def = { b2World* world; b2BodyDef def; }
-        struct { void* world; float mass; float cx, cy; float I; void* user; float px, py; float angle;
-                 float ldamp, adamp; unsigned char allowSleep, isSleeping, fixedRot, isBullet; } d;
-        memset(&d, 0, sizeof(d));
-        d.world = w; d.px = 3.0f; d.py = 4.0f; d.angle = 0.5f; d.allowSleep = 1;
-        fnCreateBody cb0 = (fnCreateBody)must(m, "b2_World_CreateBody");
-        void* b = cb0 ? cb0(&d) : 0;
-        printf("bdef body=%p", b);
-        if (b) {
-            fnGetPosition g0 = (fnGetPosition)must(m, "b2_Body_GetPosition");
-            Vec2 p0 = {0, 0}; g0(&p0, b);
-            fnGetAngle a0 = (fnGetAngle)must(m, "b2_Body_GetAngle");
-            printf(" pos=(%.2f,%.2f) angle=%.3f", p0.x, p0.y, a0(b));
-        }
-        printf("\n");
-        return 0;
-    }
+    fnCreateBody cb = (fnCreateBody)sym(m, "b2_World_CreateBody");
 
-    if (strcmp(argv[2], "slot") == 0) {
-        // { b2World* world; float f[5]; } 全零，仅第 argv[3] 个 float 置 1.0
+    if (argc > 2 && strcmp(argv[2], "slot") == 0) {
         int idx = argc > 3 ? atoi(argv[3]) : 0;
-        struct { void* world; float f[13]; } d;
-        memset(&d, 0, sizeof(d));
-        d.world = w;
-        if (idx >= 0 && idx < 13) d.f[idx] = 1.0f;
-        ((unsigned char*)&d.f[2])[0] = 1;  // 试：allowSleep 槽位为 1
-        fnCreateBody cb0 = (fnCreateBody)must(m, "b2_World_CreateBody");
-        void* b = cb0 ? cb0(&d) : 0;
-        printf("slot%d body=%p", idx, b);
-        if (b) {
-            fnGetPosition g0 = (fnGetPosition)must(m, "b2_Body_GetPosition");
-            Vec2 p0 = {0, 0};
-            g0(&p0, b);
-            fnGetVelocity v0 = (fnGetVelocity)must(m, "b2_Body_GetVelocity");
-            Vec2 ve = {0, 0};
-            v0(&ve, b);
-            fnGetAngle a0 = (fnGetAngle)must(m, "b2_Body_GetAngle");
-            printf(" pos=(%.2f,%.2f) vel=(%.2f,%.2f) angle=%.2f", p0.x, p0.y, ve.x, ve.y, a0(b));
-        }
-        printf("\n");
+        if (idx == 0) d.f4 = 1.0f;
+        else if (idx == 1) d.f8 = 1.0f;
+        else if (idx == 2) d.b12 = 2;
+        else if (idx == 3) d.b13 = 1;
+        else if (idx == 4) d.b14 = 1;
+        else if (idx == 5) d.b12 = 1;
+    } else if (argc > 2 && strcmp(argv[2], "pair") == 0) {
+        int c = argc > 3 ? atoi(argv[3]) : 0;
+        if (c == 0) { d.f4 = 1.0f; d.f8 = 2.0f; d.b12 = 1; }
+        else if (c == 1) { d.b12 = 1; }
+        else if (c == 2) { d.f4 = 1.0f; d.f8 = 2.0f; }
+        else { d.b12 = 1; d.b13 = 1; d.b14 = 1; }
+    } else {
+        d.b12 = 1;   // 与宿主一致
+    }
+
+    void* body = cb ? cb(&d) : 0;
+    printf("body=%p (f4=%.2f f8=%.2f b12=%u b13=%u b14=%u)\n", body, d.f4, d.f8, d.b12, d.b13, d.b14);
+    if (!body) return 6;
+
+    fnGetPosition gp = (fnGetPosition)sym(m, "b2_Body_GetPosition");
+    fnGetAngle ga = (fnGetAngle)sym(m, "b2_Body_GetAngle");
+    fnGetVelocity gv = (fnGetVelocity)sym(m, "b2_Body_GetVelocity");
+    fnIsSleeping isl = (fnIsSleeping)sym(m, "b2_Body_GetIsSleeping");
+    fnIsBullet isb = (fnIsBullet)sym(m, "b2_Body_IsBullet");
+
+    Vec2 p = {0, 0}, v = {0, 0};
+    gp(&p, body); gv(&v, body);
+    fnGetAngularDamping gad = (fnGetAngularDamping)sym(m, "b2_Body_GetAngularDamping");
+    printf("t0 pos=(%.4f,%.4f) vel=(%.4f,%.4f) angle=%.4f sleeping=%d bullet=%d adamp=%.3f\n",
+           p.x, p.y, v.x, v.y, ga(body), isl(body), isb(body), gad ? gad(body) : -1.0f);
+
+    if (argc > 2 && strcmp(argv[2], "torque") == 0) {
+        int b13 = argc > 3 ? atoi(argv[3]) : 0;
+        d.f4 = 0; d.f8 = 0; d.b12 = 1; d.b13 = (unsigned char)b13; d.b14 = 0;
+        void* b2 = cb(&d);
+        fnApplyTorque at = (fnApplyTorque)sym(m, "b2_Body_ApplyTorque");
+        fnStep st = (fnStep)sym(m, "b2_World_Step");
+        at(b2, 100.0f);
+        for (int i = 0; i < 60; ++i) st(w, 1.0f / 60.0f, 10, 10);
+        printf("torque b13=%d angle=%.4f\n", b13, ga(b2));
         return 0;
     }
 
-    // 宿主侧构造的 body def: { b2World* world; float x, y; u8 allowSleep, fixedRotation, isBullet; }
-    struct { void* world; float x, y; unsigned char a, b, c; } def;
-    memset(&def, 0, sizeof(def));
-    def.world = w;
-    def.x = 1.0f; def.y = 2.0f; def.a = 1; def.b = 0; def.c = 0;
-
-    fnCreateBody cb = (fnCreateBody)must(m, "b2_World_CreateBody");
-    void* body = cb ? cb(&def) : 0;
-    printf("body=%p\n", body);
-
-    fnGetPosition gp = (fnGetPosition)must(m, "b2_Body_GetPosition");
-    Vec2 pos = {0, 0}, pos2 = {-1, -1};
-    if (gp && body) gp(&pos, body);
-    if (gp && body) gp(body, &pos2);
-    printf("pos_before out-first=(%.4f, %.4f) body-first=(%.4f, %.4f)\n", pos.x, pos.y, pos2.x, pos2.y);
-
-    fnStep st = (fnStep)must(m, "b2_World_Step");
-    for (int i = 0; i < 10; ++i) st(w, 1.0f / 60.0f, 10, 10);
-
-    pos.x = pos.y = 0;
-    if (gp && body) gp(&pos, body);
-    printf("pos_after=(%.4f, %.4f)\n", pos.x, pos.y);
-
-    fnGetAngle ga = (fnGetAngle)must(m, "b2_Body_GetAngle");
-    if (ga && body) printf("angle=%.6f\n", ga(body));
-
-    fnGetVelocity gv = (fnGetVelocity)must(m, "b2_Body_GetVelocity");
-    Vec2 vel = {0, 0};
-    if (gv && body) gv(&vel, body);
-    printf("vel=(%.4f, %.4f)\n", vel.x, vel.y);
+    if (argc > 2 && strcmp(argv[2], "step") == 0) {
+        fnStep st = (fnStep)sym(m, "b2_World_Step");
+        for (int i = 0; i < 60; ++i) st(w, 1.0f / 60.0f, 10, 10);
+        gp(&p, body); gv(&v, body);
+        printf("t60 pos=(%.4f,%.4f) vel=(%.4f,%.4f)\n", p.x, p.y, v.x, v.y);
+    }
     return 0;
 }
