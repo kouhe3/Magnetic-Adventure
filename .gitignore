@@ -6,3 +6,5 @@ msi/
 work/
 build/
 *.zip
+__pycache__/
+*.pyc
