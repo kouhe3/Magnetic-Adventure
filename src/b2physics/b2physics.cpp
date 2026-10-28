@@ -132,9 +132,9 @@ B2API void b2_Body_ClearShapes(b2Body* body) {
 namespace {
 
 void FillShapeCommon(b2ShapeDef* def, const B2ShapeDefC* d) {
-    def->density = d->density;
     def->friction = d->friction;
     def->restitution = d->restitution;
+    def->density = d->density;
     def->isSensor = d->sensor != 0;
 }
 

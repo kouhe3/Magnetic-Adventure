@@ -26,13 +26,13 @@ struct B2BodyDefC {          // 原 DLL: { world, angularDamping, linearDamping,
     unsigned char isBullet;
 };
 
-struct B2ShapeDefC {         // 形状描述公共头（F15）
-    b2Body* body;            // +0  Box/Circle/Polygon 三者的 +0 都是 body
-    float density;           // +4
-    float friction;          // +8
-    float restitution;       // +12
+struct B2ShapeDefC {         // 形状描述公共头（F32 实测：+4 摩擦、+8 弹性、+12 密度、+16 传感器）
+    b2Body* body;            // +0
+    float friction;          // +4
+    float restitution;       // +8
+    float density;           // +12
     unsigned char sensor;    // +16
-    float a, b, c, d;        // +20 box:center / circle:localPos / polygon:vertexCount
+    float a, b, c, d;        // +20/+24 center 或 localPos；+28/+32 半宽高 或 radius / 顶点
 };
 
 struct B2XFormC { float x, y, angle; };     // GetXForm 输出 / SetXForm 输入
