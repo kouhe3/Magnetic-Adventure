@@ -213,7 +213,10 @@ class Replayer:
                     tol = {'sleepTime': 1e-3, 'vx': 1e-4, 'vy': 1e-4, 'w': 1e-4,
                            'px': 1e-5, 'py': 1e-5, 'angle': 1e-5,
                            'mass': 1e-4, 'invMass': 1e-4, 'I': 1e-4, 'invI': 1e-4}.get(n, 1e-5)
-                    if a == b or abs(a - b) <= tol:
+                    # 质量/惯量这类量级可达几千，绝对容差会低于 float 的 ULP，必须按相对值比
+                    scale = max(1.0, abs(a), abs(b)) if n in (
+                        'mass', 'invMass', 'I', 'invI') else 1.0
+                    if a == b or abs(a - b) <= tol * scale:
                         continue
                     self.note_digest(seq, ptr, n, f'{a:.7g} -> {b:.7g}', 2,
                                      f'{px:.3f},{py:.3f}')
