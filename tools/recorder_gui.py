@@ -243,7 +243,7 @@ class Session:
                 self.jsonl.close()
             except Exception:
                 pass
-        meta = {"pid": self.pid, "rect": self.rect,
+        meta = {"pid": self.pid, "rect": self.rect, "outside_clicks": self.outside,
                 "start": self.start, "end": time.time(),
                 "events": self.events, "clicks": self.clicks}
         with open(os.path.join(self.out_dir, "meta.json"), "w", encoding="utf-8") as f:
