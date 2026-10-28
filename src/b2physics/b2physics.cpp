@@ -19,6 +19,16 @@
 
 namespace {
 
+void Trace(const char* n) {
+    const char* path = std::getenv("B2PHYSICS_LOG");
+    if (!path) return;
+    if (FILE* f = std::fopen(path, "a")) {
+        std::fprintf(f, "%s\n", n);
+        std::fclose(f);
+    }
+}
+#define TRACE(n) Trace(n)
+
 b2Vec2 V(const B2Vec2C& v) { return b2Vec2(v.x, v.y); }
 b2Vec2 V(const float* p) { return b2Vec2(p[0], p[1]); }
 void Out(B2Vec2C* out, const b2Vec2& v) { out->x = v.x; out->y = v.y; }
@@ -35,31 +45,35 @@ void Wake(b2Body* b) {
 
 // 实测（F29）：arg0 必须是非空可写指针 —— 它是 b2World 构造所需的 world AABB
 B2API void* b2_CreateWorld(const b2AABB* aabb, const B2Vec2C* gravity) {
+    TRACE("b2_CreateWorld");
     b2Vec2 g = gravity ? V(*gravity) : b2Vec2(0.0f, -10.0f);
     b2AABB box = aabb ? *aabb : b2AABB();
     return new b2World(box, g, true);
 }
 
 B2API void b2_DestroyWorld(b2World* world) {
+    TRACE("b2_DestroyWorld");
     if (!world) return;
     world->~b2World();
     ::operator delete(world);
 }
 
 B2API void b2_World_Step(b2World* world, float dt, int velocityIterations, int positionIterations) {
+    TRACE("b2_World_Step");
     world->Step(dt, velocityIterations, positionIterations);
 }
 
 B2API void b2_World_SetGravity(b2World* world, const B2Vec2C* gravity) {
+    TRACE("b2_World_SetGravity");
     world->m_gravity = V(*gravity);
 }
 
-B2API void b2_World_ReFilter(b2World* world) {
-    for (b2Body* b = world->m_bodyList; b; b = b->m_next) {
-        for (b2Shape* s = b->m_shapeList; s; s = s->m_next) {
-            world->Refilter(s);
-        }
-    }
+B2API void b2_World_ReFilter(b2Shape* shape) {
+    TRACE("b2_World_ReFilter");
+    // 名字有误导：宿主传的是 shape（game.exe: for (s=GetShapeList(obj)); s; s=Shape_GetNext(s)) World_ReFilter(s)
+    if (!shape || !shape->m_body) return;
+    b2World* world = shape->m_body->m_world;
+    if (world) world->Refilter(shape);
 }
 
 namespace {
@@ -73,14 +87,17 @@ b2ContactListener CallbackHolder::g_listener;
 }  // namespace
 
 B2API void b2_World_SetContactFilterCallBack(b2World* world, b2ContactFilter* filter) {
+    TRACE("b2_World_SetContactFilterCallBack");
     world->SetContactFilter(filter);
 }
 
 B2API void b2_World_SetContactListenerCallBack(b2World* world, b2ContactListener* listener) {
+    TRACE("b2_World_SetContactListenerCallBack");
     world->SetContactListener(listener);
 }
 
 B2API void* b2_World_CreateBody(const B2BodyDefC* d) {
+    TRACE("b2_World_CreateBody");
     b2BodyDef def;  // 默认构造：massData 0、position 0、allowSleep=true
     def.angularDamping = d->angularDamping;
     def.linearDamping = d->linearDamping;
@@ -91,39 +108,47 @@ B2API void* b2_World_CreateBody(const B2BodyDefC* d) {
 }
 
 B2API void b2_World_DestroyBody(b2World* world, b2Body* body) {
+    TRACE("b2_World_DestroyBody");
     (void)world;  // 原 DLL 只用 body 自身
     body->m_world->DestroyBody(body);
 }
 
 B2API void b2_World_DestroyJoint(b2Joint* joint) {
+    TRACE("b2_World_DestroyJoint");
     joint->m_body1->m_world->DestroyJoint(joint);
 }
 
 B2API void b2_World_ClearJoints(b2World* world) {
+    TRACE("b2_World_ClearJoints");
     while (world->m_jointList) {
         world->DestroyJoint(world->m_jointList);
     }
 }
 
-B2API int b2_GetMaxPolygonVertices(void) { return 8; }
+B2API int b2_GetMaxPolygonVertices(void) {
+    TRACE("b2_GetMaxPolygonVertices"); return 8; }
 
 // ---------------------------------------------------------------- Body
 
 B2API void b2_Body_ApplyForce(b2Body* body, const float* force, const float* point) {
+    TRACE("b2_Body_ApplyForce");
     body->ApplyForce(V(force), V(point));
 }
 
 B2API void b2_Body_ApplyImpulse(b2Body* body, const float* impulse, const float* point) {
+    TRACE("b2_Body_ApplyImpulse");
     body->ApplyImpulse(V(impulse), V(point));
 }
 
 B2API void b2_Body_ApplyTorque(b2Body* body, float torque) {
+    TRACE("b2_Body_ApplyTorque");
     if (body->m_flags & b2Body::e_sleepFlag) Wake(body);
     body->m_force.y += 0.0f;  // 保持与原实现相同的分支形状
     body->m_torque += torque;
 }
 
 B2API void b2_Body_ClearShapes(b2Body* body) {
+    TRACE("b2_Body_ClearShapes");
     while (body->m_shapeList) {
         body->DestroyShape(body->m_shapeList);
     }
@@ -141,6 +166,7 @@ void FillShapeCommon(b2ShapeDef* def, const B2ShapeDefC* d) {
 }  // namespace
 
 B2API void* b2_Body_CreateShape_Box(const B2ShapeDefC* d) {
+    TRACE("b2_Body_CreateShape_Box");
     b2PolygonDef def;
     FillShapeCommon(&def, d);
     def.SetAsBox(d->c, d->d, b2Vec2(d->a, d->b), 0.0f);  // +28/+32 半宽高，+20/+24 中心
@@ -148,6 +174,7 @@ B2API void* b2_Body_CreateShape_Box(const B2ShapeDefC* d) {
 }
 
 B2API void* b2_Body_CreateShape_Circle(const B2ShapeDefC* d) {
+    TRACE("b2_Body_CreateShape_Circle");
     b2CircleDef def;
     FillShapeCommon(&def, d);
     def.localPosition.Set(d->a, d->b);  // +20/+24
@@ -156,75 +183,92 @@ B2API void* b2_Body_CreateShape_Circle(const B2ShapeDefC* d) {
 }
 
 B2API void* b2_Body_CreateShape_Polygon(const B2ShapeDefC* d) {
+    TRACE("b2_Body_CreateShape_Polygon");
     b2PolygonDef def;
     FillShapeCommon(&def, d);
     int count = (int)d->a;  // +20 顶点数
     if (count < 3) return nullptr;
     if (count > b2_maxPolygonVertices) count = b2_maxPolygonVertices;
     def.vertexCount = count;
-    const float* p = &d->b;  // +24 起是顶点数组
+    const float* p = &d->c;  // +28 起是顶点数组（反编译 a1+28）
     for (int i = 0; i < count; ++i) {
         def.vertices[i].Set(p[2 * i], p[2 * i + 1]);
     }
     return d->body->CreateShape(&def);
 }
 
-B2API void b2_Body_DestroyShape(b2Shape* shape) { shape->m_body->DestroyShape(shape); }
+B2API void b2_Body_DestroyShape(b2Shape* shape) {
+    TRACE("b2_Body_DestroyShape"); shape->m_body->DestroyShape(shape); }
 
-B2API float b2_Body_GetAngle(b2Body* body) { return body->m_sweep.a; }
+B2API float b2_Body_GetAngle(b2Body* body) {
+    TRACE("b2_Body_GetAngle"); return body->m_sweep.a; }
 
-B2API float b2_Body_GetAngularDamping(b2Body* body) { return body->m_angularDamping; }
+B2API float b2_Body_GetAngularDamping(b2Body* body) {
+    TRACE("b2_Body_GetAngularDamping"); return body->m_angularDamping; }
 
 B2API int b2_Body_GetIsSleeping(b2Body* body) {
+    TRACE("b2_Body_GetIsSleeping");
     return (body->m_flags & b2Body::e_sleepFlag) ? 1 : 0;
 }
 
 B2API void* b2_Body_GetLocalPoint(void* out, b2Body* body, const float* p) {
+    TRACE("b2_Body_GetLocalPoint");
     *(b2Vec2*)out = body->GetLocalPoint(V(p));
     return out;
 }
 
 B2API void* b2_Body_GetLocalVector(void* out, b2Body* body, const float* v) {
+    TRACE("b2_Body_GetLocalVector");
     *(b2Vec2*)out = body->GetLocalVector(V(v));
     return out;
 }
 
 B2API void b2_Body_GetMass(b2Body* body, B2MassDataC* out) {
+    TRACE("b2_Body_GetMass");
     out->mass = body->m_mass;
     out->cx = body->m_sweep.c.x;
     out->cy = body->m_sweep.c.y;
     out->I = body->m_I;
 }
 
-B2API float b2_Body_GetOmega(b2Body* body) { return body->m_angularVelocity; }
+B2API float b2_Body_GetOmega(b2Body* body) {
+    TRACE("b2_Body_GetOmega"); return body->m_angularVelocity; }
 
 B2API void* b2_Body_GetPosition(void* out, b2Body* body) {
+    TRACE("b2_Body_GetPosition");
     Out((B2Vec2C*)out, body->m_xf.position);
     return out;
 }
 
-B2API void* b2_Body_GetShapeList(b2Body* body) { return body->m_shapeList; }
+B2API void* b2_Body_GetShapeList(b2Body* body) {
+    TRACE("b2_Body_GetShapeList"); return body->m_shapeList; }
 
-B2API void* b2_Body_GetUserData(b2Body* body) { return body->m_userData; }
+B2API void* b2_Body_GetUserData(b2Body* body) {
+    TRACE("b2_Body_GetUserData"); return body->m_userData; }
 
 B2API void* b2_Body_GetVelocity(void* out, b2Body* body) {
+    TRACE("b2_Body_GetVelocity");
     Out((B2Vec2C*)out, body->m_linearVelocity);
     return out;
 }
 
-B2API void* b2_Body_GetWorld(b2Body* body) { return body->m_world; }
+B2API void* b2_Body_GetWorld(b2Body* body) {
+    TRACE("b2_Body_GetWorld"); return body->m_world; }
 
 B2API void* b2_Body_GetWorldPoint(void* out, b2Body* body, const float* p) {
+    TRACE("b2_Body_GetWorldPoint");
     *(b2Vec2*)out = body->GetWorldPoint(V(p));
     return out;
 }
 
 B2API void* b2_Body_GetWorldVector(void* out, b2Body* body, const float* v) {
+    TRACE("b2_Body_GetWorldVector");
     *(b2Vec2*)out = body->GetWorldVector(V(v));
     return out;
 }
 
 B2API void* b2_Body_GetXForm(b2Body* body, B2XFormC* out) {
+    TRACE("b2_Body_GetXForm");
     out->x = body->m_xf.position.x;
     out->y = body->m_xf.position.y;
     out->angle = body->m_sweep.a;
@@ -232,14 +276,17 @@ B2API void* b2_Body_GetXForm(b2Body* body, B2XFormC* out) {
 }
 
 B2API int b2_Body_IsBullet(b2Body* body) {
+    TRACE("b2_Body_IsBullet");
     return (body->m_flags & b2Body::e_bulletFlag) ? 1 : 0;
 }
 
 B2API int b2_Body_IsFrozen(b2Body* body) {
+    TRACE("b2_Body_IsFrozen");
     return (body->m_flags & b2Body::e_frozenFlag) ? 1 : 0;
 }
 
 B2API void b2_Body_PutToSleep(b2Body* body) {
+    TRACE("b2_Body_PutToSleep");
     body->m_flags |= b2Body::e_sleepFlag;
     body->m_sleepTime = 0.0f;
     body->m_linearVelocity.SetZero();
@@ -248,37 +295,45 @@ B2API void b2_Body_PutToSleep(b2Body* body) {
     body->m_torque = 0.0f;
 }
 
-B2API void b2_Body_SetAngularDamping(b2Body* body, float d) { body->m_angularDamping = d; }
+B2API void b2_Body_SetAngularDamping(b2Body* body, float d) {
+    TRACE("b2_Body_SetAngularDamping"); body->m_angularDamping = d; }
 
 B2API void b2_Body_SetBullet(b2Body* body, int flag) {
+    TRACE("b2_Body_SetBullet");
     if (flag)
         body->m_flags |= b2Body::e_bulletFlag;
     else
         body->m_flags &= ~b2Body::e_bulletFlag;
 }
 
-B2API void b2_Body_SetMass(b2Body* body, const B2MassDataC* md) { body->SetMass((const b2MassData*)md); }
+B2API void b2_Body_SetMass(b2Body* body, const B2MassDataC* md) {
+    TRACE("b2_Body_SetMass"); body->SetMass((const b2MassData*)md); }
 
-B2API void b2_Body_SetMassFromShapes(b2Body* body) { body->SetMassFromShapes(); }
+B2API void b2_Body_SetMassFromShapes(b2Body* body) {
+    TRACE("b2_Body_SetMassFromShapes"); body->SetMassFromShapes(); }
 
 B2API void b2_Body_SetOmega(b2Body* body, float omega) {
+    TRACE("b2_Body_SetOmega");
     body->m_flags &= ~b2Body::e_sleepFlag;
     body->m_sleepTime = 0.0f;
     body->m_angularVelocity = omega;
 }
 
 B2API void* b2_Body_SetUserData(b2Body* body, void* data) {
+    TRACE("b2_Body_SetUserData");
     body->m_userData = data;
     return data;
 }
 
 B2API void b2_Body_SetVelocity(b2Body* body, const float* v) {
+    TRACE("b2_Body_SetVelocity");
     body->m_flags &= ~b2Body::e_sleepFlag;
     body->m_sleepTime = 0.0f;
     body->m_linearVelocity = V(v);
 }
 
 B2API void b2_Body_SetXForm(b2Body* body, const B2XFormC* xf) {
+    TRACE("b2_Body_SetXForm");
     body->m_xf.position.Set(xf->x, xf->y);
     body->m_xf.R.Set(xf->angle);
     body->m_sweep.c = body->m_xf.position;
@@ -287,17 +342,21 @@ B2API void b2_Body_SetXForm(b2Body* body, const B2XFormC* xf) {
 }
 
 B2API void b2_Body_WakeUp(b2Body* body) {
+    TRACE("b2_Body_WakeUp");
     body->m_sleepTime = 0.0f;
     body->m_flags &= ~b2Body::e_sleepFlag;
 }
 
 // ---------------------------------------------------------------- Shape
 
-B2API void* b2_Shape_GetBody(b2Shape* shape) { return shape->m_body; }
+B2API void* b2_Shape_GetBody(b2Shape* shape) {
+    TRACE("b2_Shape_GetBody"); return shape->m_body; }
 
-B2API void* b2_Shape_GetNext(b2Shape* shape) { return shape->m_next; }
+B2API void* b2_Shape_GetNext(b2Shape* shape) {
+    TRACE("b2_Shape_GetNext"); return shape->m_next; }
 
 B2API int b2_Shape_GetShapeType(b2Shape* shape) {
+    TRACE("b2_Shape_GetShapeType");
     switch (shape->m_type) {
         case e_unknownShape: return 0;
         case e_circleShape: return 1;
@@ -306,17 +365,26 @@ B2API int b2_Shape_GetShapeType(b2Shape* shape) {
     }
 }
 
-B2API float b2_Shape_GetDensity(b2Shape* shape) { return shape->m_density; }
-B2API float b2_Shape_GetFriction(b2Shape* shape) { return shape->m_friction; }
-B2API float b2_Shape_GetRestitution(b2Shape* shape) { return shape->m_restitution; }
-B2API int b2_Shape_GetSensor(b2Shape* shape) { return shape->m_isSensor ? 1 : 0; }
+B2API float b2_Shape_GetDensity(b2Shape* shape) {
+    TRACE("b2_Shape_GetDensity"); return shape->m_density; }
+B2API float b2_Shape_GetFriction(b2Shape* shape) {
+    TRACE("b2_Shape_GetFriction"); return shape->m_friction; }
+B2API float b2_Shape_GetRestitution(b2Shape* shape) {
+    TRACE("b2_Shape_GetRestitution"); return shape->m_restitution; }
+B2API int b2_Shape_GetSensor(b2Shape* shape) {
+    TRACE("b2_Shape_GetSensor"); return shape->m_isSensor ? 1 : 0; }
 
-B2API void b2_Shape_SetDensity(b2Shape* shape, float v) { shape->m_density = v; }
-B2API void b2_Shape_SetFriction(b2Shape* shape, float v) { shape->m_friction = v; }
-B2API void b2_Shape_SetRestitution(b2Shape* shape, float v) { shape->m_restitution = v; }
-B2API int b2_Shape_SetSensor(b2Shape* shape, int v) { shape->m_isSensor = v != 0; return v; }
+B2API void b2_Shape_SetDensity(b2Shape* shape, float v) {
+    TRACE("b2_Shape_SetDensity"); shape->m_density = v; }
+B2API void b2_Shape_SetFriction(b2Shape* shape, float v) {
+    TRACE("b2_Shape_SetFriction"); shape->m_friction = v; }
+B2API void b2_Shape_SetRestitution(b2Shape* shape, float v) {
+    TRACE("b2_Shape_SetRestitution"); shape->m_restitution = v; }
+B2API int b2_Shape_SetSensor(b2Shape* shape, int v) {
+    TRACE("b2_Shape_SetSensor"); shape->m_isSensor = v != 0; return v; }
 
 B2API void* b2_Shape_GetFilter(b2Shape* shape, B2FilterC* out) {
+    TRACE("b2_Shape_GetFilter");
     out->category = shape->m_filter.categoryBits;
     out->mask = shape->m_filter.maskBits;
     out->group = shape->m_filter.groupIndex;
@@ -324,6 +392,7 @@ B2API void* b2_Shape_GetFilter(b2Shape* shape, B2FilterC* out) {
 }
 
 B2API void* b2_Shape_SetFilter(b2Shape* shape, const B2FilterC* f) {
+    TRACE("b2_Shape_SetFilter");
     shape->m_filter.categoryBits = f->category;
     shape->m_filter.maskBits = f->mask;
     shape->m_filter.groupIndex = f->group;
@@ -331,6 +400,7 @@ B2API void* b2_Shape_SetFilter(b2Shape* shape, const B2FilterC* f) {
 }
 
 B2API void* b2_Shape_GetCirclePos(void* out, b2Shape* shape) {
+    TRACE("b2_Shape_GetCirclePos");
     if (shape->m_type != e_circleShape) {
         ((float*)out)[0] = ((float*)out)[1] = 0.0f;
         return out;
@@ -340,11 +410,13 @@ B2API void* b2_Shape_GetCirclePos(void* out, b2Shape* shape) {
 }
 
 B2API float b2_Shape_GetCircleRadius(b2Shape* shape) {
+    TRACE("b2_Shape_GetCircleRadius");
     if (shape->m_type != e_circleShape) return 0.0f;
     return ((b2CircleShape*)shape)->m_radius;
 }
 
 B2API int b2_Shape_TestPoint(b2Shape* shape, const B2XFormC* xf, const float* p) {
+    TRACE("b2_Shape_TestPoint");
     b2XForm f;
     f.position.Set(xf->x, xf->y);
     f.R.Set(xf->angle);
@@ -355,6 +427,7 @@ B2API int b2_Shape_TestPoint(b2Shape* shape, const B2XFormC* xf, const float* p)
 
 // 工厂：输入布局见 docs/facts.md F34
 B2API void* b2_World_Joint_Distance(const B2DistanceJointC* d) {
+    TRACE("b2_World_Joint_Distance");
     b2DistanceJointDef def;
     def.Initialize(d->body1, d->body2, V(d->anchor1), V(d->anchor2));
     def.collideConnected = d->collide != 0;
@@ -362,6 +435,7 @@ B2API void* b2_World_Joint_Distance(const B2DistanceJointC* d) {
 }
 
 B2API void* b2_World_Joint_Revolute(const B2RevoluteJointC* d) {
+    TRACE("b2_World_Joint_Revolute");
     b2RevoluteJointDef def;
     def.Initialize(d->body1, d->body2, V(d->anchor));
     def.enableLimit = d->enableLimit != 0;
@@ -375,6 +449,7 @@ B2API void* b2_World_Joint_Revolute(const B2RevoluteJointC* d) {
 }
 
 B2API void* b2_World_Joint_Prismatic(const B2PrismaticJointC* d) {
+    TRACE("b2_World_Joint_Prismatic");
     b2PrismaticJointDef def;
     def.Initialize(d->body1, d->body2, V(d->anchor), V(d->axis));
     def.enableLimit = d->enableLimit != 0;
@@ -388,6 +463,7 @@ B2API void* b2_World_Joint_Prismatic(const B2PrismaticJointC* d) {
 }
 
 B2API void* b2_World_Joint_Gear(const B2GearJointC* d) {
+    TRACE("b2_World_Joint_Gear");
     b2GearJointDef def;
     def.body1 = d->body1;
     def.body2 = d->body2;
@@ -399,6 +475,7 @@ B2API void* b2_World_Joint_Gear(const B2GearJointC* d) {
 }
 
 B2API void* b2_World_Joint_Pulley(const B2PulleyJointC* d) {
+    TRACE("b2_World_Joint_Pulley");
     b2PulleyJointDef def;
     def.Initialize(d->body1, d->body2, V(d->groundAnchor1), V(d->groundAnchor2),
                    V(d->localAnchor1), V(d->localAnchor2), d->ratio);
@@ -416,6 +493,7 @@ T* As(b2Joint* j) {
 }  // namespace
 
 B2API void b2_Joint_EnableLimit(b2Joint* j, int enable) {
+    TRACE("b2_Joint_EnableLimit");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableLimit(enable != 0); break;
         case e_prismaticJoint: As<b2PrismaticJoint>(j)->EnableLimit(enable != 0); break;
@@ -424,6 +502,7 @@ B2API void b2_Joint_EnableLimit(b2Joint* j, int enable) {
 }
 
 B2API void b2_Joint_EnableMotor(b2Joint* j, int enable) {
+    TRACE("b2_Joint_EnableMotor");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableMotor(enable != 0); break;
         case e_prismaticJoint: As<b2PrismaticJoint>(j)->EnableMotor(enable != 0); break;
@@ -432,29 +511,36 @@ B2API void b2_Joint_EnableMotor(b2Joint* j, int enable) {
 }
 
 B2API void* b2_Joint_GetAnchor1(void* out, b2Joint* j) {
+    TRACE("b2_Joint_GetAnchor1");
     *(b2Vec2*)out = j->GetAnchor1();
     return out;
 }
 
 B2API void* b2_Joint_GetAnchor2(void* out, b2Joint* j) {
+    TRACE("b2_Joint_GetAnchor2");
     *(b2Vec2*)out = j->GetAnchor2();
     return out;
 }
 
-B2API void* b2_Joint_GetBody1(b2Joint* j) { return j->m_body1; }
-B2API void* b2_Joint_GetBody2(b2Joint* j) { return j->m_body2; }
+B2API void* b2_Joint_GetBody1(b2Joint* j) {
+    TRACE("b2_Joint_GetBody1"); return j->m_body1; }
+B2API void* b2_Joint_GetBody2(b2Joint* j) {
+    TRACE("b2_Joint_GetBody2"); return j->m_body2; }
 
 B2API float b2_Joint_GetJointAngle(b2Joint* j) {
+    TRACE("b2_Joint_GetJointAngle");
     if (j->m_type != e_revoluteJoint) return 0.0f;
     return As<b2RevoluteJoint>(j)->GetJointAngle();
 }
 
 B2API float b2_Joint_GetJointTranslation(b2Joint* j) {
+    TRACE("b2_Joint_GetJointTranslation");
     if (j->m_type != e_prismaticJoint) return 0.0f;
     return As<b2PrismaticJoint>(j)->GetJointTranslation();
 }
 
 B2API int b2_Joint_GetJointType(b2Joint* j) {
+    TRACE("b2_Joint_GetJointType");
     switch (j->m_type) {
         case e_revoluteJoint: return 0;
         case e_prismaticJoint: return 1;
@@ -466,6 +552,7 @@ B2API int b2_Joint_GetJointType(b2Joint* j) {
 }
 
 B2API void* b2_Joint_GetLimits(b2Joint* j, float* lower, float* upper) {
+    TRACE("b2_Joint_GetLimits");
     switch (j->m_type) {
         case e_revoluteJoint:
             *lower = As<b2RevoluteJoint>(j)->GetLowerLimit();
@@ -483,6 +570,7 @@ B2API void* b2_Joint_GetLimits(b2Joint* j, float* lower, float* upper) {
 }
 
 B2API float b2_Joint_GetMotorSpeed(b2Joint* j) {
+    TRACE("b2_Joint_GetMotorSpeed");
     switch (j->m_type) {
         case e_revoluteJoint: return As<b2RevoluteJoint>(j)->GetMotorSpeed();
         case e_prismaticJoint: return As<b2PrismaticJoint>(j)->GetMotorSpeed();
@@ -491,13 +579,16 @@ B2API float b2_Joint_GetMotorSpeed(b2Joint* j) {
 }
 
 B2API void* b2_Joint_GetReactionImpulse(void* out, b2Joint* j) {
+    TRACE("b2_Joint_GetReactionImpulse");
     *(b2Vec2*)out = j->GetReactionForce(1.0f);
     return out;
 }
 
-B2API float b2_Joint_GetReactionTorqImpulse(b2Joint* j) { return j->GetReactionTorque(1.0f); }
+B2API float b2_Joint_GetReactionTorqImpulse(b2Joint* j) {
+    TRACE("b2_Joint_GetReactionTorqImpulse"); return j->GetReactionTorque(1.0f); }
 
 B2API int b2_Joint_IsLimitEnabled(b2Joint* j) {
+    TRACE("b2_Joint_IsLimitEnabled");
     switch (j->m_type) {
         case e_revoluteJoint: return As<b2RevoluteJoint>(j)->IsLimitEnabled() ? 1 : 0;
         case e_prismaticJoint: return As<b2PrismaticJoint>(j)->IsLimitEnabled() ? 1 : 0;
@@ -506,6 +597,7 @@ B2API int b2_Joint_IsLimitEnabled(b2Joint* j) {
 }
 
 B2API int b2_Joint_IsMotorEnabled(b2Joint* j) {
+    TRACE("b2_Joint_IsMotorEnabled");
     switch (j->m_type) {
         case e_revoluteJoint: return As<b2RevoluteJoint>(j)->IsMotorEnabled() ? 1 : 0;
         case e_prismaticJoint: return As<b2PrismaticJoint>(j)->IsMotorEnabled() ? 1 : 0;
@@ -514,6 +606,7 @@ B2API int b2_Joint_IsMotorEnabled(b2Joint* j) {
 }
 
 B2API void b2_Joint_SetLimits(b2Joint* j, float lower, float upper) {
+    TRACE("b2_Joint_SetLimits");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetLimits(lower, upper); break;
         case e_prismaticJoint: As<b2PrismaticJoint>(j)->SetLimits(lower, upper); break;
@@ -522,14 +615,17 @@ B2API void b2_Joint_SetLimits(b2Joint* j, float lower, float upper) {
 }
 
 B2API void b2_Joint_SetMaxMotorForce(b2Joint* j, float force) {
+    TRACE("b2_Joint_SetMaxMotorForce");
     if (j->m_type == e_prismaticJoint) As<b2PrismaticJoint>(j)->SetMaxMotorForce(force);
 }
 
 B2API void b2_Joint_SetMaxMotorTorque(b2Joint* j, float torque) {
+    TRACE("b2_Joint_SetMaxMotorTorque");
     if (j->m_type == e_revoluteJoint) As<b2RevoluteJoint>(j)->SetMaxMotorTorque(torque);
 }
 
 B2API void b2_Joint_SetMotorSpeed(b2Joint* j, float speed) {
+    TRACE("b2_Joint_SetMotorSpeed");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetMotorSpeed(speed); break;
         case e_prismaticJoint: As<b2PrismaticJoint>(j)->SetMotorSpeed(speed); break;
