@@ -17,6 +17,10 @@ import time
 from PIL import Image
 
 u = ctypes.windll.user32
+# 显式声明参数宽度：不声明时 ctypes 按 c_int 传参，64 位 LPARAM 会 OverflowError，
+# 结果钩子链断了、事件被吞。
+u.CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t, ctypes.c_ssize_t]
+u.CallNextHookEx.restype = ctypes.c_ssize_t
 u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
 
 WH_MOUSE_LL = 14
@@ -70,6 +74,33 @@ def grab_window(hwnd, path):
     gdi.DeleteObject(bmp)
     gdi.DeleteDC(mem)
     u.ReleaseDC(hwnd, hdc)
+    img = Image.frombuffer("RGBA", (w, h), buf, "raw", "BGRA", 0, 1).convert("RGB")
+    img.save(path)
+    return path
+
+
+def grab_screen(rect, path):
+    """抓屏幕上的一块矩形（窗口被 GL 直接绘制时，GetDC(hwnd)+BitBlt 只能拿到黑底）。"""
+    gdi = ctypes.windll.gdi32
+    l, t, w, h = rect
+    if w <= 0 or h <= 0:
+        return None
+    hdc = u.GetDC(0)
+    mem = gdi.CreateCompatibleDC(hdc)
+    bmp = gdi.CreateCompatibleBitmap(hdc, w, h)
+    gdi.SelectObject(mem, bmp)
+    gdi.BitBlt(mem, 0, 0, w, h, hdc, l, t, 0x00CC0020)
+    bi = BITMAPINFOHEADER()
+    bi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+    bi.biWidth = w
+    bi.biHeight = -h
+    bi.biPlanes = 1
+    bi.biBitCount = 32
+    buf = ctypes.create_string_buffer(w * h * 4)
+    gdi.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(bi), 0)
+    gdi.DeleteObject(bmp)
+    gdi.DeleteDC(mem)
+    u.ReleaseDC(0, hdc)
     img = Image.frombuffer("RGBA", (w, h), buf, "raw", "BGRA", 0, 1).convert("RGB")
     img.save(path)
     return path
