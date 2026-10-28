@@ -210,7 +210,8 @@ def main():
         return 2
     path = sys.argv[1]
     speed, post, expect = 1.0, 3.0, None
-    anchor = True
+    # 自适应拖拽实测失误率更高（模板匹配会被背景纹理带偏），默认关闭，需要时 --anchor
+    anchor = False
     focus_wait = 30.0          # 失焦后最多等这么久，然后中止
     shot = os.path.join(ROOT, "work", "replay_end.png")
     for i, a in enumerate(sys.argv):
@@ -222,8 +223,8 @@ def main():
             expect = sys.argv[i + 1]
         elif a == "--post":
             post = float(sys.argv[i + 1])
-        elif a == "--no-anchor":
-            anchor = False
+        elif a == "--anchor":
+            anchor = True
         elif a == "--focus-wait":
             focus_wait = float(sys.argv[i + 1])
 

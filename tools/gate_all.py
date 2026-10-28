@@ -21,7 +21,7 @@ PY = sys.executable
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
-    ap.add_argument("--no-visual", action="store_true")
+    ap.add_argument("--visual", action="store_true")
     ap.add_argument("--skip-capture", action="store_true")
     a = ap.parse_args()
 
@@ -47,8 +47,8 @@ def main():
     for rec in recs:
         name = os.path.basename(os.path.dirname(rec)).replace("rec_", "")
         cmd = [PY, os.path.join(ROOT, "tools", "gate.py"), rec, "--name", name]
-        if a.no_visual:
-            cmd.append("--no-visual")
+        if a.visual:
+            cmd.append("--visual")
         if a.skip_capture:
             cmd.append("--skip-capture")
         out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)

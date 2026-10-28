@@ -70,7 +70,7 @@ def capture(rec, ffi_out):
     return os.path.exists(ffi_out) and os.path.getsize(ffi_out) > 0, out.stdout
 
 
-def capture_with_retry(rec, ffi_out, tries=3):
+def capture_with_retry(rec, ffi_out, tries=2):
     """拖拽可能没抓中物体导致这次重放没通关——重放没通关时语料只覆盖半关，重试到通关为止。"""
     last = None
     for i in range(tries):
@@ -153,7 +153,9 @@ def main():
     ap.add_argument("--name", default="level")
     ap.add_argument("--ffi", default="")
     ap.add_argument("--skip-capture", action="store_true")
-    ap.add_argument("--no-visual", action="store_true")
+    ap.add_argument("--no-visual", action="store_true", default=True)
+    ap.add_argument("--visual", action="store_true")
+    ap.add_argument("--capture-tries", type=int, default=2)
     ap.add_argument("--dll-a", default=os.path.join(ROOT, "bin", "gametop", "b2Physics.dll"))
     ap.add_argument("--dll-b", default=os.path.join(ROOT, "build", "Release", "b2Physics.dll"))
     a = ap.parse_args()
@@ -162,7 +164,7 @@ def main():
     report = {"name": a.name, "rec": a.rec, "ffi": ffi}
 
     if not a.skip_capture:
-        ok, tail, score, tries = capture_with_retry(a.rec, ffi)
+        ok, tail, score, tries = capture_with_retry(a.rec, ffi, a.capture_tries)
         report["capture"] = {"ok": ok, "tail": (tail or "")[-300:], "min_score": score,
                              "tries": tries,
                              "size_mb": round(os.path.getsize(ffi) / 1048576, 1) if ok else 0}
@@ -179,10 +181,10 @@ def main():
     growth_ok, head, tail = bounded(off.get("step_bad") or {})
     report["bounded"] = {"ok": growth_ok, "head": head, "tail": tail}
 
-    if a.no_visual:
-        vis = {"ok": False, "skipped": True}
-    else:
+    if a.visual:
         vis = visual_ab(a.rec, a.dll_a, a.dll_b)
+    else:
+        vis = {"ok": False, "skipped": True}
     report["visual"] = vis
 
     fails = []
