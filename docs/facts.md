@@ -14,9 +14,10 @@
 | F05 | `data` 是自定义 Pak v0.2：`u32 toc_size` + `[Pak Header Info Ver 0.2]` + 条目表（`u8 namelen`、名字、4 B 标记 `0xF399B000`、`u32 offset`、`u32 size`），载荷从 TOC 末尾起连续存放；条目数基线 722 / GameTop 707。第 33 条后记录边界差 1 字节，字段语义未闭环 | L2 | `probe/pakscan.py` + `data` 0x0–0x140、0x43C0–0x4480 hexdump | 待证 | 资源工具（M1） |
 | F06 | 音频走 `Squall.dll`（导出 `SQUALL_*`：Channel/Sample/ChannelGroup，导入 DSOUND `ord#2`=DirectSoundCreate8 与 waveOut）；OGG 资源 2451 个页，两版前 4 KB 页 hash 有 2430 个相同 | L2 | `probe/peinfo.py`、`python probe/assetdiff.py <a.data> <b.data>` | 已证 | DLL 复刻/替代 |
 | F07 | 物理走 `b2Physics.dll`，导出 `b2_*` C API（`b2_Body_CreateShape_Box/Circle/Polygon` 等），主程序导入其中 62 项；该 DLL 时间戳 2010-04-05、linker 9.39（MSVC） | L2 | `probe/peinfo.py baseline/磁力大冒险/b2Physics.dll` | 已证 | DLL 复刻 |
-| F08 | 汉化落点不在 Lua：两版 pak 的 Lua 文本无 CJK 字符；PNG 签名 551 vs 534、内容 hash 交集 373；exe ASCII 字符串集 7312 相同、基线独有 332 / GameTop 独有 351 | L2 | `probe/pakscan.py`（utf8-cjk/gbk 统计）、`probe/assetdiff.py` | 待证 | 汉化范围（是否仅图片/字模） |
+| F08 | 汉化落点**不在明文文本层**：22 个常用 UI 词（开始/退出/设置/…）在 pak 与 exe 中按 GBK、UTF-8、UTF-16LE 检索均为 0 命中；两版 pak 的 Lua 文本几乎相同（539,200 B vs 539,747 B）；两版图像按像素 hash 有 373 张完全相同、177/160 张互不相同。差异来自"本地化"还是"版本差异"未定 | L2 | `python probe/cjk_search.py <pak|exe>`、`probe/pakscan.py`、`probe/assetdiff.py` | 待证 | 汉化范围；需一次对照运行定位 |
 | F09 | 基线 exe 的 Authenticode 目录（RVA 0x3E0000、size 0x1558）超出文件尾（0x28BA8E），签名不可校验 → 该 exe 在签名后被改动过 | L2 | `probe/peinfo.py` 输出的 security 目录 + 文件长度 | 已证 | 基线可信度 |
 | F10 | `AMagneticAdventure_dl_setup-1.exe` 不是 MSI：PE32 `setup.exe`、52,839,512 B、资源段 52.7 MB、CompanyName `Powered by Masque Publishing`、ProductVersion 1.0.0.3、创建于 2012-04-19、`GameShield` | L2 | `7z l "C:/Users/K/Downloads/Programs/AMagneticAdventure_dl_setup-1.exe"` | 已证 | 第三参照版本 |
+| F11 | pak 内没有字体文件：`.ttf`/`.fnt` 文件名字符串 0 处、OTTO/TTC 签名 0 处 → 文本只能来自系统字体渲染或预烘焙位图 | L2 | `probe/pakscan.py` + 字节签名扫描 | 待证 | 文本渲染路径复刻 |
 
 ## 影响对齐方案的硬约束
 
