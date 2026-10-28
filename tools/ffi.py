@@ -1,18 +1,23 @@
-"""解析转发 DLL 抓到的 FFI 日志（tools/gen_proxy.py + src/proxydll/）。
+"""解析转发 DLL 的 FFI 日志（src/proxydll/ + tools/gen_proxy.py）。
+
+日志 = 20 字节头 + 交替的记录：
+  kind=0 PreRec  (216B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
+  kind=1 PostRec ( 80B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
 
 用法:
-  python tools/ffi.py stats <log>
-  python tools/ffi.py show <log> <export> [条数]
-  python tools/ffi.py sites <log> [export]
-  python tools/ffi.py mem <log> <export> <n>      # 打印第 n 条的 m1/m2 内存 dump
+  python tools/ffi.py stats  <log>
+  python tools/ffi.py show   <log> <export> [条数]   # 入参 + def 内存 + 紧随其后的返回
+  python tools/ffi.py rets   <log> <export> [条数]   # 返回值 + 出参
+  python tools/ffi.py sites  <log> [export]          # 调用点分布（L1 映射）
 
-依据：docs/facts.md F34/F38（未知布局）、F29/F32/F40（已知布局复核）。
+依据：docs/facts.md F45。
 """
 import struct
 import sys
 
 HDR = struct.Struct('<8sIII')
-REC = struct.Struct('<IIII 32I 64s 64s 64s I')   # 16 + 128 + 192 + 4 = 340
+PRE = struct.Struct('<IIIII I 32I 64s')     # 24 + 128 + 64 = 216
+POST = struct.Struct('<IIII 64s')           # 16 + 64 = 80
 
 NAMES = [None]
 
@@ -32,17 +37,28 @@ def records(path):
         magic, pid, game, orig = HDR.unpack(f.read(HDR.size))
         if magic[:7] != b'B2FFI01':
             raise SystemExit(f'bad magic {magic!r}')
-        yield ('hdr', pid, game, orig)
+        yield ('hdr', (pid, game, orig))
         while True:
-            b = f.read(REC.size)
-            if len(b) < REC.size:
+            b = f.read(4)
+            if len(b) < 4:
                 return
-            v = REC.unpack(b)
-            yield ('rec', v)
+            kind, = struct.unpack('<I', b)
+            if kind == 0:
+                rest = f.read(PRE.size - 4)
+                if len(rest) < PRE.size - 4:
+                    return
+                yield ('pre', PRE.unpack(b + rest))
+            elif kind == 1:
+                rest = f.read(POST.size - 4)
+                if len(rest) < POST.size - 4:
+                    return
+                yield ('post', POST.unpack(b + rest))
+            else:
+                raise SystemExit(f'bad kind {kind} at {f.tell()}')
 
 
 def rname(i):
-    return NAMES[i] if i < len(NAMES) and NAMES[i] else f'#{i}'
+    return NAMES[i] if 0 < i < len(NAMES) and NAMES[i] else f'#{i}'
 
 
 def sym(a, game, orig):
@@ -50,37 +66,58 @@ def sym(a, game, orig):
         return f'game+0x{a - game:x}'
     if orig and orig <= a < orig + 0x100000:
         return f'orig+0x{a - orig:x}'
-    return f'0x{a:08x}'
+    return f'{a:#010x}'
+
+
+def dump_mem(tag, m, base):
+    print(f'  {tag} @{base:#010x}:')
+    for o in range(0, len(m), 16):
+        q = m[o:o + 16]
+        ints = struct.unpack('<4I', q)
+        flts = struct.unpack('<4f', q)
+        print(f'    +{o:<3} ' + ' '.join(f'{x:08x}' for x in ints)
+              + '   ' + ' '.join(f'{x:>12.5g}' for x in flts))
 
 
 def main():
     cmd, path = sys.argv[1], sys.argv[2]
     load_names()
-    hdr = None
-    counts = {}
-    sites = {}
-    picked = []
     want = sys.argv[3] if len(sys.argv) > 3 else None
     limit = int(sys.argv[4]) if len(sys.argv) > 4 else 3
 
-    for item in records(path):
-        if item[0] == 'hdr':
-            _, pid, game, orig = item
-            hdr = (pid, game, orig)
+    hdr = None
+    counts = {}
+    posts = {}
+    sites = {}
+    picked = []
+    pending = None   # 最近一条匹配 want 的 pre，等待其 post
+
+    for kind, v in records(path):
+        if kind == 'hdr':
+            hdr = v
             continue
-        v = item[1]
-        rid = v[0]
+        if kind == 'post':
+            rid, retval = v[1], v[2]
+            posts[rname(rid)] = posts.get(rname(rid), 0) + 1
+            if cmd == 'rets' and rname(rid) == want and len(picked) < limit:
+                picked.append(v)
+            if cmd == 'show' and pending and pending[0] == rid and len(picked) < limit:
+                picked.append(('pair', pending[1], v))
+                pending = None
+            continue
+        rid = v[1]
         name = rname(rid)
         counts[name] = counts.get(name, 0) + 1
         if cmd == 'sites':
-            sites.setdefault(name, {}).setdefault(v[1], 0)
-            sites[name][v[1]] += 1
+            sites.setdefault(name, {}).setdefault(v[2], 0)
+            sites[name][v[2]] += 1
         elif cmd == 'show' and name == want and len(picked) < limit:
-            picked.append(v)
+            pending = (rid, v)
+
+    pid, game, orig = hdr
 
     if cmd == 'stats':
-        pid, game, orig = hdr
-        print(f'pid={pid} game=0x{game:08x} orig=0x{orig:08x} calls={sum(counts.values())}')
+        print(f'pid={pid} game={game:#010x} orig={orig:#010x} calls={sum(counts.values())} rets={sum(posts.values())}')
         for name, c in sorted(counts.items(), key=lambda kv: -kv[1]):
             print(f'{c:9d}  {name}')
         return
@@ -95,25 +132,31 @@ def main():
                 print(f'   {c:8d}  {ret:#010x}')
         return
 
-    if cmd == 'show':
-        pid, game, orig = hdr
-        print(f'{want}: {counts.get(want, 0)} calls total')
+    if cmd == 'rets':
+        print(f'{want}: {posts.get(want, 0)} post records')
         for v in picked:
-            rid, ret, ecx, edx = v[0], v[1], v[2], v[3]
-            args = v[4:36]
-            print(f'\nret={sym(ret, game, orig)} ecx={ecx:08x} edx={edx:08x}')
-            for i, a in enumerate(args):
-                print(f'  arg{i:<2} {a:#010x}  {struct.unpack("<f", struct.pack("<I", a))[0]:>14.6g}')
-            m0, m1, m2 = v[36], v[37], v[38]
-            for tag, m, base in (('m0', m0, args[0]), ('m1', m1, args[1]), ('m2', m2, args[2])):
-                if any(m):
-                    print(f'  {tag} @{base:#010x}:')
-                    for o in range(0, 64, 16):
-                        q = m[o:o + 16]
-                        ints = struct.unpack('<4I', q)
-                        flts = struct.unpack('<4f', q)
-                        print(f'    +{o:<3} ' + ' '.join(f'{x:08x}' for x in ints)
-                              + '   ' + ' '.join(f'{x:>12.5g}' for x in flts))
+            kind, rid, retval, seq, m = v[0], v[1], v[2], v[3], v[4]
+            print(f'\nseq={seq} ret={retval:#010x}  float={struct.unpack("<f", struct.pack("<I", retval))[0]:.6g}')
+            if any(m):
+                dump_mem('post m0', m, 0)
+        return
+
+    if cmd == 'show':
+        print(f'{want}: {counts.get(want, 0)} calls / {posts.get(want, 0)} rets')
+        for item in picked:
+            if item[0] == 'pair':
+                _, pre, post = item
+                kind, rid, ret, ecx, edx, seq = pre[0], pre[1], pre[2], pre[3], pre[4], pre[5]
+                args = pre[6:38]
+                print(f'\nseq={seq} call@{sym(ret, game, orig)} ecx={ecx:08x} edx={edx:08x}')
+                for i, a in enumerate(args[:12]):
+                    print(f'  arg{i:<2} {a:#010x}  {struct.unpack("<f", struct.pack("<I", a))[0]:>14.6g}')
+                m0 = pre[38]
+                if any(m0):
+                    dump_mem('pre m0', m0, args[0])
+                print(f'  -> ret={post[2]:#010x}  float={struct.unpack("<f", struct.pack("<I", post[2]))[0]:.6g}')
+                if any(post[4]):
+                    dump_mem('post m0', post[4], args[0])
         return
 
     raise SystemExit(__doc__)

@@ -5,6 +5,9 @@
 
 extern FARPROC g_slot[];
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx);
+void __cdecl save_ret(unsigned id, uint32_t orig_ret);
+uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr);
+uint32_t __cdecl get_ret(void);
 
 const int g_n_exports = 88;
 const char* const g_names[] = {
@@ -101,6 +104,1398 @@ const char* const g_names[] = {
 
 FARPROC g_slot[89] = {0};
 
+__declspec(naked) void proxy_post_1(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 1
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_2(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 2
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_3(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 3
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_4(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 4
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_5(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 5
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_6(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 6
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_7(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 7
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_8(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 8
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_9(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 9
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_10(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 10
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_11(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 11
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_12(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 12
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_13(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 13
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_14(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 14
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_15(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 15
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_16(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 16
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_17(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 17
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_18(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 18
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_19(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 19
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_20(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 20
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_21(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 21
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_22(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 22
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_23(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 23
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_24(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 24
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_25(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 25
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_26(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 26
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_27(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 27
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_28(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 28
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_29(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 29
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_30(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 30
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_31(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 31
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_32(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 32
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_33(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 33
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_34(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 34
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_35(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 35
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_36(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 36
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_37(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 37
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_38(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 38
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_39(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 39
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_40(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 40
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_41(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 41
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_42(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 42
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_43(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 43
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_44(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 44
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_45(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 45
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_46(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 46
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_47(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 47
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_48(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 48
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_49(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 49
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_50(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 50
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_51(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 51
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_52(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 52
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_53(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 53
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_54(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 54
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_55(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 55
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_56(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 56
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_57(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 57
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_58(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 58
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_59(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 59
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_60(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 60
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_61(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 61
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_62(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 62
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_63(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 63
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_64(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 64
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_65(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 65
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_66(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 66
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_67(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 67
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_68(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 68
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_69(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 69
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_70(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 70
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_71(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 71
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_72(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 72
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_73(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 73
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_74(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 74
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_75(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 75
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_76(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 76
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_77(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 77
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_78(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 78
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_79(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 79
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_80(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 80
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_81(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 81
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_82(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 82
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_83(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 83
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_84(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 84
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_85(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 85
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_86(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 86
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
+__declspec(naked) void proxy_post_87(void) {
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push 87
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
+    }
+}
+
 __declspec(naked) void proxy_stub_1(void) {
     __asm {
         pushfd
@@ -117,7 +1512,13 @@ __declspec(naked) void proxy_stub_1(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+4]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 1
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_1
+        jmp  dword ptr [g_slot+4]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -137,7 +1538,13 @@ __declspec(naked) void proxy_stub_2(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+8]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 2
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_2
+        jmp  dword ptr [g_slot+8]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -157,7 +1564,13 @@ __declspec(naked) void proxy_stub_3(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+12]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 3
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_3
+        jmp  dword ptr [g_slot+12]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -177,7 +1590,13 @@ __declspec(naked) void proxy_stub_4(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+16]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 4
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_4
+        jmp  dword ptr [g_slot+16]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -197,7 +1616,13 @@ __declspec(naked) void proxy_stub_5(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+20]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 5
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_5
+        jmp  dword ptr [g_slot+20]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -217,7 +1642,13 @@ __declspec(naked) void proxy_stub_6(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+24]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 6
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_6
+        jmp  dword ptr [g_slot+24]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -237,7 +1668,13 @@ __declspec(naked) void proxy_stub_7(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+28]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 7
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_7
+        jmp  dword ptr [g_slot+28]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -257,7 +1694,13 @@ __declspec(naked) void proxy_stub_8(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+32]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 8
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_8
+        jmp  dword ptr [g_slot+32]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -277,7 +1720,13 @@ __declspec(naked) void proxy_stub_9(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+36]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 9
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_9
+        jmp  dword ptr [g_slot+36]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -297,7 +1746,13 @@ __declspec(naked) void proxy_stub_10(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+40]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 10
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_10
+        jmp  dword ptr [g_slot+40]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -317,7 +1772,13 @@ __declspec(naked) void proxy_stub_11(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+44]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 11
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_11
+        jmp  dword ptr [g_slot+44]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -337,7 +1798,13 @@ __declspec(naked) void proxy_stub_12(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+48]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 12
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_12
+        jmp  dword ptr [g_slot+48]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -357,7 +1824,13 @@ __declspec(naked) void proxy_stub_13(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+52]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 13
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_13
+        jmp  dword ptr [g_slot+52]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -377,7 +1850,13 @@ __declspec(naked) void proxy_stub_14(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+56]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 14
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_14
+        jmp  dword ptr [g_slot+56]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -397,7 +1876,13 @@ __declspec(naked) void proxy_stub_15(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+60]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 15
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_15
+        jmp  dword ptr [g_slot+60]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -417,7 +1902,13 @@ __declspec(naked) void proxy_stub_16(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+64]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 16
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_16
+        jmp  dword ptr [g_slot+64]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -437,7 +1928,13 @@ __declspec(naked) void proxy_stub_17(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+68]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 17
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_17
+        jmp  dword ptr [g_slot+68]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -457,7 +1954,13 @@ __declspec(naked) void proxy_stub_18(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+72]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 18
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_18
+        jmp  dword ptr [g_slot+72]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -477,7 +1980,13 @@ __declspec(naked) void proxy_stub_19(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+76]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 19
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_19
+        jmp  dword ptr [g_slot+76]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -497,7 +2006,13 @@ __declspec(naked) void proxy_stub_20(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+80]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 20
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_20
+        jmp  dword ptr [g_slot+80]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -517,7 +2032,13 @@ __declspec(naked) void proxy_stub_21(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+84]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 21
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_21
+        jmp  dword ptr [g_slot+84]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -537,7 +2058,13 @@ __declspec(naked) void proxy_stub_22(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+88]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 22
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_22
+        jmp  dword ptr [g_slot+88]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -557,7 +2084,13 @@ __declspec(naked) void proxy_stub_23(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+92]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 23
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_23
+        jmp  dword ptr [g_slot+92]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -577,7 +2110,13 @@ __declspec(naked) void proxy_stub_24(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+96]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 24
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_24
+        jmp  dword ptr [g_slot+96]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -597,7 +2136,13 @@ __declspec(naked) void proxy_stub_25(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+100]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 25
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_25
+        jmp  dword ptr [g_slot+100]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -617,7 +2162,13 @@ __declspec(naked) void proxy_stub_26(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+104]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 26
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_26
+        jmp  dword ptr [g_slot+104]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -637,7 +2188,13 @@ __declspec(naked) void proxy_stub_27(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+108]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 27
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_27
+        jmp  dword ptr [g_slot+108]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -657,7 +2214,13 @@ __declspec(naked) void proxy_stub_28(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+112]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 28
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_28
+        jmp  dword ptr [g_slot+112]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -677,7 +2240,13 @@ __declspec(naked) void proxy_stub_29(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+116]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 29
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_29
+        jmp  dword ptr [g_slot+116]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -697,7 +2266,13 @@ __declspec(naked) void proxy_stub_30(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+120]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 30
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_30
+        jmp  dword ptr [g_slot+120]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -717,7 +2292,13 @@ __declspec(naked) void proxy_stub_31(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+124]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 31
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_31
+        jmp  dword ptr [g_slot+124]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -737,7 +2318,13 @@ __declspec(naked) void proxy_stub_32(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+128]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 32
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_32
+        jmp  dword ptr [g_slot+128]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -757,7 +2344,13 @@ __declspec(naked) void proxy_stub_33(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+132]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 33
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_33
+        jmp  dword ptr [g_slot+132]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -777,7 +2370,13 @@ __declspec(naked) void proxy_stub_34(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+136]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 34
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_34
+        jmp  dword ptr [g_slot+136]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -797,7 +2396,13 @@ __declspec(naked) void proxy_stub_35(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+140]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 35
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_35
+        jmp  dword ptr [g_slot+140]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -817,7 +2422,13 @@ __declspec(naked) void proxy_stub_36(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+144]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 36
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_36
+        jmp  dword ptr [g_slot+144]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -837,7 +2448,13 @@ __declspec(naked) void proxy_stub_37(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+148]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 37
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_37
+        jmp  dword ptr [g_slot+148]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -857,7 +2474,13 @@ __declspec(naked) void proxy_stub_38(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+152]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 38
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_38
+        jmp  dword ptr [g_slot+152]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -877,7 +2500,13 @@ __declspec(naked) void proxy_stub_39(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+156]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 39
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_39
+        jmp  dword ptr [g_slot+156]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -897,7 +2526,13 @@ __declspec(naked) void proxy_stub_40(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+160]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 40
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_40
+        jmp  dword ptr [g_slot+160]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -917,7 +2552,13 @@ __declspec(naked) void proxy_stub_41(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+164]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 41
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_41
+        jmp  dword ptr [g_slot+164]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -937,7 +2578,13 @@ __declspec(naked) void proxy_stub_42(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+168]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 42
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_42
+        jmp  dword ptr [g_slot+168]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -957,7 +2604,13 @@ __declspec(naked) void proxy_stub_43(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+172]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 43
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_43
+        jmp  dword ptr [g_slot+172]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -977,7 +2630,13 @@ __declspec(naked) void proxy_stub_44(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+176]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 44
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_44
+        jmp  dword ptr [g_slot+176]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -997,7 +2656,13 @@ __declspec(naked) void proxy_stub_45(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+180]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 45
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_45
+        jmp  dword ptr [g_slot+180]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1017,7 +2682,13 @@ __declspec(naked) void proxy_stub_46(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+184]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 46
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_46
+        jmp  dword ptr [g_slot+184]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1037,7 +2708,13 @@ __declspec(naked) void proxy_stub_47(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+188]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 47
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_47
+        jmp  dword ptr [g_slot+188]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1057,7 +2734,13 @@ __declspec(naked) void proxy_stub_48(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+192]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 48
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_48
+        jmp  dword ptr [g_slot+192]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1077,7 +2760,13 @@ __declspec(naked) void proxy_stub_49(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+196]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 49
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_49
+        jmp  dword ptr [g_slot+196]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1097,7 +2786,13 @@ __declspec(naked) void proxy_stub_50(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+200]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 50
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_50
+        jmp  dword ptr [g_slot+200]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1117,7 +2812,13 @@ __declspec(naked) void proxy_stub_51(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+204]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 51
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_51
+        jmp  dword ptr [g_slot+204]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1137,7 +2838,13 @@ __declspec(naked) void proxy_stub_52(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+208]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 52
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_52
+        jmp  dword ptr [g_slot+208]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1157,7 +2864,13 @@ __declspec(naked) void proxy_stub_53(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+212]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 53
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_53
+        jmp  dword ptr [g_slot+212]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1177,7 +2890,13 @@ __declspec(naked) void proxy_stub_54(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+216]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 54
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_54
+        jmp  dword ptr [g_slot+216]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1197,7 +2916,13 @@ __declspec(naked) void proxy_stub_55(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+220]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 55
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_55
+        jmp  dword ptr [g_slot+220]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1217,7 +2942,13 @@ __declspec(naked) void proxy_stub_56(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+224]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 56
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_56
+        jmp  dword ptr [g_slot+224]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1237,7 +2968,13 @@ __declspec(naked) void proxy_stub_57(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+228]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 57
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_57
+        jmp  dword ptr [g_slot+228]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1257,7 +2994,13 @@ __declspec(naked) void proxy_stub_58(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+232]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 58
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_58
+        jmp  dword ptr [g_slot+232]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1277,7 +3020,13 @@ __declspec(naked) void proxy_stub_59(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+236]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 59
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_59
+        jmp  dword ptr [g_slot+236]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1297,7 +3046,13 @@ __declspec(naked) void proxy_stub_60(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+240]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 60
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_60
+        jmp  dword ptr [g_slot+240]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1317,7 +3072,13 @@ __declspec(naked) void proxy_stub_61(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+244]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 61
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_61
+        jmp  dword ptr [g_slot+244]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1337,7 +3098,13 @@ __declspec(naked) void proxy_stub_62(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+248]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 62
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_62
+        jmp  dword ptr [g_slot+248]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1357,7 +3124,13 @@ __declspec(naked) void proxy_stub_63(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+252]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 63
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_63
+        jmp  dword ptr [g_slot+252]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1377,7 +3150,13 @@ __declspec(naked) void proxy_stub_64(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+256]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 64
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_64
+        jmp  dword ptr [g_slot+256]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1397,7 +3176,13 @@ __declspec(naked) void proxy_stub_65(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+260]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 65
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_65
+        jmp  dword ptr [g_slot+260]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1417,7 +3202,13 @@ __declspec(naked) void proxy_stub_66(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+264]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 66
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_66
+        jmp  dword ptr [g_slot+264]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1437,7 +3228,13 @@ __declspec(naked) void proxy_stub_67(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+268]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 67
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_67
+        jmp  dword ptr [g_slot+268]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1457,7 +3254,13 @@ __declspec(naked) void proxy_stub_68(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+272]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 68
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_68
+        jmp  dword ptr [g_slot+272]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1477,7 +3280,13 @@ __declspec(naked) void proxy_stub_69(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+276]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 69
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_69
+        jmp  dword ptr [g_slot+276]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1497,7 +3306,13 @@ __declspec(naked) void proxy_stub_70(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+280]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 70
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_70
+        jmp  dword ptr [g_slot+280]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1517,7 +3332,13 @@ __declspec(naked) void proxy_stub_71(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+284]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 71
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_71
+        jmp  dword ptr [g_slot+284]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1537,7 +3358,13 @@ __declspec(naked) void proxy_stub_72(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+288]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 72
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_72
+        jmp  dword ptr [g_slot+288]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1557,7 +3384,13 @@ __declspec(naked) void proxy_stub_73(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+292]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 73
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_73
+        jmp  dword ptr [g_slot+292]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1577,7 +3410,13 @@ __declspec(naked) void proxy_stub_74(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+296]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 74
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_74
+        jmp  dword ptr [g_slot+296]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1597,7 +3436,13 @@ __declspec(naked) void proxy_stub_75(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+300]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 75
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_75
+        jmp  dword ptr [g_slot+300]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1617,7 +3462,13 @@ __declspec(naked) void proxy_stub_76(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+304]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 76
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_76
+        jmp  dword ptr [g_slot+304]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1637,7 +3488,13 @@ __declspec(naked) void proxy_stub_77(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+308]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 77
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_77
+        jmp  dword ptr [g_slot+308]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1657,7 +3514,13 @@ __declspec(naked) void proxy_stub_78(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+312]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 78
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_78
+        jmp  dword ptr [g_slot+312]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1677,7 +3540,13 @@ __declspec(naked) void proxy_stub_79(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+316]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 79
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_79
+        jmp  dword ptr [g_slot+316]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1697,7 +3566,13 @@ __declspec(naked) void proxy_stub_80(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+320]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 80
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_80
+        jmp  dword ptr [g_slot+320]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1717,7 +3592,13 @@ __declspec(naked) void proxy_stub_81(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+324]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 81
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_81
+        jmp  dword ptr [g_slot+324]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1737,7 +3618,13 @@ __declspec(naked) void proxy_stub_82(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+328]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 82
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_82
+        jmp  dword ptr [g_slot+328]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1757,7 +3644,13 @@ __declspec(naked) void proxy_stub_83(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+332]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 83
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_83
+        jmp  dword ptr [g_slot+332]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1777,7 +3670,13 @@ __declspec(naked) void proxy_stub_84(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+336]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 84
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_84
+        jmp  dword ptr [g_slot+336]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1797,7 +3696,13 @@ __declspec(naked) void proxy_stub_85(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+340]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 85
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_85
+        jmp  dword ptr [g_slot+340]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1817,7 +3722,13 @@ __declspec(naked) void proxy_stub_86(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+344]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 86
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_86
+        jmp  dword ptr [g_slot+344]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }
 
@@ -1837,6 +3748,12 @@ __declspec(naked) void proxy_stub_87(void) {
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+348]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push 87
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_87
+        jmp  dword ptr [g_slot+348]  /* 尾跳到真实函数：栈布局与直接调用一致 */
     }
 }

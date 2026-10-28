@@ -17,17 +17,24 @@
 #define MEM_DUMP 64
 
 #pragma pack(push, 4)
+/* kind=0：调用前；kind=1：调用后（只看得到返回值与出参） */
 typedef struct {
+    uint32_t kind;      /* 0 */
     uint32_t id;
-    uint32_t ret;
+    uint32_t ret;       /* 原始返回地址 */
     uint32_t ecx;
     uint32_t edx;
+    uint32_t seq;
     uint32_t args[ARG_DWORDS];
     uint8_t m0[MEM_DUMP];
-    uint8_t m1[MEM_DUMP];
-    uint8_t m2[MEM_DUMP];
+} PreRec;
+typedef struct {
+    uint32_t kind;      /* 1 */
+    uint32_t id;
+    uint32_t retval;    /* EAX（float 返回值在 ST0，取不到） */
     uint32_t seq;
-} Rec;
+    uint8_t m0[MEM_DUMP];  /* 调用后 args[0] 指向的内存（出参） */
+} PostRec;
 #pragma pack(pop)
 
 extern const int g_n_exports;
@@ -38,6 +45,12 @@ static HANDLE g_file = INVALID_HANDLE_VALUE;
 static HMODULE g_orig = 0;
 static volatile LONG g_count = 0;
 static __declspec(thread) int g_in = 0;
+
+/* 每次调用的「原返回地址」栈：宿主可能在 Step 里回调再进我们的导出，所以要按线程嵌套 */
+typedef struct { uint32_t id; uint32_t ret; } Pending;
+static __declspec(thread) Pending g_pend[16];
+static __declspec(thread) int g_pdepth = 0;
+static __declspec(thread) uint32_t g_lastret = 0;
 
 static int Readable(const void* p) {
     if (!p || (uint32_t)p < 0x10000) return 0;
@@ -60,9 +73,10 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
 
     g_in = 1;
     {
-        Rec r;
+        PreRec r;
         DWORD written = 0;
         memset(&r, 0, sizeof r);
+        r.kind = 0;
         r.id = id;
         r.ecx = ecx;
         r.edx = edx;
@@ -70,16 +84,54 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
         memcpy(r.args, (const void*)((uintptr_t)esp0 + 4), ARG_DWORDS * 4);
         if (Readable((const void*)(uintptr_t)r.args[0]))
             memcpy(r.m0, (const void*)(uintptr_t)r.args[0], MEM_DUMP);
-        if (Readable((const void*)(uintptr_t)r.args[1]))
-            memcpy(r.m1, (const void*)(uintptr_t)r.args[1], MEM_DUMP);
-        if (Readable((const void*)(uintptr_t)r.args[2]))
-            memcpy(r.m2, (const void*)(uintptr_t)r.args[2], MEM_DUMP);
         r.seq = (uint32_t)InterlockedIncrement(&g_count);
         WriteFile(g_file, &r, sizeof r, &written, NULL);
         if ((r.seq & 1023) == 0) FlushFileBuffers(g_file);
     }
     g_in = 0;
 }
+
+/* 桩在把调用转给原 DLL 之前：记下「原返回地址」 */
+void __cdecl save_ret(unsigned id, uint32_t orig_ret) {
+    int d = g_pdepth;
+    if (d < 0) d = 0;
+    if (d < 16) {
+        g_pend[d].id = id;
+        g_pend[d].ret = orig_ret;
+        g_pdepth = d + 1;
+    }
+}
+
+/* 原 DLL 返回后：取出原返回地址，记录返回值 + 出参内存，返回原返回地址给桩去 jmp */
+uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
+    uint32_t orig_ret = 0;
+    int d = g_pdepth - 1;
+    if (d >= 0 && d < 16) {
+        orig_ret = g_pend[d].ret;
+        g_pdepth = d;
+    }
+    g_lastret = retval;
+    if (g_file != INVALID_HANDLE_VALUE && !g_in) {
+        PostRec r;
+        DWORD written = 0;
+        uint32_t a0 = *(const uint32_t*)args_ptr;
+        memset(&r, 0, sizeof r);
+        r.kind = 1;
+        r.id = id;
+        r.retval = retval;
+        r.seq = (uint32_t)InterlockedIncrement(&g_count);
+        if (Readable((const void*)(uintptr_t)a0))
+            memcpy(r.m0, (const void*)(uintptr_t)a0, MEM_DUMP);
+        g_in = 1;
+        WriteFile(g_file, &r, sizeof r, &written, NULL);
+        if ((r.seq & 1023) == 0) FlushFileBuffers(g_file);
+        g_in = 0;
+    }
+    return orig_ret;
+}
+
+/* 桩把返回值放回 EAX 用（finish_call 里已经写了文件，会破坏 EAX） */
+uint32_t __cdecl get_ret(void) { return g_lastret; }
 
 static void JoinDir(char* dst, const char* dir, const char* leaf) {
     int i = 0;

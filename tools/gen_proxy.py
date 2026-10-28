@@ -32,7 +32,7 @@ def load():
     return rows
 
 
-STUB = """\
+STUB_PRE = """\
 __declspec(naked) void proxy_stub_{ord}(void) {{
     __asm {{
         pushfd
@@ -49,7 +49,31 @@ __declspec(naked) void proxy_stub_{ord}(void) {{
         add  esp, 16
         popad
         popfd
-        jmp  dword ptr [g_slot+{off}]
+        mov  eax, dword ptr [esp]      /* 原返回地址 */
+        push eax
+        push {ord}
+        call save_ret
+        add  esp, 8
+        mov  dword ptr [esp], offset proxy_post_{ord}
+        jmp  dword ptr [g_slot+{off}]  /* 尾跳到真实函数：栈布局与直接调用一致 */
+    }}
+}}
+"""
+
+STUB_POST = """\
+__declspec(naked) void proxy_post_{ord}(void) {{
+    /* 真实函数返回到这里：eax=返回值，esp 指向第一个实参 */
+    __asm {{
+        lea  edx, [esp]
+        push edx                        /* args_ptr */
+        push eax                        /* retval */
+        push {ord}
+        call finish_call                /* -> eax = 原返回地址 */
+        add  esp, 12
+        push eax                        /* 暂存原返回地址（esp 之下，安全） */
+        call get_ret                    /* -> eax = 返回值 */
+        pop  edx
+        jmp  edx                        /* 回到宿主：esp 仍指向第一个实参 */
     }}
 }}
 """
@@ -66,6 +90,9 @@ def main():
         "",
         "extern FARPROC g_slot[];",
         "void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx);",
+        "void __cdecl save_ret(unsigned id, uint32_t orig_ret);",
+        "uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr);",
+        "uint32_t __cdecl get_ret(void);",
         "",
         f"const int g_n_exports = {n + 1};",
         "const char* const g_names[] = {",
@@ -77,8 +104,10 @@ def main():
               "",
               f"FARPROC g_slot[{n + 2}] = {{0}};",
               ""]
-    for off, name in rows:
-        parts.append(STUB.format(ord=off, off=off * 4))
+    for off, _ in rows:
+        parts.append(STUB_POST.format(ord=off, off=off * 4))
+    for off, _ in rows:
+        parts.append(STUB_PRE.format(ord=off, off=off * 4))
     OUT_C.parent.mkdir(parents=True, exist_ok=True)
     OUT_C.write_text("\n".join(parts), encoding="utf-8")
 
