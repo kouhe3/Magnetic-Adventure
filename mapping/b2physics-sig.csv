@@ -1,0 +1,88 @@
+ordinal,name,rva,argc,arg_kinds
+1,b2_Body_ApplyForce,0x10001B20,2,arg0:ptr? arg1:ptr?
+2,b2_Body_ApplyImpulse,0x10001AB0,2,arg0:ptr? arg1:ptr?
+3,b2_Body_ApplyTorque,0x10001B70,2,arg0:ptr(0,58,94) arg1:float
+4,b2_Body_ClearShapes,0x100019E0,0,
+5,b2_Body_CreateShape_Box,0x10001870,0,
+6,b2_Body_CreateShape_Circle,0x10001940,0,
+7,b2_Body_CreateShape_Polygon,0x10001700,0,
+8,b2_Body_DestroyShape,0x10001A10,2,arg0:ptr? arg1:ptr?
+9,b2_Body_GetAngle,0x10001AA0,1,arg0:ptr(3C)
+10,b2_Body_GetAngularDamping,0x10001A30,1,arg0:ptr(8C)
+11,b2_Body_GetIsSleeping,0x10001C10,1,arg0:ptr(0)
+12,b2_Body_GetLocalPoint,0x10001D90,0,
+13,b2_Body_GetLocalVector,0x10001D10,3,arg0:ptr(0,4) arg1:ptr(10,14,18,1C) arg2:ptr(0,4)
+14,b2_Body_GetMass,0x10001BE0,2,arg0:ptr(20,24,7C,84) arg1:ptr(0,4,8,0C)
+15,b2_Body_GetOmega,0x10001B40,1,arg0:ptr(4C)
+16,b2_Body_GetPosition,0x10001A80,2,arg0:ptr(0,4) arg1:ptr(8,0C)
+17,b2_Body_GetShapeList,0x100019D0,1,arg0:ptr(68)
+18,b2_Body_GetUserData,0x10001BA0,1,arg0:ptr(98)
+19,b2_Body_GetVelocity,0x10001AD0,2,arg0:ptr(0,4) arg1:ptr(44,48)
+20,b2_Body_GetWorld,0x100019C0,1,arg0:ptr(5C)
+21,b2_Body_GetWorldPoint,0x10001D40,0,
+22,b2_Body_GetWorldVector,0x10001CE0,3,arg0:ptr(0,4) arg1:ptr(10,14,18,1C) arg2:ptr(0,4)
+23,b2_Body_GetXForm,0x10001A60,2,arg0:ptr(8,0C,3C) arg1:ptr(0,4,8)
+24,b2_Body_IsBullet,0x10001CC0,1,arg0:ptr(0)
+25,b2_Body_IsFrozen,0x10001C80,1,arg0:ptr(0)
+26,b2_Body_PutToSleep,0x10001C30,1,arg0:ptr(0,44,48,4C,50,54,58,94)
+27,b2_Body_SetAngularDamping,0x10001A20,2,arg0:ptr(8C) arg1:float
+28,b2_Body_SetBullet,0x10001CA0,2,arg0:ptr(0) arg1:int
+29,b2_Body_SetMass,0x10001BD0,2,arg1:ptr?
+30,b2_Body_SetMassFromShapes,0x10001BC0,0,
+31,b2_Body_SetOmega,0x10001B50,2,arg0:ptr(0,4C,94) arg1:float
+32,b2_Body_SetUserData,0x10001BB0,2,arg0:ptr(98) arg1:ptr?
+33,b2_Body_SetVelocity,0x10001AF0,2,arg0:ptr(0,44,48,94) arg1:ptr(0,4)
+34,b2_Body_SetXForm,0x10001A40,2,arg1:ptr(8)
+35,b2_Body_WakeUp,0x10001C60,1,arg0:ptr(0,94)
+36,b2_CreateWorld,0x100013B0,2,arg0:ptr? arg1:ptr?
+37,b2_DestroyWorld,0x100013E0,0,
+38,b2_GetMaxPolygonVertices,0x100011C0,0,
+39,b2_Joint_EnableLimit,0x100023D0,1,arg0:ptr(4,30,34,0B4)
+40,b2_Joint_EnableMotor,0x10002650,1,arg0:ptr(4,30,34,0A8)
+41,b2_Joint_GetAnchor1,0x100021B0,2,arg1:ptr(0)
+42,b2_Joint_GetAnchor2,0x100021D0,2,arg1:ptr(0)
+43,b2_Joint_GetBody1,0x10002190,1,arg0:ptr(30)
+44,b2_Joint_GetBody2,0x100021A0,1,arg0:ptr(34)
+45,b2_Joint_GetJointAngle,0x10002230,1,arg0:float
+46,b2_Joint_GetJointTranslation,0x10002270,1,arg0:ptr(4)
+47,b2_Joint_GetJointType,0x10002130,1,arg0:ptr(4)
+48,b2_Joint_GetLimits,0x10002350,1,arg0:ptr(4,0BC,0C0,0DC,0E0)
+49,b2_Joint_GetMotorSpeed,0x10002560,1,arg0:ptr(4,0B0,0E8)
+50,b2_Joint_GetReactionImpulse,0x100021F0,2,arg1:ptr(0)
+51,b2_Joint_GetReactionTorqImpulse,0x10002210,1,arg0:ptr(0)
+52,b2_Joint_IsLimitEnabled,0x10002470,1,arg0:ptr(4,0B4,0EC)
+53,b2_Joint_IsMotorEnabled,0x100026F0,1,arg0:ptr(4,0A8,0ED)
+54,b2_Joint_SetLimits,0x100022A0,3,arg0:ptr(4,30,34,0BC,0C0) arg2:float
+55,b2_Joint_SetMaxMotorForce,0x10002600,2,arg0:ptr(4,30,34,0E4) arg1:float
+56,b2_Joint_SetMaxMotorTorque,0x100025B0,2,arg0:ptr(4,30,34,0AC) arg1:float
+57,b2_Joint_SetMotorSpeed,0x100024C0,1,arg0:ptr(4,30,34,0B0)
+58,b2_Shape_GetBody,0x100014D0,1,arg0:ptr(0C)
+59,b2_Shape_GetCirclePos,0x10001590,2,arg0:ptr(0,4) arg1:ptr(4,30,34)
+60,b2_Shape_GetCircleRadius,0x100015D0,1,arg0:ptr(4,38)
+61,b2_Shape_GetDensity,0x10001530,1,arg0:ptr(14)
+62,b2_Shape_GetFilter,0x10001640,2,arg0:ptr(0,4) arg1:ptr(22,26)
+63,b2_Shape_GetFriction,0x10001540,1,arg0:ptr(18)
+64,b2_Shape_GetNext,0x100014E0,1,arg0:ptr(8)
+65,b2_Shape_GetRestitution,0x10001550,1,arg0:ptr(1C)
+66,b2_Shape_GetSensor,0x10001610,1,arg0:ptr(28)
+67,b2_Shape_GetShapeType,0x100014F0,1,arg0:ptr(4)
+68,b2_Shape_SetDensity,0x10001560,2,arg0:ptr(14) arg1:float
+69,b2_Shape_SetFilter,0x10001620,2,arg0:ptr(22,26) arg1:ptr(0,4)
+70,b2_Shape_SetFriction,0x10001570,2,arg0:ptr(18) arg1:float
+71,b2_Shape_SetRestitution,0x10001580,2,arg0:ptr(1C) arg1:float
+72,b2_Shape_SetSensor,0x10001600,2,arg0:ptr(28) arg1:int
+73,b2_Shape_TestPoint,0x10001660,0,
+74,b2_World_ClearJoints,0x10001DF0,0,
+75,b2_World_CreateBody,0x10001400,0,
+76,b2_World_DestroyBody,0x10001480,2,arg1:ptr?
+77,b2_World_DestroyJoint,0x10001DE0,1,arg0:ptr?
+78,b2_World_Joint_Distance,0x10001E20,0,
+79,b2_World_Joint_Gear,0x100020D0,0,
+80,b2_World_Joint_Prismatic,0x10001F50,0,
+81,b2_World_Joint_Pulley,0x10002010,0,
+82,b2_World_Joint_Revolute,0x10001EA0,0,
+83,b2_World_ReFilter,0x10001350,0,
+84,b2_World_SetContactFilterCallBack,0x10001390,2,arg0:ptr(19274) arg1:ptr?
+85,b2_World_SetContactListenerCallBack,0x10001370,2,arg0:ptr(19278) arg1:ptr?
+86,b2_World_SetGravity,0x100014B0,2,arg0:ptr(1925C,19260) arg1:ptr(0,4)
+87,b2_World_Step,0x10001490,3,arg1:float arg2:ptr?
