@@ -81,12 +81,16 @@ def main():
     def clicks(r):
         return {c["click"]: c["score"] for c in r.get("clicks", [])}
 
+    def tail(r, k=3):
+        sc = [c["score"] for c in r.get("clicks", [])][-k:]
+        return round(sum(sc) / len(sc), 4) if sc else 0.0
+
     ca, cb = clicks(ra), clicks(rb)
     common = sorted(set(ca) & set(cb))
     print(f'A {os.path.basename(os.path.dirname(a.a)):<12} events={ra.get("events")} '
-          f'min={min(ca.values()) if ca else None} mean={sum(ca.values())/len(ca) if ca else None:.3f}')
+          f'mean={sum(ca.values())/len(ca) if ca else None:.3f} tail3={tail(ra)}')
     print(f'B {os.path.basename(os.path.dirname(a.b)):<12} events={rb.get("events")} '
-          f'min={min(cb.values()) if cb else None} mean={sum(cb.values())/len(cb) if cb else None:.3f}')
+          f'mean={sum(cb.values())/len(cb) if cb else None:.3f} tail3={tail(rb)}')
     print(f'{"click":>5} {"A":>7} {"B":>7} {"delta":>7}')
     for i in common:
         print(f"{i:>5} {ca[i]:>7.4f} {cb[i]:>7.4f} {cb[i]-ca[i]:>+7.4f}")
@@ -94,7 +98,8 @@ def main():
         worse = [(i, cb[i] - ca[i]) for i in common]
         worst = min(worse, key=lambda t: t[1])
         print(f'worst: click {worst[0]} delta {worst[1]:+.4f}')
-    json.dump({"a": ra, "b": rb, "dll_a": a.a, "dll_b": a.b},
+    json.dump({"a": ra, "b": rb, "tail3_a": tail(ra), "tail3_b": tail(rb),
+               "dll_a": a.a, "dll_b": a.b},
               open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
     print("saved", a.out)
 

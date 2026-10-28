@@ -92,9 +92,13 @@ def visual_ab(rec, dll_a, dll_b):
         return {"ok": False, "error": (out.stdout or out.stderr or "")[-400:]}
     a = [c["score"] for c in data["a"].get("clicks", [])]
     b = [c["score"] for c in data["b"].get("clicks", [])]
+    def tail3(v):
+        return round(sum(v[-3:]) / len(v[-3:]), 4) if v else 0.0
+
     return {"ok": True, "a": a, "b": b,
             "mean_a": round(sum(a) / len(a), 4) if a else 0,
-            "mean_b": round(sum(b) / len(b), 4) if b else 0}
+            "mean_b": round(sum(b) / len(b), 4) if b else 0,
+            "tail3_a": tail3(a), "tail3_b": tail3(b)}
 
 
 def bounded(step_bad):
@@ -150,8 +154,10 @@ def main():
     if not growth_ok:
         fails.append("bounded")
     if vis.get("ok"):
-        report["visual_warn"] = (vis.get("mean_b", 0) < 0.85 or
-                                 vis.get("mean_b", 0) < vis.get("mean_a", 0) - 0.05)
+        # 通关判定看尾部点击（录制者最后几次是故意点「Level completed」对话框）
+        ta, tb = vis.get("tail3_a", 0), vis.get("tail3_b", 0)
+        report["visual_tail"] = {"a": ta, "b": tb, "ok": tb >= 0.85 and tb >= ta - 0.08}
+        report["visual_warn"] = not report["visual_tail"]["ok"]
     report["verdict"] = "PASS" if not fails else "FAIL"
     report["fail"] = fails
 
