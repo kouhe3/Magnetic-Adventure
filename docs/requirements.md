@@ -18,8 +18,8 @@
 
 ## 3. 基准与目标
 
-- **oracle（对齐基准）**：`C:\Program Files (x86)\GameTop.com\Magnetic Adventure\`（`game.exe` + 原三 DLL + `data`），更接近原厂构建（F02）。
-- **交付目标**：汉化版（`baseline/磁力大冒险/`）的资源与可执行形态（F08 待证：汉化落点）。
+- **oracle（对齐基准）**：`bin/gametop/`（`game.exe` + 原三 DLL + `data`），更接近原厂构建（F02）。
+- **交付目标**：汉化版（`bin/baseline/`）的资源与可执行形态（F08 待证：汉化落点）。
 - **第三参照**：Masque `setup.exe`（F10），仅在需要交叉验证时解包，不作为基准。
 - `b2Physics.dll`、`Squall.dll` 两版字节相同（F12）；`lua51.dll` 两版不同（F12）——保留原 DLL，不源码化。
 

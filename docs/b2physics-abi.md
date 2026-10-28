@@ -1,6 +1,6 @@
 # b2Physics.dll ABI 契约（恢复中）
 
-来源：`baseline/磁力大冒险/b2Physics.dll`（md5 `5b1d145b774fb60165dbd185691532e9`，与 GameTop 安装目录同文件，F12）。
+来源：`bin/baseline/b2Physics.dll`（md5 `5b1d145b774fb60165dbd185691532e9`，与 GameTop 安装目录同文件，F12）。
 IDA 基址 `0x10000000`；导出清单 `mapping/b2physics-exports.csv`（88 条 = 87 个 `b2_*` + `DllEntryPoint`）。
 
 ## 1. 构建指纹（L2，已证）

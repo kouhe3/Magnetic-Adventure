@@ -1,11 +1,8 @@
-# 原始二进制与解包产物：只读引用，不入库
+# 二进制与派生数据：只读引用，不入库
+bin/
 baseline/
 gametop/
 msi/
 work/
 build/
-*.7z
 *.zip
-*.exe
-*.dll
-*.pak
