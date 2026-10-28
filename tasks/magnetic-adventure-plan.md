@@ -14,7 +14,7 @@
 
 - [x] T1.1 `tools/pak` 只读解析 + 解包 依据：F05
 - [x] T1.2 Lua 源码导出为文件树 + 两版 diff 依据：F04
-- [ ] T1.3 资产索引（像素 hash / PCM hash / 尺寸 / 类型） 依据：F06、F08
+- [x] T1.3 资产索引（像素 hash / PCM hash / 尺寸 / 类型） 依据：F06、F08
 
 ## M2 DLL 源码化（L2-A）
 

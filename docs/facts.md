@@ -37,6 +37,9 @@
 | F18 | 111 个 `.lua` 在两版中**逐字节相同**；脚本注释是 **CP1251 俄文**（如 `-- первые слова`、`-- хинт "отлично! пойдем дальше?"`）→ 此前"Lua 内含 GBK 中文"是编码误判 | L2 | `work/pak_baseline/lvl_e0.lua` 按 cp1251 解码 | 已证 | 逻辑层一致 |
 | F19 | Gulim 字体资源（`gulim1.png`/`gulim2.png`/`gulim1.dat`/`gulim2.dat`）只存在于 GameTop 版；基线版无此 4 件，另有 19 张 PNG 为其独有（`hint_41/44/49/54-58/70/78-86`、`logo_1.png`、`mm_pgm1.png`、`mm_pgm2.png`） | L2 | 两版解包目录逐名 diff（`onlyA`/`onlyB`） | 已证 | 交付资源选择 |
 | F20 | `tools/pak.py verify` 对两版均通过：基线 722 条（550 PNG / 35 OGG / 111 Lua）+ trailer，GameTop 707 条（534/35/111）+ trailer；PNG 首尾签名、OGG 首签名、Lua 无 NUL 全部校验通过 | L2 | `python tools/pak.py verify bin/baseline/data; python tools/pak.py verify bin/gametop/data` | 已证 | M1 完成 |
+| F21 | 宿主在 `sub_595E00` 里通过 `sub_595CA0(L, "名字", 函数)` 注册 **144 个 Lua 全局函数**（名字是 ASCII C 字符串：`Do_Command`、`Add_WoodBox`、`Set_PhysParams`…），每个绑定对应 137–1400 B 的 Delphi 函数；其中 122 个能在提取出的 Lua 脚本里找到调用 | L2 | IDA：`sub_595E00` 反编译 + `mapping/lua-bindings.csv`；Lua 侧 `work/pak_baseline/*.lua` 交叉比对 | 已证 | M3 Lua 绑定面 |
+| F22 | 两版资源索引共 727 个条目：`same` 543、`diff` 161、`only_a` 19、`only_b` 4；每个 PNG 记录尺寸与像素 hash，每个 OGG 记录页数与流数 | L2 | `python tools/assetindex.py bin/baseline/data bin/gametop/data mapping/assets.csv` | 已证 | T4 帧/PCM 比对基准 |
+| F23 | pak 装载链：`sub_52E750`（游戏初始化）→ `sub_563980`（建 pak 对象，含两个内存流）→ `sub_563D00`（打开 `"data"`：读 4 B 头长、25 B magic，把 TOC 复制进内存流）→ 打日志 `"[Pak] - done"`；与 F05 的格式一致 | L2 | IDA 反编译 + 0x52E8B2 处调用点 | 已证 | M3 pak 读取复刻 |
 
 ## 影响对齐方案的硬约束
 
