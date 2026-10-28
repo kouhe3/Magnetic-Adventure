@@ -53,6 +53,38 @@ static uint32_t g_id_create_body = 0;
 static long g_step_no = 0;
 
 static HANDLE g_file = INVALID_HANDLE_VALUE;
+
+/* 8 MB 用户态缓冲：每次调用只做一次 memcpy，攒满再 WriteFile。
+ * 之前每条记录一次 WriteFile + 每 1024 条 FlushFileBuffers，是游戏卡顿的主因。 */
+#define OUT_BUF_SIZE (8u << 20)
+static char g_out[OUT_BUF_SIZE];
+static DWORD g_out_used = 0;
+static CRITICAL_SECTION g_cs;
+static int g_cs_ready = 0;
+
+static void OutFlush(void) {
+    DWORD written = 0;
+    if (g_file == INVALID_HANDLE_VALUE || !g_out_used) return;
+    WriteFile(g_file, g_out, g_out_used, &written, NULL);
+    g_out_used = 0;
+}
+
+static void Emit(const void* p, DWORD n) {
+    if (g_file == INVALID_HANDLE_VALUE) return;
+    if (n >= OUT_BUF_SIZE) {                 /* 超大块：先刷再加直写 */
+        OutFlush();
+        {
+            DWORD written = 0;
+            WriteFile(g_file, p, n, &written, NULL);
+        }
+        return;
+    }
+    if (g_cs_ready) EnterCriticalSection(&g_cs);
+    if (g_out_used + n > OUT_BUF_SIZE) OutFlush();
+    memcpy(g_out + g_out_used, p, n);
+    g_out_used += n;
+    if (g_cs_ready) LeaveCriticalSection(&g_cs);
+}
 static HMODULE g_orig = 0;
 static volatile LONG g_count = 0;
 static __declspec(thread) int g_in = 0;
@@ -85,14 +117,15 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     g_in = 1;
     {
         PreRec r;
-        DWORD written = 0;
-        memset(&r, 0, sizeof r);
         r.kind = 0;
         r.id = id;
         r.ecx = ecx;
         r.edx = edx;
         r.ret = *(const uint32_t*)esp0;
         memcpy(r.args, (const void*)((uintptr_t)esp0 + 4), ARG_DWORDS * 4);
+        memset(r.m0, 0, MEM_DUMP);
+        memset(r.m1, 0, MEM_DUMP);
+        memset(r.m2, 0, MEM_DUMP);
         if (Readable((const void*)(uintptr_t)r.args[0]))
             memcpy(r.m0, (const void*)(uintptr_t)r.args[0], MEM_DUMP);
         if (Readable((const void*)(uintptr_t)r.args[1]))
@@ -100,8 +133,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
         if (Readable((const void*)(uintptr_t)r.args[2]))
             memcpy(r.m2, (const void*)(uintptr_t)r.args[2], MEM_DUMP);
         r.seq = (uint32_t)InterlockedIncrement(&g_count);
-        WriteFile(g_file, &r, sizeof r, &written, NULL);
-        if ((r.seq & 1023) == 0) FlushFileBuffers(g_file);
+        Emit(&r, (DWORD)sizeof r);
     }
     g_in = 0;
 }
@@ -160,8 +192,8 @@ static void DumpStepDigest(void) {
     hdr.seq = (uint32_t)++g_step_no;
     hdr.count = (uint32_t)n;
     hdr.reserved = 0;
-    WriteFile(g_file, &hdr, sizeof hdr, &written, NULL);
-    if (n) WriteFile(g_file, buf, (DWORD)(n * sizeof(BodyDigest)), &written, NULL);
+    Emit(&hdr, sizeof hdr);
+    if (n) Emit(buf, (DWORD)(n * sizeof(BodyDigest)));
 }
 
 /* 原 DLL 返回后：取出原返回地址，记录返回值 + 出参内存，返回原返回地址给桩去 jmp */
@@ -177,9 +209,8 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     else if (id == g_id_step) DumpStepDigest();
     if (g_file != INVALID_HANDLE_VALUE && !g_in) {
         PostRec r;
-        DWORD written = 0;
         uint32_t a0 = *(const uint32_t*)args_ptr;
-        memset(&r, 0, sizeof r);
+        memset(r.m0, 0, MEM_DUMP);
         r.kind = 1;
         r.id = id;
         r.retval = retval;
@@ -187,8 +218,7 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         if (Readable((const void*)(uintptr_t)a0))
             memcpy(r.m0, (const void*)(uintptr_t)a0, MEM_DUMP);
         g_in = 1;
-        WriteFile(g_file, &r, sizeof r, &written, NULL);
-        if ((r.seq & 1023) == 0) FlushFileBuffers(g_file);
+        Emit(&r, (DWORD)sizeof r);
         g_in = 0;
     }
     return orig_ret;
@@ -247,10 +277,13 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             hdr.pid = GetCurrentProcessId();
             hdr.game_base = (uint32_t)(uintptr_t)GetModuleHandleA(NULL);
             hdr.orig_base = (uint32_t)(uintptr_t)g_orig;
-            WriteFile(g_file, &hdr, sizeof hdr, &written, NULL);
+            InitializeCriticalSection(&g_cs);
+            g_cs_ready = 1;
+            Emit(&hdr, sizeof hdr);
         }
     } else if (reason == DLL_PROCESS_DETACH) {
         if (g_file != INVALID_HANDLE_VALUE) {
+            OutFlush();
             FlushFileBuffers(g_file);
             CloseHandle(g_file);
             g_file = INVALID_HANDLE_VALUE;
