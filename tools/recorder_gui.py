@@ -45,6 +45,27 @@ VK_F8 = 0x77
 PROCESS_TERMINATE = 0x0001
 
 
+
+def _is_game_hwnd(pid, h):
+    """必须是 game.exe 的窗口：面板/其它标题含 Magnetic 的窗口不算。"""
+    p = wt.DWORD()
+    u.GetWindowThreadProcessId(h, ctypes.byref(p))
+    if pid is not None and p.value != pid:
+        return False
+    k32 = ctypes.windll.kernel32
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    hp = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, p.value)
+    if not hp:
+        return False
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wt.DWORD(1024)
+        if not k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(size)):
+            return False
+        return buf.value.lower().endswith("game.exe")
+    finally:
+        k32.CloseHandle(hp)
+
 def find_window(pid):
     """按 PID 找游戏的可见主窗口，返回 (hwnd, (l, t, w, h))。"""
     found = []

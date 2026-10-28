@@ -33,6 +33,27 @@ MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP = 0x0008, 0x0010
 MOUSEEVENTF_WHEEL = 0x0800
 
 
+
+def _is_game_hwnd(pid, h):
+    """必须是 game.exe 的窗口：面板/其它标题含 Magnetic 的窗口不算。"""
+    p = wt.DWORD()
+    u.GetWindowThreadProcessId(h, ctypes.byref(p))
+    if pid is not None and p.value != pid:
+        return False
+    k32 = ctypes.windll.kernel32
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    hp = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, p.value)
+    if not hp:
+        return False
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wt.DWORD(1024)
+        if not k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(size)):
+            return False
+        return buf.value.lower().endswith("game.exe")
+    finally:
+        k32.CloseHandle(hp)
+
 def game_window():
     pid = None
     pf = os.path.join(ROOT, "work", "game_pid.txt")
@@ -46,7 +67,7 @@ def game_window():
     def cb(h, l):
         p = wt.DWORD()
         u.GetWindowThreadProcessId(h, ctypes.byref(p))
-        if (pid is None or p.value == pid) and u.IsWindowVisible(h):
+        if _is_game_hwnd(pid, h) and u.IsWindowVisible(h):
             r = wt.RECT()
             u.GetWindowRect(h, ctypes.byref(r))
             n = ctypes.create_unicode_buffer(256)
