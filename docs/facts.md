@@ -55,7 +55,7 @@
 | F36 | 差分扩展到关节：两 body（0.4 方块、density=1、SetMassFromShapes）+ Distance / Revolute 关节，60 步后原 DLL 与替换 DLL 的 body 位置与角度**逐位相同**（如 rev: b1=(0,-5.083333,0) b2=(2,-5.083333,0)） | L4 | `build/probe_b2physics.exe <dll> joint dist|rev` | 已证 | T2.3 部分 |
 | F37 | 集成冒烟：把 `build/Release/b2Physics.dll`（244,224 B，静态 CRT，无额外运行时依赖）放进 `work/integration/`（game.exe+data+全套 DLL）后启动，进程存活 8 s、窗口标题 `A Magnetic Adventure`，与使用原 DLL 的对照运行一致 | L4 | `Start-Process work/integration/game.exe`，8 s 后检查 `HasExited`/`MainWindowTitle` | 已证 | T2.6 起点 |
 | F38 | **`b2_World_ReFilter` 的参数是 `b2Shape*`，不是 world**。宿主用法（game.exe 0x59CD80）：`for (s = GetShapeList(obj)); s; s = Shape_GetNext(s)) b2_World_ReFilter(s);`。误把它当 world 解引用会导致访问违例，被 Delphi 侧吞掉后 `TLevelObjects.LoadLevelFromFiles` 中断 → 后续齿轮/提示气泡不创建 | L2+L4 | `game.exe` 0x59CD80 反编译；`%APPDATA%\Magnet's Story\log.txt` 的 `[Except TLevelObjects.LoadLevelFromFiles]` | 已证 | b2Physics 修复 |
-| F39 | 关卡加载失败的可观测特征：日志出现 `[Except TLevelObjects.LoadLevelFromFiles]`，且缺少 `[Do CreateScript]/[Do AttachScripts]/[Do UpdatePhysSides]/[Do DoHideWoodHint]` 这几行；修复后这些行齐全 | L4 | `log.txt` 原版 vs 替换 diff | 已证 | 回归判据 |
+| F39 | 修复 `b2_World_ReFilter` 后：连续 3 次启动→Play 全部无 `[Except TLevelObjects.LoadLevelFromFiles]`；替换 DLL 与**原 DLL** 的 `log.txt` 逐行 diff 只剩时间戳两行差异，异常计数 0/0；画面 3 个齿轮 + 提示气泡齐全 | L4 | `work/log_orig.txt` vs `work/log_ours_fixed.txt`；`work/win_fixed.png` | 已证 | 回归判据 |
 | F40 | Polygon 形状描述的顶点数组起点是 `+28`（不是 +24）：反编译 `CreateShape_Polygon` 读 `a1+20` 顶点数、`a1+28` 顶点数组；`+4/+8/+12` 分别为 friction/restitution/density，`+16` sensor | L2 | `work/b2physics-decomp/007_*.c`；F32 实测 | 已证 | T2.2 |
 
 ## 影响对齐方案的硬约束
