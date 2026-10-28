@@ -1,7 +1,7 @@
 """解析转发 DLL 的 FFI 日志（src/proxydll/ + tools/gen_proxy.py）。
 
 日志 = 20 字节头 + 交替的记录：
-  kind=0 PreRec  (216B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
+  kind=0 PreRec  (344B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
   kind=1 PostRec ( 80B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
 
 用法:
@@ -16,7 +16,7 @@ import struct
 import sys
 
 HDR = struct.Struct('<8sIII')
-PRE = struct.Struct('<IIIII I 32I 64s')     # 24 + 128 + 64 = 216
+PRE = struct.Struct('<IIIII I 32I 64s 64s 64s')   # 24 + 128 + 192 = 344
 POST = struct.Struct('<IIII 64s')           # 16 + 64 = 80
 
 NAMES = [None]

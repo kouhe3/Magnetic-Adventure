@@ -27,6 +27,8 @@ typedef struct {
     uint32_t seq;
     uint32_t args[ARG_DWORDS];
     uint8_t m0[MEM_DUMP];
+    uint8_t m1[MEM_DUMP];
+    uint8_t m2[MEM_DUMP];
 } PreRec;
 typedef struct {
     uint32_t kind;      /* 1 */
@@ -84,6 +86,10 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
         memcpy(r.args, (const void*)((uintptr_t)esp0 + 4), ARG_DWORDS * 4);
         if (Readable((const void*)(uintptr_t)r.args[0]))
             memcpy(r.m0, (const void*)(uintptr_t)r.args[0], MEM_DUMP);
+        if (Readable((const void*)(uintptr_t)r.args[1]))
+            memcpy(r.m1, (const void*)(uintptr_t)r.args[1], MEM_DUMP);
+        if (Readable((const void*)(uintptr_t)r.args[2]))
+            memcpy(r.m2, (const void*)(uintptr_t)r.args[2], MEM_DUMP);
         r.seq = (uint32_t)InterlockedIncrement(&g_count);
         WriteFile(g_file, &r, sizeof r, &written, NULL);
         if ((r.seq & 1023) == 0) FlushFileBuffers(g_file);
