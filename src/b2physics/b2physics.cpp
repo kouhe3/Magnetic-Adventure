@@ -137,24 +137,72 @@ B2API void b2_World_ReFilter(b2Shape* shape) {
     if (world) world->Refilter(shape);
 }
 
-namespace {
-class CallbackHolder {
-public:
-    static b2ContactFilter g_filter;
-    static b2ContactListener g_listener;
+// ---------------------------------------------------------------- 宿主回调适配
+// 原 DLL（0x10001370/0x10001390）收到的是**裸函数指针**：存进全局，并往 world 上挂一个
+// 自带的静态适配对象。适配对象把 b2ContactPoint 翻译成宿主认识的 9 个 dword：
+//   { shape1, shape2, pos.x, pos.y, normal.x, normal.y, ud1, ud2, type }
+// type: 0=Add 1=Persist 2=Remove（Result 不转发，原 DLL 的 vtable 第 5 项是空函数）。
+// 直接把函数指针当 b2ContactListener* 交给 Box2D，Box2D 会按 vtable 取 [0] 当函数调，
+// 那里是函数首字节 → 跳飞（lvl_o20 的 Access violation 就是这个）。
+struct B2ContactRecC {
+    b2Shape* shape1;
+    b2Shape* shape2;
+    float posX, posY;
+    float normalX, normalY;
+    void* userData1;
+    void* userData2;
+    int type;
 };
-b2ContactFilter CallbackHolder::g_filter;
-b2ContactListener CallbackHolder::g_listener;
-}  // namespace
 
-B2API void b2_World_SetContactFilterCallBack(b2World* world, b2ContactFilter* filter) {
+static void* g_contactCb = nullptr;
+static void* g_filterCb = nullptr;
+
+class HostListenerC : public b2ContactListener {
+public:
+    void Add(const b2ContactPoint* p) override { Dispatch(p, 0); }
+    void Persist(const b2ContactPoint* p) override { Dispatch(p, 1); }
+    void Remove(const b2ContactPoint* p) override { Dispatch(p, 2); }
+
+private:
+    static void Dispatch(const b2ContactPoint* p, int type) {
+        if (!g_contactCb) return;
+        const float* f = (const float*)p;
+        B2ContactRecC rec;
+        rec.shape1 = p->shape1;
+        rec.shape2 = p->shape2;
+        rec.posX = f[2];
+        rec.posY = f[3];
+        rec.normalX = f[6];
+        rec.normalY = f[7];
+        rec.userData1 = p->shape1->m_body->m_userData;
+        rec.userData2 = p->shape2->m_body->m_userData;
+        rec.type = type;
+        ((void(__cdecl*)(B2ContactRecC*))g_contactCb)(&rec);
+    }
+};
+static HostListenerC g_hostListener;
+
+class HostFilterC : public b2ContactFilter {
+public:
+    bool ShouldCollide(b2Shape* s1, b2Shape* s2) override {
+        if (!g_filterCb) return b2ContactFilter::ShouldCollide(s1, s2);
+        void* rec[4] = {s1, s2, s1->m_body->m_userData, s2->m_body->m_userData};
+        return ((bool(__cdecl*)(void**))g_filterCb)(rec);
+    }
+};
+static HostFilterC g_hostFilter;
+
+B2API void b2_World_SetContactFilterCallBack(b2World* world, void* cb) {
     TRACE("b2_World_SetContactFilterCallBack");
-    world->SetContactFilter(filter);
+    g_filterCb = cb;
+    world->SetContactFilter(&g_hostFilter);
 }
 
-B2API void b2_World_SetContactListenerCallBack(b2World* world, b2ContactListener* listener) {
+
+B2API void b2_World_SetContactListenerCallBack(b2World* world, void* cb) {
     TRACE("b2_World_SetContactListenerCallBack");
-    world->SetContactListener(listener);
+    g_contactCb = cb;
+    world->SetContactListener(&g_hostListener);   // 原 DLL 无条件挂适配对象
 }
 
 B2API void* b2_World_CreateBody(const B2BodyDefC* d) {
@@ -169,20 +217,17 @@ B2API void* b2_World_CreateBody(const B2BodyDefC* d) {
 }
 
 B2API void b2_World_DestroyBody(b2World* world, b2Body* body) {
-    if (std::getenv("B2_NODESTROY")) return;
     TRACE("b2_World_DestroyBody");
     (void)world;  // 原 DLL 只用 body 自身
     body->m_world->DestroyBody(body);
 }
 
 B2API void b2_World_DestroyJoint(b2Joint* joint) {
-    if (std::getenv("B2_NODESTROY")) return;
     TRACE("b2_World_DestroyJoint");
     joint->m_body1->m_world->DestroyJoint(joint);
 }
 
 B2API void b2_World_ClearJoints(b2World* world) {
-    if (std::getenv("B2_NODESTROY")) return;
     TRACE("b2_World_ClearJoints");
     while (world->m_jointList) {
         world->DestroyJoint(world->m_jointList);
@@ -212,7 +257,6 @@ B2API void b2_Body_ApplyTorque(b2Body* body, float torque) {
 }
 
 B2API void b2_Body_ClearShapes(b2Body* body) {
-    if (std::getenv("B2_NODESTROY")) return;
     TRACE("b2_Body_ClearShapes");
     while (body->m_shapeList) {
         body->DestroyShape(body->m_shapeList);
@@ -279,7 +323,6 @@ B2API void* b2_Body_CreateShape_Polygon(const B2ShapeDefC* dp) {
 }
 
 B2API void b2_Body_DestroyShape(b2Shape* shape) {
-    if (std::getenv("B2_NODESTROY")) return;
     TRACE("b2_Body_DestroyShape"); shape->m_body->DestroyShape(shape); }
 
 B2API float b2_Body_GetAngle(b2Body* body) {
@@ -414,14 +457,12 @@ B2API void b2_Body_SetVelocity(b2Body* body, const float* v) {
     body->m_linearVelocity = V(v);
 }
 
+// 原 DLL 直接转调 b2Body::SetXForm（反编译 0x10003560）：除了 m_xf/m_sweep 还要
+// 重算 sweep.c(=pos+R*localCenter)、c0/a0、同步 broadphase proxy 并 Commit，
+// 越界时置 frozen 并销毁 proxy。手写字段会漏掉这些，导致出参与速度漂移。
 B2API void b2_Body_SetXForm(b2Body* body, const B2XFormC* xf) {
-    if (std::getenv("B2_NOXFORM")) return;
     TRACE("b2_Body_SetXForm");
-    body->m_xf.position.Set(xf->x, xf->y);
-    body->m_xf.R.Set(xf->angle);
-    body->m_sweep.c = body->m_xf.position;
-    body->m_sweep.a = xf->angle;
-    body->SynchronizeTransform();
+    body->SetXForm(b2Vec2(xf->x, xf->y), xf->angle);
 }
 
 B2API void b2_Body_WakeUp(b2Body* body) {
@@ -532,7 +573,6 @@ B2API void* b2_World_Joint_Revolute(const B2RevoluteJointC* d) {
 }
 
 B2API void* b2_World_Joint_Prismatic(const B2PrismaticJointC* d) {
-    if (std::getenv("B2_NOPRISM")) return 0;
     TRACE("b2_World_Joint_Prismatic");
     b2PrismaticJointDef def;
     def.Initialize(d->body1, d->body2, V(d->anchor), V(d->axis));
@@ -547,7 +587,6 @@ B2API void* b2_World_Joint_Prismatic(const B2PrismaticJointC* d) {
 }
 
 B2API void* b2_World_Joint_Gear(const B2GearJointC* d) {
-    if (std::getenv("B2_NOPRISM")) return 0;
     TRACE("b2_World_Joint_Gear");
     b2GearJointDef def;
     def.body1 = d->body1;
@@ -578,7 +617,6 @@ T* As(b2Joint* j) {
 }  // namespace
 
 B2API void b2_Joint_EnableLimit(b2Joint* j, int enable) {
-    if (std::getenv("B2_NOMOTOR")) return;
     TRACE("b2_Joint_EnableLimit");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableLimit(enable != 0); break;
@@ -588,7 +626,6 @@ B2API void b2_Joint_EnableLimit(b2Joint* j, int enable) {
 }
 
 B2API void b2_Joint_EnableMotor(b2Joint* j, int enable) {
-    if (std::getenv("B2_NOMOTOR")) return;
     TRACE("b2_Joint_EnableMotor");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->EnableMotor(enable != 0); break;
@@ -598,7 +635,6 @@ B2API void b2_Joint_EnableMotor(b2Joint* j, int enable) {
 }
 
 B2API void* b2_Joint_GetAnchor1(void* out, b2Joint* j) {
-    if (std::getenv("B2_NOPRISM")) return 0;
     TRACE("b2_Joint_GetAnchor1");
     *(b2Vec2*)out = j->GetAnchor1();
     return out;
@@ -667,7 +703,6 @@ B2API float b2_Joint_GetMotorSpeed(b2Joint* j) {
 }
 
 B2API void* b2_Joint_GetReactionImpulse(void* out, b2Joint* j) {
-    if (std::getenv("B2_NOPRISM")) return 0;
     TRACE("b2_Joint_GetReactionImpulse");
     *(b2Vec2*)out = j->GetReactionForce(1.0f);
     return out;
@@ -695,7 +730,6 @@ B2API int b2_Joint_IsMotorEnabled(b2Joint* j) {
 }
 
 B2API void b2_Joint_SetLimits(b2Joint* j, float lower, float upper) {
-    if (std::getenv("B2_NOMOTOR")) return;
     TRACE("b2_Joint_SetLimits");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetLimits(lower, upper); break;
@@ -710,13 +744,11 @@ B2API void b2_Joint_SetMaxMotorForce(b2Joint* j, float force) {
 }
 
 B2API void b2_Joint_SetMaxMotorTorque(b2Joint* j, float torque) {
-    if (std::getenv("B2_NOMOTOR")) return;
     TRACE("b2_Joint_SetMaxMotorTorque");
     if (j->m_type == e_revoluteJoint) As<b2RevoluteJoint>(j)->SetMaxMotorTorque(torque);
 }
 
 B2API void b2_Joint_SetMotorSpeed(b2Joint* j, float speed) {
-    if (std::getenv("B2_NOMOTOR")) return;
     TRACE("b2_Joint_SetMotorSpeed");
     switch (j->m_type) {
         case e_revoluteJoint: As<b2RevoluteJoint>(j)->SetMotorSpeed(speed); break;

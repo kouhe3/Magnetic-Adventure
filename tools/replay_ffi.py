@@ -78,6 +78,13 @@ class Replayer:
         self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0}
         self.call_mem = {}
 
+    def fnb(self, name, restype):
+        key = (name, restype, 1)
+        if key not in self.calls:
+            addr = ctypes.cast(getattr(self.lib, name), ctypes.c_void_p).value
+            self.calls[key] = ctypes.CFUNCTYPE(restype, ctypes.c_uint32)(addr)
+        return self.calls[key]
+
     def fn(self, name, restype, nparams):
         key = (name, restype, nparams)
         if key not in self.calls:
@@ -229,6 +236,15 @@ class Replayer:
             if self.n <= int(__import__('os').environ.get('TRACE_FIRST', '0')):
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
             got = f(*call_args)
+            dbg = os.environ.get('DD_N')
+            if dbg and self.n == int(dbg) and name.startswith('b2_Body_'):
+                bod = call_args[1] if len(call_args) > 1 else None
+                if bod:
+                    sl = self.fnb('b2_Body_GetIsSleeping', ctypes.c_bool)(bod)
+                    fl = ctypes.c_uint16.from_address(bod).value
+                    st = ctypes.c_float.from_address(bod + 148).value
+                    vx = ctypes.c_float.from_address(bod + 68).value
+                    print(f'  DBG body={bod:#x} asleep={sl} flags={fl:#06x} sleepTime={st:.3f} vx={vx:.3e}')
             pending = (self.n, name, ret_t, got, buf0, seq)
         return 0
 
