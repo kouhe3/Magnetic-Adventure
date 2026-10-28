@@ -1,0 +1,11 @@
+# 原始二进制与解包产物：只读引用，不入库
+baseline/
+gametop/
+msi/
+work/
+build/
+*.7z
+*.zip
+*.exe
+*.dll
+*.pak
