@@ -99,6 +99,7 @@ class Session:
         self.q = queue.Queue()          # 事件 → 写盘线程
         self.shotq = queue.Queue()      # 截图请求 → 截图线程
         self.record_idle_moves = False  # 默认不记空闲移动（只有按住拖拽才记轨迹）
+        self.outside = 0                # 落在游戏窗口外的点击（面板按钮等）
         self.drag = 0
         self.move_hz = 62               # 拖拽轨迹采样上限（16ms）
         self.writer = threading.Thread(target=self._write_loop, daemon=True)
@@ -112,6 +113,13 @@ class Session:
         self.hwnd, self.rect = find_window(pid)
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
+
+    def _inside(self, x, y):
+        """点是否在游戏窗口内：面板/桌面的点击不该进重放语料。"""
+        if not self.rect:
+            return True
+        l, t, w, h = self.rect
+        return l <= x < l + w and t <= y < t + h
 
     def _emit(self, kind, x=None, y=None, **kw):
         row = {"t": int((time.time() - self.start) * 1000), "kind": kind}
@@ -178,13 +186,17 @@ class Session:
                     self.last_move = now
                     self._emit("move", x, y, drag=bool(self.drag))
             elif wparam in (WM_LBUTTONDOWN, WM_RBUTTONDOWN):
+                if not self._inside(x, y):
+                    self.outside += 1        # 点在自己的面板上：不算游戏输入
+                    return u.CallNextHookEx(None, code, wparam, lparam)
                 self.clicks += 1
                 self.drag = 1
                 tag = "left" if wparam == WM_LBUTTONDOWN else "right"
                 path = self._shot(tag)          # 点击瞬间截图
                 self._emit("down", x, y, button=tag, shot=path)
             elif wparam in (WM_LBUTTONUP, WM_RBUTTONUP):
-                self._emit("up", x, y, button="left" if wparam == WM_LBUTTONUP else "right")
+                if self._inside(x, y):
+                    self._emit("up", x, y, button="left" if wparam == WM_LBUTTONUP else "right")
                 self.drag = 0
             elif wparam == WM_MOUSEWHEEL:
                 d = (ms.mouseData >> 16) & 0xFFFF
