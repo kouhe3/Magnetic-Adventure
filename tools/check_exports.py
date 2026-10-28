@@ -33,6 +33,7 @@ def exports(path):
         return {}
     o = off(exp_rva)
     nnames, = struct.unpack_from('<I', d, o + 24)
+    base, = struct.unpack_from('<I', d, o + 16)
     names_rva, ords_rva = struct.unpack_from('<II', d, o + 32)
     out = {}
     for i in range(nnames):
@@ -40,7 +41,7 @@ def exports(path):
         s = off(nr)
         name = d[s:d.index(b'\0', s)].decode('latin1')
         ordv, = struct.unpack_from('<H', d, off(ords_rva) + 2 * i)
-        out[name] = ordv
+        out[name] = base + ordv
     return out
 
 
