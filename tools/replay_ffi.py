@@ -58,8 +58,10 @@ def parse_protos():
 
 
 def is_dll_object(type_str):
+    """参数串形如 "b2Joint* j"：取类型首词，别把参数名算进去。"""
     t = type_str.replace('const', '').replace('*', '').strip()
-    return t in DLL_OBJECTS
+    head = t.split()[0] if t.split() else ''
+    return head in DLL_OBJECTS
 
 
 def restype_of(ret):
@@ -126,10 +128,10 @@ class Replayer:
             buf.raw = bytes(data) + b'\0' * (REC_CAP - len(data))
         return buf
 
-    def translate(self, name, v, idx, pre):
+    def translate(self, name, v, idx, pre, use_map=True):
         if v == 0:
             return 0, True
-        if v in self.ptrmap:
+        if use_map and v in self.ptrmap:
             return self.ptrmap[v], True
         mem = {0: pre[38], 1: pre[39], 2: pre[40]}.get(idx)
         if mem is not None:
@@ -315,7 +317,10 @@ class Replayer:
                     ok = False
                     self.stats['unmapped'] = self.stats.get('unmapped', 0) + 1
                     break
-                val, good = self.translate(name, args[i], i, v)
+                # 只有 DLL 对象指针才走映射；def 结构体/缓冲区这类宿主内存永远用 scratch，
+                # 否则宿主曾返回过的同地址指针会把 def 解成垃圾。
+                _obj = is_dll_object(params[i][1])
+                val, good = self.translate(name, args[i], i, v, use_map=_obj)
                 if not good:
                     ok = False
                     break
@@ -332,6 +337,11 @@ class Replayer:
                 PROGRESS.write_text(f'{self.n} {name}', encoding='utf-8')
             if self.n <= int(os.environ.get('TRACE_FIRST', '0')):
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
+            if os.environ.get('DEBUG_ANCHOR') and name == 'b2_Joint_GetAnchor1' \
+                    and self.stats.get('dbg_anchor', 0) < 4:
+                self.stats['dbg_anchor'] = self.stats.get('dbg_anchor', 0) + 1
+                print(f'  [anchor] n={self.n} out={call_args[0]:#x} j={call_args[1]:#x} '
+                      f'raw_out={args[0]:#x} raw_j={args[1]:#x} jmap={self.ptrmap.get(args[1], 0):#x}')
             got = f(*call_args)
             stack.append((self.n, name, ret_t, got, buf0, seq, rid))
         return 0

@@ -80,6 +80,7 @@
 | F61 | **流程简化为「录制=抓 FFI，人工验证」**：面板启动游戏时自动装代理 DLL（`b2Physics.dll`=proxy，真身 `b2Physics_orig.dll`）、把 `B2PROXY_LOG` 指到录制目录的 `ffi.bin`；人正常玩一关，STOP 直接杀进程。之后 `python tools/gate.py work/rec_xxx --name <关卡>` 自动发现目录里的 `ffi.bin`（跳过重放抓包），只做离线重放判定（no_crash + bounded）。修好的 DLL 用面板的「试玩替换 DLL（不录制）」按钮人工验证。鼠标重放不再是流程一部分（成功率约 50%，噪声大于信号） | L4 | `tools/recorder_gui.py`、`tools/gate.py`、`tools/gate_all.py` | 已验证 | 工作流 |
 | F62 | **抓包卡顿的根因是 I/O 模式**：代理原先每条记录一次 `WriteFile` + 每 1024 条 `FlushFileBuffers`（13–20k 次/秒）。改成 8 MB 用户态缓冲、攒满一次性落盘、不再强制刷盘（进程被 TerminateProcess 杀掉时最多丢最后 ~0.4 s）。实测 355k 调用 / 243 MB 正常解析，系统调用从 35 万次降到 ~30 次 | L4 | `src/proxydll/proxy_core.c`、`work/ffi_perf.bin` | 已验证 | 录制性能 |
 | F63 | **FFI 日志是嵌套的**：原版在 `CreateJoint`（和 Step）内部会触发宿主接触回调，宿主再回调我们的导出，所以同一线程上 pre/post 出现嵌套（pre A, pre B, post B, post A）。重放器原先按「pre 的下一条 post」配对，导致 A 的返回值没登记进指针映射 → 后面 Gear 关节拿到未翻译的 joint 指针 → 崩在 `0x306964B8`。改成 **LIFO 栈配对**后 trap 关 796,019 次调用全部跑完、门禁 PASS（bounded 10→10） | L2-A | `work/gate_trap.json`、`tools/replay_ffi.py` | 已验证 | 重放器正确性 |
+| F64 | **重放的指针翻译修了两处**：①`is_dll_object` 把参数名也当类型（`"b2Joint* j"`→`"b2Joint j"`），导致所有对象指针都被判成宿主内存、一律给 scratch，gear up 崩在写 `0xFF088B50`——改成取类型首词；②任何指针命中映射表就会被替换，宿主返回过的栈地址（userData）与后续 def 地址撞车时会把 def 解成垃圾，gear up 崩在读 `0x8000000C`——改成**只有 DLL 对象类型**才走映射，def/缓冲区永远用 scratch。修完 gear up 2,261,500 调用 / 15,588 步跑通，bounded 7→8 PASS | L2-A | `tools/replay_ffi.py`、`work/gate_gear_up.json` | 已验证 | 重放器正确性 |
 
 ## 影响对齐方案的硬约束
 
