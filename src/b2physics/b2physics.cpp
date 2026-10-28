@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <cstdarg>
 
 #define private public
 #define protected public
@@ -18,6 +19,19 @@
 #include "b2physics.h"
 
 namespace {
+
+void TraceDetail(const char* fmt, ...) {
+    const char* path = std::getenv("B2PHYSICS_LOG");
+    if (!path) return;
+    if (FILE* f = std::fopen(path, "a")) {
+        va_list ap;
+        va_start(ap, fmt);
+        std::vfprintf(f, fmt, ap);
+        va_end(ap);
+        std::fputc('\n', f);
+        std::fclose(f);
+    }
+}
 
 void Trace(const char* n) {
     const char* path = std::getenv("B2PHYSICS_LOG");
@@ -182,19 +196,34 @@ B2API void* b2_Body_CreateShape_Circle(const B2ShapeDefC* d) {
     return d->body->CreateShape(&def);
 }
 
-B2API void* b2_Body_CreateShape_Polygon(const B2ShapeDefC* d) {
+B2API void* b2_Body_CreateShape_Polygon(const B2ShapeDefC* dp) {
     TRACE("b2_Body_CreateShape_Polygon");
+    // 多边形专用布局：+16 之后是 int32 vertexCount(+20)，顶点从 +24 开始（每点 8 字节）
+    struct PolyDefC {
+        b2Body* body;
+        float friction, restitution, density;
+        void* userData;
+        int vertexCount;
+        float vertices[2 * 8];
+    };
+    const PolyDefC* d = (const PolyDefC*)dp;
     b2PolygonDef def;
-    FillShapeCommon(&def, d);
-    int count = (int)d->a;  // +20 顶点数
-    if (count < 3) return nullptr;
+    FillShapeCommon(&def, dp);
+    int count = d->vertexCount;
+    if (count < 3) {
+        TraceDetail("poly count=%d <3", count);
+        return nullptr;
+    }
     if (count > b2_maxPolygonVertices) count = b2_maxPolygonVertices;
     def.vertexCount = count;
-    const float* p = &d->c;  // +28 起是顶点数组（反编译 a1+28）
     for (int i = 0; i < count; ++i) {
-        def.vertices[i].Set(p[2 * i], p[2 * i + 1]);
+        def.vertices[i].Set(d->vertices[2 * i], d->vertices[2 * i + 1]);
     }
-    return d->body->CreateShape(&def);
+    TraceDetail("poly n=%d v0=(%.3f,%.3f) v1=(%.3f,%.3f) dens=%.3f", count,
+                d->vertices[0], d->vertices[1], d->vertices[2], d->vertices[3], dp->density);
+    b2Shape* sh = d->body->CreateShape(&def);
+    TraceDetail("poly -> %p", (void*)sh);
+    return sh;
 }
 
 B2API void b2_Body_DestroyShape(b2Shape* shape) {
