@@ -83,6 +83,7 @@
 | F64 | **重放的指针翻译修了两处**：①`is_dll_object` 把参数名也当类型（`"b2Joint* j"`→`"b2Joint j"`），导致所有对象指针都被判成宿主内存、一律给 scratch，gear up 崩在写 `0xFF088B50`——改成取类型首词；②任何指针命中映射表就会被替换，宿主返回过的栈地址（userData）与后续 def 地址撞车时会把 def 解成垃圾，gear up 崩在读 `0x8000000C`——改成**只有 DLL 对象类型**才走映射，def/缓冲区永远用 scratch。修完 gear up 2,261,500 调用 / 15,588 步跑通，bounded 7→8 PASS | L2-A | `tools/replay_ffi.py`、`work/gate_gear_up.json` | 已验证 | 重放器正确性 |
 | F65 | **`bounded` 判据改为「近端斜率」**：原「前半中位数 vs 后半中位数」把"前段扩散、后段饱和"误判为增长——`is it safe` 曲线是 1→4→5→11→11（44 个 body 里 11 个超差后不再变化，峰值 13），差异字段几乎全是 `sleepTime`。改为跳过前 10%、比较**最后两个十分位**中位数（≤×1.25+2），并额外报告峰值水位；重跑代表关：magnetic_force 23→23、trap 10→10、gear_up 8→11（阈值 12） | L4 | `tools/gate.py`、`work/gate_is_it_safe.json`、`work/series_safe.json` | 已验证 | 门禁判据 |
 | F66 | **质量/惯量要用相对容差**：`invI` 量级可达 3×10³，float 的 ULP 已是 ~2×10⁻⁴，用绝对 1e-4 判等会把正常数值差报成分歧（slip gate 首个分歧 `invI 3108.495 → 3108.495` 即此）。改成 `1e-4 × max(1,|a|,|b|)`。历史关卡的超差计数因此略偏高，但判定（平线/饱和）不受影响 | L4 | `tools/replay_ffi.py`、`work/gate_slip_gate.json` | 已验证 | 比对精度 |
+| F67 | **日志量削减**：只读 getter（GetXForm/GetVelocity/GetOmega/GetReactionImpulse…共 30 个）不记录，只保留会改状态的调用和**返回对象指针**的 getter（GetShapeList/Shape_GetBody/GetNext/GetBody1/2/GetWorld/GetUserData，重放靠它们的返回值维持指针映射）。实测同一段运行：**243 MB → 67 MB（3.6×）**，速率 8.7 → 2.4 MB/s；pre/post 仍 1:1，digest 正常，重放 96k 调用无错。`B2PROXY_HOT=1` 可恢复全量记录 | L4 | `src/proxydll/proxy_core.c`、`work/ffi_perf3.bin` | 已验证 | 录制性能 |
 
 ## 影响对齐方案的硬约束
 

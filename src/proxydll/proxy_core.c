@@ -48,6 +48,26 @@ extern FARPROC g_slot[];
 #define MAX_BODIES 512
 static void* g_bodies[MAX_BODIES];
 static int g_nbodies = 0;
+/* 只读 getter（热调用）：记录它们对状态没贡献，但占日志大头（一关里 ~60%）。
+ * 保留「返回对象指针」的 getter（GetShapeList / Shape_GetBody / GetNext / GetBody1/2 /
+ * GetWorld / GetUserData），因为重放要靠它们的返回值维持指针映射。
+ * 设 B2PROXY_HOT=1 可关掉过滤、记录全部。 */
+static char g_skip[256];
+static const char* const kHotGetters[] = {
+    "b2_Body_GetXForm", "b2_Body_GetVelocity", "b2_Body_GetOmega",
+    "b2_Body_GetPosition", "b2_Body_GetAngle", "b2_Body_GetMass",
+    "b2_Body_GetLocalPoint", "b2_Body_GetWorldVector", "b2_Body_GetLocalVector",
+    "b2_Body_IsBullet", "b2_Body_IsFrozen", "b2_Body_GetAngularDamping",
+    "b2_Shape_GetDensity", "b2_Body_GetIsSleeping", "b2_Body_GetXForm",
+    "b2_Shape_GetFriction", "b2_Shape_GetRestitution", "b2_Shape_GetSensor",
+    "b2_Shape_GetShapeType", "b2_Shape_GetCirclePos", "b2_Shape_GetCircleRadius",
+    "b2_Shape_GetFilter", "b2_Shape_TestPoint",
+    "b2_Joint_GetJointAngle", "b2_Joint_GetJointTranslation", "b2_Joint_GetMotorSpeed",
+    "b2_Joint_GetReactionImpulse", "b2_Joint_GetReactionTorqImpulse",
+    "b2_Joint_GetAnchor1", "b2_Joint_GetAnchor2", "b2_Joint_GetLimits",
+    "b2_Joint_IsMotorEnabled", "b2_Joint_IsLimitEnabled",
+    0};
+
 static uint32_t g_id_step = 0;
 static uint32_t g_id_create_body = 0;
 static long g_step_no = 0;
@@ -88,6 +108,7 @@ static void Emit(const void* p, DWORD n) {
 static HMODULE g_orig = 0;
 static volatile LONG g_count = 0;
 static __declspec(thread) int g_in = 0;
+static __declspec(thread) int g_skip_nested = 0;   /* 本条调用没记录，post 也别记 */
 
 /* 每次调用的「原返回地址」栈：宿主可能在 Step 里回调再进我们的导出，所以要按线程嵌套 */
 typedef struct { uint32_t id; uint32_t ret; } Pending;
@@ -113,6 +134,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     }
     if (!fn) return;              /* 解析失败：由调用方 jmp 0 暴露问题 */
     if (g_file == INVALID_HANDLE_VALUE) return;
+    if (g_skip[id]) { g_skip_nested = 1; return; }
 
     g_in = 1;
     {
@@ -205,6 +227,12 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         g_pdepth = d;
     }
     g_lastret = retval;
+    if (g_skip_nested) {          /* 这条调用没记 pre，post 也不记，保持 pre/post 1:1 */
+        g_skip_nested = 0;
+        if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
+        else if (id == g_id_step) DumpStepDigest();
+        return orig_ret;
+    }
     if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
     else if (id == g_id_step) DumpStepDigest();
     if (g_file != INVALID_HANDLE_VALUE && !g_in) {
@@ -260,6 +288,14 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         for (i = 0; i < g_n_exports; ++i) {
             if (g_names[i] && !strcmp(g_names[i], "b2_World_Step")) g_id_step = (uint32_t)i;
             if (g_names[i] && !strcmp(g_names[i], "b2_World_CreateBody")) g_id_create_body = (uint32_t)i;
+        }
+        if (!GetEnvironmentVariableA("B2PROXY_HOT", log, MAX_PATH)) {
+            int k;
+            for (k = 0; kHotGetters[k]; ++k) {
+                for (i = 1; i < g_n_exports; ++i) {
+                    if (g_names[i] && !strcmp(g_names[i], kHotGetters[k])) g_skip[i] = 1;
+                }
+            }
         }
         n = GetEnvironmentVariableA("B2PROXY_LOG", log, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(log, self, "b2ffi.log");
