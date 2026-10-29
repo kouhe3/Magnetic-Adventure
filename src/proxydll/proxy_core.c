@@ -182,6 +182,16 @@ static void NoteBody(void* body) {
 }
 
 typedef struct { uint32_t kind, seq, count, reserved; } DigestHdr;
+
+/* 接触拓扑：偏移取自我们这份 Box2D 的 offsetof（F77 打印验证），
+ * 用来判断"同一步原版和我们的接触对是否一致"——比分体状态更前置。 */
+#define OFF_WORLD_CONTACTS   102984
+#define OFF_CONTACT_NEXT     16
+#define OFF_CONTACT_SHAPE1   52
+#define OFF_CONTACT_SHAPE2   56
+#define OFF_CONTACT_MANIFOLDS 8
+#define MAX_CONTACTS 512
+typedef struct { uint32_t shape1, shape2, manifolds; } ContactRec;
 typedef struct {
     uint32_t ptr, flags;
     float sleepTime, vx, vy, w, px, py, angle;
@@ -220,6 +230,30 @@ static void DumpStepDigest(void) {
     if (n) Emit(buf, (DWORD)(n * sizeof(BodyDigest)));
 }
 
+static void DumpContacts(void* world) {
+    ContactRec buf[MAX_CONTACTS];
+    DigestHdr hdr;
+    uint32_t c;
+    int n = 0;
+    if (g_file == INVALID_HANDLE_VALUE || !world) return;
+    if (IsBadReadPtr((char*)world + OFF_WORLD_CONTACTS, 4)) return;
+    c = *(uint32_t*)((char*)world + OFF_WORLD_CONTACTS);
+    while (c && n < MAX_CONTACTS) {
+        if (IsBadReadPtr((void*)(uintptr_t)c, 60)) break;
+        buf[n].shape1 = *(uint32_t*)(uintptr_t)(c + OFF_CONTACT_SHAPE1);
+        buf[n].shape2 = *(uint32_t*)(uintptr_t)(c + OFF_CONTACT_SHAPE2);
+        buf[n].manifolds = *(uint32_t*)(uintptr_t)(c + OFF_CONTACT_MANIFOLDS);
+        ++n;
+        c = *(uint32_t*)(uintptr_t)(c + OFF_CONTACT_NEXT);
+    }
+    hdr.kind = 3;
+    hdr.seq = (uint32_t)g_step_no;
+    hdr.count = (uint32_t)n;
+    hdr.reserved = 0;
+    Emit(&hdr, sizeof hdr);
+    if (n) Emit(buf, (DWORD)(n * sizeof(ContactRec)));
+}
+
 /* 原 DLL 返回后：取出原返回地址，记录返回值 + 出参内存，返回原返回地址给桩去 jmp */
 uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     uint32_t orig_ret = 0;
@@ -233,11 +267,21 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     g_lastret = retval;
     if (skip) {   /* 这条调用没记 pre，post 也不记，保持 pre/post 1:1 */
         if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
-        else if (id == g_id_step) DumpStepDigest();
+        else if (id == g_id_step) {
+            DumpStepDigest();
+            if (!IsBadReadPtr((const void*)(uintptr_t)args_ptr, 4))
+                DumpContacts((void*)(uintptr_t)(*(const uint32_t*)(uintptr_t)args_ptr));
+        }
         return orig_ret;
     }
     if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
-    else if (id == g_id_step) DumpStepDigest();
+    else if (id == g_id_step) {
+        uint32_t world = 0;
+        DumpStepDigest();
+        if (!IsBadReadPtr((const void*)(uintptr_t)args_ptr, 4))
+            world = *(const uint32_t*)(uintptr_t)args_ptr;   /* Step(world, dt, vi, pi) */
+        DumpContacts((void*)(uintptr_t)world);
+    }
     if (g_file != INVALID_HANDLE_VALUE && !g_in) {
         PostRec r;
         uint32_t a0 = *(const uint32_t*)args_ptr;

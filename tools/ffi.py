@@ -4,6 +4,7 @@
   kind=0 PreRec  (536B) 调用前：id, 原返回地址, ecx, edx, seq, args[32], args[0] 指向的 64B
   kind=1 PostRec (144B) 调用后：id, 返回值 EAX, seq, args[0] 指向的 64B（出参）
   kind=2 摘要：u32 kind,seq,count,reserved + count×52B{ptr,flags,7×state,mass,invMass,I,invI}
+  kind=3 接触：u32 kind,seq,count,reserved + count×12B{shape1,shape2,manifoldCount}
 
 用法:
   python tools/ffi.py stats  <log>
@@ -75,6 +76,17 @@ def records(path):
                     for i in range(count):
                         bodies.append(struct.unpack_from('<II11f', raw, i * 52))
                 yield ('digest', (seq, bodies))
+            elif kind == 3:
+                rest = f.read(12)          # seq, count, reserved
+                seq, count, _ = struct.unpack('<III', rest)
+                cs = []
+                if count:
+                    raw = f.read(12 * count)
+                    if len(raw) < 12 * count:
+                        return
+                    for i in range(count):
+                        cs.append(struct.unpack_from('<III', raw, i * 12))  # shape1, shape2, manifolds
+                yield ('contacts', (seq, cs))
             else:
                 raise SystemExit(f'bad kind {kind} at {f.tell()}')
 

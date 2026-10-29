@@ -98,8 +98,14 @@ def capture_with_retry(rec, ffi_out, tries=2):
 
 
 def offline(ffi_log, dll):
+    # 让 DLL 把接触表导到临时文件，重放器据此比对接触拓扑（kind=3 记录才有）
+    ct = os.path.join(ROOT, "work", "ours_contacts.txt")
+    try:
+        os.remove(ct)
+    except OSError:
+        pass
     out = run([PY32, os.path.join(ROOT, "tools", "replay_ffi.py"), ffi_log, "--json",
-               "--dll", dll])
+               "--dll", dll], env={**os.environ, "B2DBG_CONTACTS": ct})
     for line in reversed((out.stdout or "").strip().splitlines()):
         line = line.strip()
         if line.startswith("{"):
@@ -216,6 +222,11 @@ def main():
     report["flags"] = {"groups": fg, "flags_only": off.get("flags_only", 0),
                        "semantic": {k: v for k, v in fg.items()
                                     if k not in ("sleep", "island")}}
+    ct = off.get("contacts") or {}
+    report["contacts"] = ct
+    if ct.get("steps") and (ct.get("missing") or ct.get("extra")):
+        report.setdefault("warn", []).append(
+            f"contacts: missing={ct.get('missing')} extra={ct.get('extra')} over {ct.get('steps')} steps")
     if report["flags"]["semantic"]:
         report.setdefault("warn", []).append(
             "flags_semantic: " + ", ".join(f"{k}={v}" for k, v in report["flags"]["semantic"].items()))

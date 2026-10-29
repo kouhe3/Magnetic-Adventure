@@ -163,8 +163,37 @@ static void DbgJoints(b2Body* target, int stepNo, const char* when) {
     }
 }
 
+static void DbgOffsets() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    DbgPrint("[off] world.m_contactList=%d contact.next=%d contact.shape1=%d contact.shape2=%d "
+             "contact.manifolds=%d shape.m_body=%d body.next=%d\n",
+             (int)((char*)&((b2World*)0)->m_contactList - (char*)0),
+             (int)((char*)&((b2Contact*)0)->m_next - (char*)0),
+             (int)((char*)&((b2Contact*)0)->m_shape1 - (char*)0),
+             (int)((char*)&((b2Contact*)0)->m_shape2 - (char*)0),
+             (int)((char*)&((b2Contact*)0)->m_manifoldCount - (char*)0),
+             (int)((char*)&((b2Shape*)0)->m_body - (char*)0),
+             (int)((char*)&((b2Body*)0)->m_next - (char*)0));
+}
+
+// 导出整张接触表，供"接触拓扑对比"使用（F78）
+static void DbgDumpContacts(b2World* world, int stepNo) {
+    const char* path = DbgEnv("B2DBG_CONTACTS");
+    if (!path || !*path) return;
+    FILE* f = fopen(path, "a");
+    if (!f) return;
+    for (b2Contact* c = world->m_contactList; c; c = c->m_next)
+        fprintf(f, "%d %u %u %d\n", stepNo,
+                (unsigned)(uintptr_t)c->m_shape1, (unsigned)(uintptr_t)c->m_shape2,
+                c->m_manifoldCount);
+    fclose(f);
+}
+
 static void DbgContacts(b2World* world, b2Body* target, int stepNo) {
     int n = 0;
+    DbgOffsets();
     for (b2Contact* c = world->m_contactList; c; c = c->m_next) {
         b2Body* b1 = c->m_shape1 ? c->m_shape1->m_body : NULL;
         b2Body* b2_ = c->m_shape2 ? c->m_shape2->m_body : NULL;
@@ -217,6 +246,7 @@ B2API void b2_World_Step(b2World* world, float dt, int velocityIterations, int p
         DbgJoints(target, s_step, "before");
     }
     world->Step(dt, velocityIterations, positionIterations);
+    DbgDumpContacts(world, s_step);
     if (target && s_step >= 1 && s_step <= 5 && DbgAlive(world, target)) {
         DbgJoints(target, s_step, "after");
         DbgContacts(world, target, s_step);
