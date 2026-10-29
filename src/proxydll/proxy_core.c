@@ -70,6 +70,7 @@ static const char* const kHotGetters[] = {
 
 static uint32_t g_id_step = 0;
 static uint32_t g_id_create_body = 0;
+static uint32_t g_id_destroy_body = 0;
 static long g_step_no = 0;
 
 static HANDLE g_file = INVALID_HANDLE_VALUE;
@@ -181,6 +182,19 @@ static void NoteBody(void* body) {
     if (g_nbodies < MAX_BODIES) g_bodies[g_nbodies++] = body;
 }
 
+/* 销毁的 body 必须从摘要里剔除：指针会指向已释放/被复用的堆内存，
+ * 上一版只增不减，导致 700+ 条假差异（F86）。 */
+static void ForgetBody(void* body) {
+    int i;
+    if (!body) return;
+    for (i = 0; i < g_nbodies; ++i) {
+        if (g_bodies[i] == body) {
+            g_bodies[i] = g_bodies[--g_nbodies];
+            return;
+        }
+    }
+}
+
 typedef struct { uint32_t kind, seq, count, reserved; } DigestHdr;
 
 /* 接触拓扑：偏移取自我们这份 Box2D 的 offsetof（F77 打印验证），
@@ -267,6 +281,12 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     g_lastret = retval;
     if (skip) {   /* 这条调用没记 pre，post 也不记，保持 pre/post 1:1 */
         if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
+    else if (id == g_id_destroy_body && !IsBadReadPtr((const void*)(uintptr_t)args_ptr, 8)) {
+        uint32_t a0 = *(const uint32_t*)(uintptr_t)args_ptr;
+        uint32_t a1 = *(const uint32_t*)((uintptr_t)args_ptr + 4);
+        (void)a0;                       /* DestroyBody(world, body) */
+        ForgetBody((void*)(uintptr_t)a1);
+    }
         else if (id == g_id_step) {
             DumpStepDigest();
             if (!IsBadReadPtr((const void*)(uintptr_t)args_ptr, 4))
@@ -275,6 +295,12 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         return orig_ret;
     }
     if (id == g_id_create_body) NoteBody((void*)(uintptr_t)retval);
+    else if (id == g_id_destroy_body && !IsBadReadPtr((const void*)(uintptr_t)args_ptr, 8)) {
+        uint32_t a0 = *(const uint32_t*)(uintptr_t)args_ptr;
+        uint32_t a1 = *(const uint32_t*)((uintptr_t)args_ptr + 4);
+        (void)a0;                       /* DestroyBody(world, body) */
+        ForgetBody((void*)(uintptr_t)a1);
+    }
     else if (id == g_id_step) {
         uint32_t world = 0;
         DumpStepDigest();
@@ -335,6 +361,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         for (i = 0; i < g_n_exports; ++i) {
             if (g_names[i] && !strcmp(g_names[i], "b2_World_Step")) g_id_step = (uint32_t)i;
             if (g_names[i] && !strcmp(g_names[i], "b2_World_CreateBody")) g_id_create_body = (uint32_t)i;
+            if (g_names[i] && !strcmp(g_names[i], "b2_World_DestroyBody")) g_id_destroy_body = (uint32_t)i;
         }
         if (!GetEnvironmentVariableA("B2PROXY_HOT", log, MAX_PATH)) {
             int k;

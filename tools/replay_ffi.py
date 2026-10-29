@@ -194,6 +194,11 @@ class Replayer:
         self.stats['bodies'] += len(bodies)
         dev_max = 0.0
         for rec in bodies:
+            # 旧日志里可能残留"已销毁 body"（代理曾只增不减，指针指向已释放内存），
+            # 合法标志位只到 0x7E；出现高位就说明这条是堆垃圾，跳过（F86）。
+            if rec[1] & ~0x007E:
+                self.stats['stale_body'] = self.stats.get('stale_body', 0) + 1
+                continue
             ptr, flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia = rec
             ours = self.ptrmap.get(ptr)
             if not ours:
@@ -486,6 +491,7 @@ def main():
                              sorted(r.dev_by_field.items(), key=lambda kv: -kv[1])[:6]},
             'flags_groups': dict(sorted(r.flags_groups.items(), key=lambda kv: -kv[1])),
             'flags_only': r.flags_only,
+            'stale_body': r.stats.get('stale_body', 0),
             'contacts': {'steps': r.stats.get('contact_steps', 0),
                          'missing': r.stats.get('contact_missing', 0),
                          'extra': r.stats.get('contact_extra', 0)},
