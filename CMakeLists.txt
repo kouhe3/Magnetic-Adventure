@@ -8,7 +8,7 @@ if(MSVC)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
   # x87 而非 SSE2：原 b2Physics.dll 的浮点运算全部走 x87（InitVelocityConstraints 444 条指令
   # 里 359 条 fld/fmul/fadd…，零 SSE 标量），中间精度不同会让结果在第 1 步就差 1e-4。
-  # 用 /arch:IA32 后 6 个关卡 53,000+ 步的 body 状态与原版**逐位一致**（F82）。
+  # 用 /arch:IA32 后已复跑的 12 关里 10 关容差内 0 差异、偏差幅度 ≤ 容差的 0.5%（F82/F84）。
   add_compile_options(/arch:IA32)
 endif()
 

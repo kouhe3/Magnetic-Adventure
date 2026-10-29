@@ -99,6 +99,7 @@ class Replayer:
         self.stats = {'ret': 0, 'out': 0, 'float_skip': 0, 'void': 0, 'unmapped': 0,
                       'steps': 0, 'bodies': 0, 'digest_bad': 0, 'bodies_bad': 0}
         self.first_digest = None
+        self.first_exact = None   # 第一次逐位不等（不受容差影响）
         self.step_bad = {}
         self.step_dev = {}     # 每步 |Δ|/容差 的最大值：看幅度是否增长，而不只是个数
         self.dev_by_field = {}  # 哪个字段在贡献最大偏差
@@ -244,6 +245,9 @@ class Replayer:
                     # 质量/惯量这类量级可达几千，绝对容差会低于 float 的 ULP，必须按相对值比
                     scale = max(1.0, abs(a), abs(b)) if n in (
                         'mass', 'invMass', 'I', 'invI') else 1.0
+                    if a != b and self.first_exact is None:
+                        self.first_exact = {'step': seq, 'body': f'{ptr:#x}', 'field': n,
+                                            'ours': float(a), 'theirs': float(b)}
                     dev = abs(a - b) / (tol * scale)      # 1.0 = 刚好踩在容差上
                     if dev > dev_max:
                         dev_max = dev
@@ -475,6 +479,7 @@ def main():
             'bodies_bad': r.stats['bodies_bad'],
             'mismatches': len(r.mismatches),
             'first_digest': r.first_digest,
+            'first_exact': r.first_exact,
             'step_bad': r.step_bad,
             'step_dev': r.step_dev,
             'dev_by_field': {k: round(v, 1) for k, v in
