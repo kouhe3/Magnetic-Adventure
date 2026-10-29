@@ -85,6 +85,7 @@
 | F66 | **质量/惯量要用相对容差**：`invI` 量级可达 3×10³，float 的 ULP 已是 ~2×10⁻⁴，用绝对 1e-4 判等会把正常数值差报成分歧（slip gate 首个分歧 `invI 3108.495 → 3108.495` 即此）。改成 `1e-4 × max(1,|a|,|b|)`。历史关卡的超差计数因此略偏高，但判定（平线/饱和）不受影响 | L4 | `tools/replay_ffi.py`、`work/gate_slip_gate.json` | 已验证 | 比对精度 |
 | F67 | **日志量削减**：只读 getter（GetXForm/GetVelocity/GetOmega/GetReactionImpulse…共 30 个）不记录，只保留会改状态的调用和**返回对象指针**的 getter（GetShapeList/Shape_GetBody/GetNext/GetBody1/2/GetWorld/GetUserData，重放靠它们的返回值维持指针映射）。实测同一段运行：**243 MB → 67 MB（3.6×）**，速率 8.7 → 2.4 MB/s；pre/post 仍 1:1，digest 正常，重放 96k 调用无错。`B2PROXY_HOT=1` 可恢复全量记录 | L4 | `src/proxydll/proxy_core.c`、`work/ffi_perf3.bin` | 已验证 | 录制性能 |
 | F68 | **"跳过记录"的意图必须随调用栈压栈**：初版用单层 TLS 标志，外层调用被跳过、内层调用被记录时，标志会把内层的 post 也吃掉（beam me up 首次采集 calls 191191 / rets 191189）。改成在 `Pending` 里带 `skip` 字段、由 `save_ret` 压栈后，只剩杀进程瞬间的在途调用会缺 post（末尾 1 条，无害）。该日志的两条未配对 pre 位于 191176/191191，均在尾部，不影响判定 | L2-A | `src/proxydll/proxy_core.c`、`work/ffi_perf4.bin` | 已验证 | 抓包正确性 |
+| F69 | **部分关卡初始化是随机场景**：`lvl_o8.lua`（Looking for Keys）用 `math.random()` 决定球的位置（74/75、192 行）与钥匙所在球（`RandomSphereWithKey`，106–117）；全库 8 个脚本含 `random`：`basefs.lua`、`lvl_e8`、`lvl_e17`、`lvl_e45`、`lvl_o8`、`lvl_o9`、`lvl_o43`、`lvl_o45`。宿主未在 Lua 侧 `randomseed`（Lua 5.1 的 `math.random` 走 C `rand()`，受宿主 `srand` 影响）→ **每次进关场景都不同**，鼠标宏/鼠标重放无法复现这些关卡；FFI 日志本身仍是某一具体实例，重放不受影响 | L4 | `work/pak_baseline/lvl_o8.lua`、用户实测 | 已验证 | 验证策略 |
 
 ## 影响对齐方案的硬约束
 
