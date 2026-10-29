@@ -239,7 +239,10 @@ class Replayer:
             c2 = u32(c2 + 16).value
             n2 += 1
         for sp2 in shapes:
-            lines.append('  s {} {!r}'.format(self.rev.get(sp2, sp2), ctypes.string_at(sp2, 224)))
+            body2 = u32(sp2 + 12).value
+            lines.append('  s {} {} {!r}'.format(
+                self.rev.get(sp2, sp2), self.rev.get(body2, body2),
+                ctypes.string_at(sp2, 288)))
 
         # joint：整对象（revolute 200B）——冲量、限位状态不在摘要里
         j = u32(self.world + 102956).value

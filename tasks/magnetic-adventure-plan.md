@@ -42,7 +42,7 @@
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
-- [ ] T4.7 从 `b2_World_Step`（RVA `0x10001490`）跟调用链定位原版 `b2TimeOfImpact`，与 `build/Release/*.map` 的符号逐指令比（输入已锁定：`work/toi_dist.txt` 那条 t=0 d=0.0080 → alpha=0.674 的调用） 依据：F102、F107
+- [ ] T4.7 对读原版 GJK 的 `ProcessTwo/ProcessThree`（`0x10009980`/`0x10009B90`）与 `Support` 的符号/迭代顺序，找出"重叠形返回 0.008"的终止条件差异；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108
 
 ## M5 汉化目标
 
@@ -51,6 +51,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-29 依据 F108：B1 收到一个具体缺陷——我们的 GJK 对"重叠 0.110259"的一对盒子返回 0.008（原版判 0），`m_toi` 全量对照显示前 418 步逐对相同、第 419 步首次不同；接触顺序/几何/位姿/编译器/常量均已排除。T4.7 改成对读原版 `ProcessTwo/ProcessThree` 与 `Support`，并记下四个反汇编锚点。
 
 - 2026-10-29 依据 F107：B1 再收敛一层——插桩（独立 vendor 副本 `work/vendor_probe` + 独立构建 `work/build_probe`）拿到触发 TOI 的接触对与数值（我们 t=0 `b2Distance=0.0080` → 5 次推进 → `alpha=0.674`；原版同一步 `m_toi=0`），形状几何与位姿逐位相同、VC9 与 VS18 同结论 ⇒ 差异被限定在 `b2TimeOfImpact`/`b2Distance`；T4.7 改成带锚点（RVA + map 符号）的指令级比对。
 
