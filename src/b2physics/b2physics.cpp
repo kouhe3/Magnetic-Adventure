@@ -19,7 +19,10 @@
 #include "b2physics.h"
 
 // ---- 诊断：把访问违例的地址/模块/调用栈写进 B2PHYSICS_LOG ----
+#ifndef B2_NO_VEH
 #include <windows.h>
+#endif
+#ifndef B2_NO_VEH
 static LONG CALLBACK VexHandler(PEXCEPTION_POINTERS p) {
     const char* path = std::getenv("B2PHYSICS_LOG");
     if (!path) return EXCEPTION_CONTINUE_SEARCH;
@@ -64,6 +67,8 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
     return TRUE;
 }
 
+
+#endif
 
 namespace {
 
