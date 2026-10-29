@@ -438,6 +438,7 @@ class Replayer:
                     continue
                 ours.setdefault(seq, set()).add((inv.get(s1, s1), inv.get(s2, s2)))
         miss = extra = steps = 0
+        first_diff = None
         for seq, want in self.log_contacts.items():
             if seq not in ours:
                 continue
@@ -445,9 +446,14 @@ class Replayer:
             got = ours[seq]
             w = {frozenset(p) for p in want}
             g = {frozenset(p) for p in got}
-            miss += len(w - g)
-            extra += len(g - w)
+            dm, de = len(w - g), len(g - w)
+            miss += dm; extra += de
+            if (dm or de) and first_diff is None:
+                first_diff = {'step': seq, 'missing': dm, 'extra': de,
+                              'missing_pairs': [tuple(hex(x) for x in p) for p in list(w - g)[:3]],
+                              'extra_pairs': [tuple(hex(x) for x in p) for p in list(g - w)[:3]]}
         self.stats['contact_steps'] = steps
+        self.stats['contact_first'] = first_diff
         self.stats['contact_missing'] = miss
         self.stats['contact_extra'] = extra
 
@@ -494,7 +500,8 @@ def main():
             'stale_body': r.stats.get('stale_body', 0),
             'contacts': {'steps': r.stats.get('contact_steps', 0),
                          'missing': r.stats.get('contact_missing', 0),
-                         'extra': r.stats.get('contact_extra', 0)},
+                         'extra': r.stats.get('contact_extra', 0),
+                         'first': r.stats.get('contact_first')},
             'worst_dev': r.worst_dev,
         }, ensure_ascii=False))
         return 0

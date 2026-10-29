@@ -147,6 +147,12 @@ static void DbgPrint(const char* fmt, ...) {
     fclose(f);
 }
 
+static bool DbgInWindow(int step) {
+    static const int lo = DbgEnv("B2DBG_FROM") ? atoi(DbgEnv("B2DBG_FROM")) : 1;
+    static const int hi = DbgEnv("B2DBG_TO") ? atoi(DbgEnv("B2DBG_TO")) : 5;
+    return step >= lo && step <= hi;
+}
+
 static bool DbgAlive(b2World* world, b2Body* b) {
     for (b2Body* it = world->m_bodyList; it; it = it->m_next) if (it == b) return true;
     return false;
@@ -220,28 +226,54 @@ static void DbgContacts(b2World* world, b2Body* target, int stepNo) {
     if (!n) DbgPrint("[dbg] step %d no contacts for %p\n", stepNo, (void*)target);
 }
 
+#ifndef B2_NO_VEH
+#include <float.h>
+#include <xmmintrin.h>
+#endif
+
+// 实验：B2_FPU=ftz|dbl|ext 强制设置浮点环境（对齐游戏进程的 FPU/MXCSR 状态）
+static void ApplyFpuEnv() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    const char* m = getenv("B2_FPU");
+    if (!m) return;
+    unsigned int mx = _mm_getcsr();
+    if (!strcmp(m, "ftz")) {          // 打开 FTZ+DAZ，x87 精度=double
+        mx |= 0x8040;
+        _controlfp(_PC_53, _MCW_PC);
+    } else if (!strcmp(m, "dbl")) {   // 只改 x87 精度
+        _controlfp(_PC_53, _MCW_PC);
+    } else if (!strcmp(m, "ext")) {
+        _controlfp(_PC_64, _MCW_PC);
+    }
+    _mm_setcsr(mx);
+}
+
 B2API void b2_World_Step(b2World* world, float dt, int velocityIterations, int positionIterations) {
     TRACE("b2_World_Step");
+    ApplyFpuEnv();
 
     static int s_step = 0;
     ++s_step;
     const char* dbg = DbgEnv("B2DBG_STEP");
     if (dbg && !*dbg) dbg = NULL;
     // B2DBG_POS="x,y" 按坐标找 body（重放里原版指针与我们的地址不同）
-    b2Body* target = NULL;
-    if (dbg) {
+    static b2Body* s_dbg_target = NULL;   // 按坐标锁定一次，之后黏住（body 会移动）
+    b2Body* target = s_dbg_target;
+    if (dbg && !target) {
         float tx = 0.0f, ty = 0.0f;
         if (sscanf(dbg, "%f,%f", &tx, &ty) == 2) {
             for (b2Body* b = world->m_bodyList; b; b = b->m_next) {
                 float dx = b->m_xf.position.x - tx, dy = b->m_xf.position.y - ty;
-                if (dx * dx + dy * dy < 1e-4f) { target = b; break; }
+                if (dx * dx + dy * dy < 1e-4f) { target = b; s_dbg_target = b; break; }
             }
         } else {
             target = (b2Body*)(uintptr_t)strtoul(dbg, NULL, 16);
         }
     }
     if (target && !DbgAlive(world, target)) target = NULL;   // 已销毁的 body 不能解引用
-    if (target && s_step >= 1 && s_step <= 5) {
+    if (target && DbgInWindow(s_step)) {
         DbgPrint("[dbg] step %d before: type=%d flags=%#x shapes=%p v=(%.4f,%.4f) w=%.4f grav=(%.4f,%.4f) mass=%.4f lc=(%.9f,%.9f) p=(%.9f,%.9f)\n",
                s_step, (int)target->m_type, (unsigned)target->m_flags, (void*)target->m_shapeList,
                target->m_linearVelocity.x, target->m_linearVelocity.y, target->m_angularVelocity,
@@ -252,7 +284,7 @@ B2API void b2_World_Step(b2World* world, float dt, int velocityIterations, int p
     }
     world->Step(dt, velocityIterations, positionIterations);
     DbgDumpContacts(world, s_step);
-    if (target && s_step >= 1 && s_step <= 5 && DbgAlive(world, target)) {
+    if (target && DbgInWindow(s_step) && DbgAlive(world, target)) {
         DbgJoints(target, s_step, "after");
         DbgContacts(world, target, s_step);
         DbgPrint("[dbg] step %d after: v=(%.4f,%.4f) w=%.4f\n", s_step,
