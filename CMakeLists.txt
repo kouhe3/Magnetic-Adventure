@@ -15,7 +15,7 @@ endif()
 # ---- vendored Box2D 2.0.2 ----
 # 依据 docs/facts.md F27/F28：原 b2Physics.dll 的 b2Body/b2World 布局与该快照逐项一致
 # （2.0.1 相差 16/4 字节，已排除）。唯一改动：b2_maxPolygonVertices 16 -> 8。
-set(B2_ROOT ${CMAKE_SOURCE_DIR}/vendor/box2d-2.0.2/Box2D)
+set(B2_ROOT "${CMAKE_SOURCE_DIR}/vendor/box2d-2.0.2/Box2D" CACHE PATH "Box2D source root")
 file(GLOB_RECURSE B2_SOURCES CONFIGURE_DEPENDS ${B2_ROOT}/*.cpp)
 add_library(box2d STATIC ${B2_SOURCES})
 set_target_properties(box2d PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
