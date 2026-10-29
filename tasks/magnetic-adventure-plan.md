@@ -41,7 +41,8 @@
 - [ ] T4.3 音频 PCM diff 依据：F06
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
-- [ ] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100
+- [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
+- [ ] T4.7 比对原版 `b2TimeOfImpact` / `b2Distance` / `b2SeparationFunction` 反汇编与我们的产物（On a Leash 的 TOI 事件差异） 依据：F102、F103
 
 ## M5 汉化目标
 
@@ -50,6 +51,10 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-29 依据 F102/F103/F104：B1 的因果链由"broadphase 提前销毁接触"更正为"**多跑了一次 TOI 子步**"（F94 勘误）——接触集合、manifold、关节冲量在分叉前逐位相同，第 420 步我方 `sweep.t0=0.674` 而原版为 0；`B2_NO_TOI` 开关证明原版确实在用 TOI（关掉后首发分歧回到第 1 步）。新增仪器：replay 的内存级 contact/body/joint 转储（F103 含全部实测偏移）。新增 T4.7（TOI 函数级反汇编比对）。
+
+- 2026-10-29 依据 F101：`Get the Map`（`rec_20261029_183833`）与 `The First Totem`（`rec_20261029_183942`）v02 重录完成，两关 `bodies_bad = 0`；T4.6 勾选，覆盖率缺口关闭 → **52 关全部有可判定语料**。
 
 - 2026-10-29 依据 F98/F99/F100：批量重放改由 `tools/sweep.py` 承担（`gate_all.py` 依赖已删除的 `events.jsonl`，F70 之后不再用于批量）；判据产物必须自带构建指纹，v01 日志由工具层拒收（F87 从纪律变成代码）；`docs/levels.md` 的表格改为 `tools/report_sweep.py --write` 生成的标记块，录制↔关卡映射移到 `mapping/levels.csv`。T2.3 勾选完成；新增 T4.6（2 关需重录）。
 

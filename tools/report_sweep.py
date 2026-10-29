@@ -130,8 +130,13 @@ def render():
             stats["none"] += 1
             no_corpus.append(lv)
 
-    fp = next((r.get("build") or {} for r in rows.values()
-               if (r.get("build") or {}).get("match")), {})
+    usable_fps = [(r.get("build") or {}) for r in rows.values()
+                  if r.get("usable") and (r.get("build") or {}).get("match")]
+    fp = {}
+    if usable_fps:
+        from collections import Counter
+        key = Counter(f.get("md5") for f in usable_fps).most_common(1)[0][0]
+        fp = next(f for f in usable_fps if f.get("md5") == key)
     summary = [
         "",
         f"> **{stats['level']} 关：PASS {stats['pass']} / FAIL {stats['fail']} / "

@@ -55,6 +55,12 @@ def load_rows():
     return rows
 
 
+def save(rows):
+    with open(OUT, "w", encoding="utf-8") as fh:
+        for k in sorted(rows):
+            fh.write(json.dumps(rows[k], ensure_ascii=False) + "\n")
+
+
 def fresh(row, md5):
     """这行还能用吗：重放行必须出自同一个 DLL；不可判定/太小的行与构建无关。"""
     if row.get("verdict") in ("UNUSABLE", "SKIP"):
@@ -91,6 +97,10 @@ def main():
               "先 cmake --build build --config Release", flush=True)
 
     rows = load_rows()
+    # UNUSABLE/SKIP 行没有测量值，指纹跟着本次运行走；有数字的行只在 md5 相同时保留
+    for rec, row in rows.items():
+        if row.get("verdict") in ("UNUSABLE", "SKIP"):
+            row["build"] = fp
     recs = [r for r in recordings() if a.only in r]
     todo = [r for r in recs if a.force or r not in rows or not fresh(rows[r], fp["md5"])]
     print(f"{len(recs)} recordings, {len(todo)} to run", flush=True)
@@ -129,15 +139,14 @@ def main():
             ok = bool(r.get("ok") and r.get("calls") and growth_ok)
             row["verdict"] = "PASS" if ok else "FAIL"
         rows[rec] = row
-        with open(OUT, "w", encoding="utf-8") as fh:
-            for k in sorted(rows):
-                fh.write(json.dumps(rows[k], ensure_ascii=False) + "\n")
+        save(rows)
         b = row.get("bounded") or {}
         print(f"[{i}/{len(todo)}] {rec:<26}{row['verdict']:<9}"
               f"steps={row.get('steps')} bad={row.get('bad')} "
               f"first_exact={row.get('first_exact')} "
               f"bounded={b.get('prev')}->{b.get('last')} {row.get('secs', 0)}s", flush=True)
 
+    save(rows)
     print(f"SWEEP DONE -> {os.path.relpath(OUT, ROOT)}")
     return 0
 

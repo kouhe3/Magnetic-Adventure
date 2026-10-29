@@ -110,6 +110,15 @@ class Replayer:
         self.trace = int(os.environ['B2_TRACE'], 16) if os.environ.get('B2_TRACE') else 0
         self.last_step_ok = False
         self.call_mem = {}
+        self.world = 0          # 我们(或被重放 DLL)的 b2World 指针，b2_CreateWorld 返回时记下
+        spec = os.environ.get('B2DUMP_CONTACTS', '')
+        self.dump_path, self.dump_lo, self.dump_hi = None, 0, -1
+        if spec:
+            parts = spec.split(',')
+            self.dump_path = parts[0]
+            self.dump_lo = int(parts[1]) if len(parts) > 1 else 0
+            self.dump_hi = int(parts[2]) if len(parts) > 2 else 1 << 30
+            open(self.dump_path, 'w', encoding='utf-8').close()
 
     def fnb(self, name, restype):
         key = (name, restype, 1)
@@ -185,6 +194,47 @@ class Replayer:
                 print('  post:', bytes(want).hex(' '))
             self.note(n, name, 'out', f'+{off:#x} got={a:#010x} want={b:#010x}')
             return
+
+    # --- 接触内部状态转储（摘要覆盖不到的那层，B1 用）---
+    # 布局来自 work/shape_off.cpp（VC9 + vendor 头，x86）：
+    #   b2World.m_contactList=+102984  m_contactCount=+102992
+    #   b2Contact: flags=+4 manifoldCount=+8 next=+16 shape1=+52 shape2=+56
+    #   派生类 m_manifold 紧跟基类（sizeof(b2Contact)=64）
+    def dump_contacts(self, seq):
+        if not self.dump_path or not (self.dump_lo <= seq <= self.dump_hi) or not self.world:
+            return
+        u32 = ctypes.c_uint32.from_address
+        i32 = ctypes.c_int32.from_address
+        c = u32(self.world + 102984).value
+        lines = [f'step {seq} count {i32(self.world + 102992).value}']
+        seen = 0
+        bodies = {}
+        while c and seen < 4096:
+            # 整个 contact 对象前 176 字节：flags/mcount/prev/next/node/shape1/2 + 派生类的 manifold
+            blob = ctypes.string_at(c, 176)
+            lines.append('  c {} {} {!r}'.format(
+                self.rev.get(u32(c + 52).value, u32(c + 52).value),
+                self.rev.get(u32(c + 56).value, u32(c + 56).value), blob))
+            for off in (52, 56):
+                sp = u32(c + off).value
+                if sp:
+                    b = u32(sp + 12).value
+                    if b:
+                        bodies[b] = True
+            c = u32(c + 16).value
+            seen += 1
+        # body：flags/xf/sweep(c0,c,a0,a)/lv/av/sleepTime 全在这个窗口里
+        for b in bodies:
+            lines.append('  b {} {!r}'.format(self.rev.get(b, b), ctypes.string_at(b, 160)))
+        # joint：整对象（revolute 200B）——冲量、限位状态不在摘要里
+        j = u32(self.world + 102956).value
+        jn = 0
+        while j and jn < 256:
+            lines.append('  j {} {!r}'.format(self.rev.get(j, j), ctypes.string_at(j, 208)))
+            j = u32(j + 12).value
+            jn += 1
+        with open(self.dump_path, 'a', encoding='utf-8') as fh:
+            fh.write('\n'.join(lines) + '\n')
 
     # --- post-Step 状态比对 ---
     def check_digest(self, seq, bodies):
@@ -301,6 +351,7 @@ class Replayer:
                 continue
             if kind == 'digest':
                 self.check_digest(v[0], v[1])
+                self.dump_contacts(v[0])
                 continue
             if kind == 'post':
                 rec = stack.pop() if stack else None
@@ -328,6 +379,8 @@ class Replayer:
                     else:
                         self.ptrmap[want] = got
                         self.rev[got] = want
+                        if name == 'b2_CreateWorld':
+                            self.world = got
                 else:
                     self.stats['ret'] += 1
                     if rt is ctypes.c_bool:
