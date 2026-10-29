@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,6 +88,30 @@ class RecSession:
     def begin(self, pid):
         self.pid = pid
         self.start = time.time()
+        self.shots = os.path.join(self.out_dir, "shots")
+        os.makedirs(self.shots, exist_ok=True)
+        threading.Thread(target=self._shot_loop, daemon=True).start()
+
+    def _shot_loop(self):
+        """1 fps 截图（半尺寸 JPEG）：把 FFI 的步号换算成秒就能调出对应画面。
+
+        步号 → 时间：dt 固定 0.01 s，所以 step N ≈ N/100 秒（F93）。
+        """
+        try:
+            from PIL import ImageGrab
+        except ImportError:
+            return
+        n = 0
+        while self.end is None:
+            t = time.time() - self.start
+            try:
+                img = ImageGrab.grab()
+                img = img.resize((img.width // 2, img.height // 2))
+                img.save(os.path.join(self.shots, f"t{int(t):04d}.jpg"), quality=60)
+                n += 1
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(max(0.0, 1.0 - (time.time() - self.start - t)))
 
     def stop(self):
         if self.end is None:
