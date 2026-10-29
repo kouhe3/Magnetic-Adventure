@@ -20,7 +20,7 @@
 
 - [x] T2.1 `b2Physics` 导出表 → ABI 契约（函数签名、结构体布局、调用约定） 依据：F07
 - [x] T2.2 C++ 实现（Box2D 2.x + C 包装），导出逐项一致 依据：F07
-- [ ] T2.3 差分：原 `game.exe` 加载新 DLL，逐帧物理状态比对 依据：F07
+- [x] T2.3 差分：原 `game.exe` 加载新 DLL，逐帧物理状态比对 依据：F07（验收物：53 份录制全量重放，F99；逐关人工试玩，F71）
 - [ ] T2.4 `Squall` 导出表 + DSound 行为契约 依据：F06
 - [ ] T2.5 C++ 实现 Squall，PCM 输出 diff 依据：F06
 - [ ] T2.6 原 exe + 新双 DLL 整机回归 依据：F06、F07
@@ -41,6 +41,7 @@
 - [ ] T4.3 音频 PCM diff 依据：F06
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
+- [ ] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100
 
 ## M5 汉化目标
 
@@ -49,6 +50,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-29 依据 F98/F99/F100：批量重放改由 `tools/sweep.py` 承担（`gate_all.py` 依赖已删除的 `events.jsonl`，F70 之后不再用于批量）；判据产物必须自带构建指纹，v01 日志由工具层拒收（F87 从纪律变成代码）；`docs/levels.md` 的表格改为 `tools/report_sweep.py --write` 生成的标记块，录制↔关卡映射移到 `mapping/levels.csv`。T2.3 勾选完成；新增 T4.6（2 关需重录）。
 
 - 2026-10-28 依据 F05/F17/F20：Pak v0.2 记录布局闭环（24 B 定长 + trailer），T0.1/T1.1/T1.2 完成；`tools/pak.py` 已可 verify/extract 两版。
 

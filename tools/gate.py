@@ -24,6 +24,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import replay as rp  # noqa: E402
+import instr  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME_DIR = os.path.join(ROOT, "work", "integration")
@@ -134,42 +135,6 @@ def visual_ab(rec, dll_a, dll_b):
             "tail3_a": tail3(a), "tail3_b": tail3(b)}
 
 
-def deciles(series):
-    """按步序号分十个十分位，返回每段的中位数（跳过前 10% 热身）。"""
-    if not series:
-        return []
-    ks = sorted(series, key=int)
-    warm = ks[len(ks) // 10:] or ks
-    out = []
-    n = len(warm)
-    for i in range(10):
-        seg = warm[int(n * i / 10):int(n * (i + 1) / 10)]
-        if seg:
-            out.append(sorted(series[k] for k in seg)[len(seg) // 2])
-    return out
-
-
-def bounded(step_bad):
-    """判「是否还在增长」，而不是「比开头高多少」。
-
-    典型曲线是 1 → 4 → 5 → 11 → 11：前段扩散、后段饱和，这是容差内的数值传播，
-    不是发散。所以比较**最后两个十分位**的中位数（近端斜率），并额外报出饱和水位。
-
-    跳过前 10%：关卡加载阶段 body 还没建全，超差数天然低。
-    """
-    if not step_bad:
-        return True, 0.0, 0.0, 0.0
-    ks = sorted(step_bad, key=int)
-    warm = ks[len(ks) // 10:] or ks
-    n = len(warm)
-    prev = warm[max(0, int(n * 0.7)):max(1, int(n * 0.9))]
-    last = warm[max(1, int(n * 0.9)):]
-    a = sorted(step_bad[k] for k in prev)[len(prev) // 2] if prev else 0
-    b = sorted(step_bad[k] for k in last)[len(last) // 2] if last else 0
-    peak = max(step_bad[k] for k in warm) if warm else 0
-    return b <= a * 1.25 + 2, float(a), float(b), float(peak)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("rec", help="录制目录（含 events.jsonl + ffi.bin）或 .jsonl 路径")
@@ -193,7 +158,9 @@ def main():
             a.ffi = cand
             a.skip_capture = True      # 面板已经用代理录好了 FFI，不用再重放抓一遍
     ffi = a.ffi or os.path.join(ROOT, "work", f"ffi_{a.name}.bin")
-    report = {"name": a.name, "rec": a.rec, "ffi": ffi}
+    report = {"name": a.name, "rec": a.rec, "ffi": ffi,
+              # 指纹来自实际被重放的那个 DLL（F98）：DLL 换过、指纹就对不上
+              "build": instr.fingerprint(a.dll_b)}
 
     if not a.skip_capture:
         ok, tail, score, tries = capture_with_retry(a.rec, ffi, a.capture_tries)
@@ -206,16 +173,20 @@ def main():
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 1
 
+    magic = instr.log_magic(ffi)
+    report["log"] = {"magic": magic, "usable": instr.log_usable(magic),
+                     "size": os.path.getsize(ffi) if os.path.exists(ffi) else 0}
+
     off = offline(ffi, a.dll_b)
     report["offline"] = {k: off.get(k) for k in
                          ("ok", "calls", "steps", "bodies", "bodies_bad", "mismatches",
                           "first_digest", "error")}
-    growth_ok, prev_med, last_med, peak = bounded(off.get("step_bad") or {})
+    growth_ok, prev_med, last_med, peak = instr.bounded(off.get("step_bad") or {})
     report["bounded"] = {"ok": growth_ok, "prev_decile": prev_med,
                          "last_decile": last_med, "peak": peak}
     # 偏差幅度（|Δ|/容差）的十分位中位数：个数可能因场景抖动而变化，
     # 幅度如果一直停在 1–3 倍容差，说明是噪声而不是发散。
-    dev = deciles(off.get("step_dev") or {})
+    dev = instr.deciles(off.get("step_dev") or {})
     report["dev_deciles"] = [round(v, 2) for v in dev]
     # flags 差异分组：sleep/island 是休眠管线噪声；bullet/frozen/fixedRot/other 属真语义差异，要报警
     fg = off.get("flags_groups") or {}
@@ -247,8 +218,19 @@ def main():
         ta, tb = vis.get("tail3_a", 0), vis.get("tail3_b", 0)
         report["visual_tail"] = {"a": ta, "b": tb, "ok": tb >= 0.85 and tb >= ta - 0.08}
         report["visual_warn"] = not report["visual_tail"]["ok"]
-    report["verdict"] = "PASS" if not fails else "FAIL"
     report["fail"] = fails
+    if not report["build"]["match"]:
+        report.setdefault("warn", []).append(
+            "build_fingerprint: DLL 与 build/build_info.json 不匹配，arch/fp 未知")
+    if not report["log"]["usable"]:
+        # v01 日志缺返回值/出参、dump 只有 64B（F59/F87）：跑得出的数字只能当参考
+        report["verdict"] = "UNUSABLE"
+        report["fail"] = fails + ["log_v01"]
+        report["unusable_reason"] = (
+            f"日志格式 {magic} 不是 B2FFI02+：缺返回值/出参且 dump 仅 64B，"
+            "不能作为保真度判据（F87）")
+    else:
+        report["verdict"] = "PASS" if not fails else "FAIL"
 
     out = os.path.join(ROOT, "work", f"gate_{a.name}.json")
     json.dump(report, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
@@ -256,7 +238,7 @@ def main():
                                               "offline", "visual")},
                      ensure_ascii=False, indent=2)[:1500])
     print("saved", out)
-    return 0 if not fails else 1
+    return 0 if report["verdict"] == "PASS" else 1
 
 
 if __name__ == "__main__":

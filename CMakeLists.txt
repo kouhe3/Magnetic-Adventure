@@ -6,10 +6,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(MSVC)
   add_compile_options(/W3 /MP /EHsc /utf-8)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-  # x87 而非 SSE2：原 b2Physics.dll 的浮点运算全部走 x87（InitVelocityConstraints 444 条指令
-  # 里 359 条 fld/fmul/fadd…，零 SSE 标量），中间精度不同会让结果在第 1 步就差 1e-4。
-  # 用 /arch:IA32 后已复跑的 12 关里 10 关容差内 0 差异、偏差幅度 ≤ 容差的 0.5%（F82/F84）。
-  add_compile_options(/arch:IA32)
+endif()
+
+# x87 而非 SSE2：原 b2Physics.dll 的浮点运算全部走 x87（InitVelocityConstraints 444 条指令
+# 里 359 条 fld/fmul/fadd…，零 SSE 标量），中间精度不同会让结果在第 1 步就差 1e-4。
+# 用 /arch:IA32 后已复跑的 12 关里 10 关容差内 0 差异（F82/F84）。
+set(B2_ARCH "IA32" CACHE STRING "浮点架构（/arch:），原版全程 x87")
+set(B2_FP "default" CACHE STRING "/fp: 模式；default=不显式指定（语义同 precise，F84）")
+if(MSVC)
+  add_compile_options(/arch:${B2_ARCH})
+  if(NOT B2_FP STREQUAL "default")
+    add_compile_options(/fp:${B2_FP})
+  endif()
 endif()
 
 # ---- vendored Box2D 2.0.2 ----
@@ -48,6 +56,23 @@ target_compile_definitions(b2physics PRIVATE B2PHYSICS_EXPORTS)
 target_link_options(b2physics PRIVATE "/MAP")
 set_target_properties(b2physics PROPERTIES OUTPUT_NAME b2Physics
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- 构建指纹（F98）：门禁/sweep 的每行结论都要能回答「出自哪个构建」----
+string(REPLACE ";" " " B2_RELEASE_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
+add_custom_command(TARGET b2physics POST_BUILD
+  COMMAND ${CMAKE_COMMAND}
+    -DOUT=${CMAKE_BINARY_DIR}/build_info.json
+    -DDLL=$<TARGET_FILE:b2physics>
+    -DLIB=$<TARGET_FILE:box2d>
+    -DARCH=${B2_ARCH}
+    -DFP=${B2_FP}
+    -DMSVC=${MSVC_VERSION}
+    -DTOOLSET=${MSVC_TOOLSET_VERSION}
+    -DCXX=${CMAKE_CXX_COMPILER_VERSION}
+    -DCONFIG=$<CONFIG>
+    -DFLAGS=${B2_RELEASE_FLAGS}
+    -P ${CMAKE_SOURCE_DIR}/cmake/build_info.cmake
+  COMMENT "writing build/build_info.json (fingerprint)")
 
 # ---- 转发 DLL（proxy）：占住 b2Physics.dll 文件名，加载 b2Physics_orig.dll，
 #      记录每次导出的实参 + 指针内存，然后把调用原样尾跳给原 DLL。
