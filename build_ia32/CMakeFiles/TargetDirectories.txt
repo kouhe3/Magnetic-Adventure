@@ -1,0 +1,5 @@
+C:/tmp/Magnetic Adventure/build_ia32/CMakeFiles/box2d.dir
+C:/tmp/Magnetic Adventure/build_ia32/CMakeFiles/b2physics.dir
+C:/tmp/Magnetic Adventure/build_ia32/CMakeFiles/b2physics_proxy.dir
+C:/tmp/Magnetic Adventure/build_ia32/CMakeFiles/ALL_BUILD.dir
+C:/tmp/Magnetic Adventure/build_ia32/CMakeFiles/ZERO_CHECK.dir

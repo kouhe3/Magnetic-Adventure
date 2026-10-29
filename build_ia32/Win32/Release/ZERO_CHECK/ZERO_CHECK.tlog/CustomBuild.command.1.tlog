@@ -1,0 +1,10 @@
+^C:\TMP\MAGNETIC ADVENTURE\BUILD_IA32\CMAKEFILES\1FC6A7565B75FB2206569FCC25E8FA2D\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/tmp/Magnetic Adventure" "-BC:/tmp/Magnetic Adventure/build_ia32" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/tmp/Magnetic Adventure/build_ia32/MagneticAdventureCpp.slnx"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(MSVC)
   add_compile_options(/W3 /MP /EHsc /utf-8)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+  # x87 而非 SSE2：原 b2Physics.dll 的浮点运算全部走 x87（InitVelocityConstraints 444 条指令
+  # 里 359 条 fld/fmul/fadd…，零 SSE 标量），中间精度不同会让结果在第 1 步就差 1e-4。
+  # 用 /arch:IA32 后 6 个关卡 53,000+ 步的 body 状态与原版**逐位一致**（F82）。
+  add_compile_options(/arch:IA32)
 endif()
 
 # ---- vendored Box2D 2.0.2 ----
