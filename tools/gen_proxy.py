@@ -109,11 +109,16 @@ def main():
     for off, _ in rows:
         parts.append(STUB_PRE.format(ord=off, off=off * 4))
     OUT_C.parent.mkdir(parents=True, exist_ok=True)
-    OUT_C.write_text("\n".join(parts), encoding="utf-8")
+    # 生成物入库，换行必须与仓库一致：CRLF（`.gitattributes` 的 `* -text`，见 F130）。
+    def write_crlf(path, text):
+        with path.open("w", encoding="utf-8", newline="\r\n") as f:
+            f.write(text)
+
+    write_crlf(OUT_C, "\n".join(parts))
 
     d = ["LIBRARY b2Physics", "EXPORTS"]
     d += [f"{name}=proxy_stub_{ord} @{ord}" for ord, name in rows]
-    OUT_DEF.write_text("\n".join(d) + "\n", encoding="utf-8")
+    write_crlf(OUT_DEF, "\n".join(d) + "\n")
     print(f"{OUT_C.relative_to(ROOT)}: {len(rows)} stubs")
     print(f"{OUT_DEF.relative_to(ROOT)}: {len(rows)} exports")
 

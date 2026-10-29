@@ -1,0 +1,25 @@
+# 换行策略：本仓库只面向 Windows（Win32 宿主 + MSVC x86 /arch:IA32），
+# git 追踪的文本一律按 CRLF 存储与检出 —— blob 字节 == 工作树字节。
+#
+# 为什么不用 `text=auto eol=crlf`：那会把 blob 归一化成 LF、只在检出时还原 CRLF，
+# 而且任何一次 renormalize 都会重写 blob。本项目要求「任何机器 checkout 得到同一份
+# 字节」—— vendor/box2d-2.0.2 快照、docs/facts.md 的逐位结论、build_info.json 的
+# md5 指纹都以此为前提，所以显式关掉换行归一化：
+#   -text = 不做任何换行转换（core.autocrlf 对本仓库失效），提交什么字节就是什么字节。
+* -text
+
+# 二进制：-text -diff，diff 里不再尝试出补丁
+*.dll   binary
+*.exe   binary
+*.pdb   binary
+*.obj   binary
+*.lib   binary
+*.ilk   binary
+*.exp   binary
+*.i64   binary
+*.idb   binary
+*.bin   binary
+*.cache binary
+*.png   binary
+*.jpg   binary
+*.zip   binary

@@ -179,7 +179,9 @@ def main():
     if i < 0 or j < 0:
         raise SystemExit(f"{DOC} 缺标记 {BEGIN} / {END}")
     doc = doc[:i + len(BEGIN)] + "\n" + text + "\n" + doc[j:]
-    open(DOC, "w", encoding="utf-8", newline="\n").write(doc)
+    # 仓库追踪的文本一律 CRLF（.gitattributes 的 `* -text`，见 F130）：
+    # 显式 newline="\r\n" 而不是靠平台默认，Linux 上跑也不会写成 LF。
+    open(DOC, "w", encoding="utf-8", newline="\r\n").write(doc)
     print(f"\nwrote {os.path.relpath(DOC, ROOT)}")
     return 0
 
