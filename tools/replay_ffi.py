@@ -23,6 +23,11 @@ import re
 import struct
 import sys
 
+FLAG_GROUPS = (('frozen', 0x0002), ('island', 0x0004), ('sleep', 0x0008),
+               ('allowSleep', 0x0010), ('bullet', 0x0020), ('fixedRot', 0x0040))
+FLAG_KNOWN_MASK = 0x007E
+
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tools'))
 import ffi  # noqa: E402
@@ -97,6 +102,8 @@ class Replayer:
         self.step_bad = {}
         self.step_dev = {}     # 每步 |Δ|/容差 的最大值：看幅度是否增长，而不只是个数
         self.dev_by_field = {}  # 哪个字段在贡献最大偏差
+        self.flags_groups = {}  # flags 差异按位分组：sleep/island/bullet/...
+        self.flags_only = 0     # flags 有差异但全部 float 字段一致（纯 flags 抖动）
         self.worst_dev = None   # 全关卡最大偏差的现场（step/body/字段/双方取值）
         self.trace = int(os.environ['B2_TRACE'], 16) if os.environ.get('B2_TRACE') else 0
         self.last_step_ok = False
@@ -185,7 +192,6 @@ class Replayer:
         self.stats['bodies'] += len(bodies)
         dev_max = 0.0
         for rec in bodies:
-            bad = False
             ptr, flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia = rec
             ours = self.ptrmap.get(ptr)
             if not ours:
@@ -213,13 +219,23 @@ class Replayer:
             want = (flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia)
             names = ('flags', 'sleepTime', 'vx', 'vy', 'w', 'px', 'py', 'angle',
                      'mass', 'invMass', 'I', 'invI')
+            state_bad = False
+            flags_bad = False
             for n, a, b in zip(names, got, want):
                 if n == 'flags':
                     if int(a) != int(b):
-                        self.note_digest(seq, ptr, n, f'{a} -> {b}', 1,
+                        # 按位分组：休眠/岛标记这类"管线噪声"与 bullet/frozen 这类"真语义"分开
+                        d = int(a) ^ int(b)
+                        grp = [g for g, bit in FLAG_GROUPS if d & bit]
+                        if d & ~FLAG_KNOWN_MASK:
+                            grp.append('other')
+                        for g in grp:
+                            self.flags_groups[g] = self.flags_groups.get(g, 0) + 1
+                        self.note_digest(seq, ptr, 'flags',
+                                         f'{a:#06x} -> {b:#06x} [{",".join(grp)}]', 1,
                                          f'{px:.3f},{py:.3f}')
-                        bad = True
-                        break
+                        flags_bad = True
+                    continue
                 else:
                     tol = {'sleepTime': 1e-3, 'vx': 1e-4, 'vy': 1e-4, 'w': 1e-4,
                            'px': 1e-5, 'py': 1e-5, 'angle': 1e-5,
@@ -243,10 +259,12 @@ class Replayer:
                         continue
                     self.note_digest(seq, ptr, n, f'{a:.7g} -> {b:.7g}', 2,
                                      f'{px:.3f},{py:.3f}')
-                    bad = True
+                    state_bad = True
                     break
-            if bad:
+            if flags_bad or state_bad:
                 self.stats['bodies_bad'] += 1
+                if flags_bad and not state_bad:
+                    self.flags_only += 1
         if dev_max > self.step_dev.get(seq, 0.0):
             self.step_dev[seq] = dev_max
 
@@ -419,6 +437,8 @@ def main():
             'step_dev': r.step_dev,
             'dev_by_field': {k: round(v, 1) for k, v in
                              sorted(r.dev_by_field.items(), key=lambda kv: -kv[1])[:6]},
+            'flags_groups': dict(sorted(r.flags_groups.items(), key=lambda kv: -kv[1])),
+            'flags_only': r.flags_only,
             'worst_dev': r.worst_dev,
         }, ensure_ascii=False))
         return 0

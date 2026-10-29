@@ -211,6 +211,14 @@ def main():
     # 幅度如果一直停在 1–3 倍容差，说明是噪声而不是发散。
     dev = deciles(off.get("step_dev") or {})
     report["dev_deciles"] = [round(v, 2) for v in dev]
+    # flags 差异分组：sleep/island 是休眠管线噪声；bullet/frozen/fixedRot/other 属真语义差异，要报警
+    fg = off.get("flags_groups") or {}
+    report["flags"] = {"groups": fg, "flags_only": off.get("flags_only", 0),
+                       "semantic": {k: v for k, v in fg.items()
+                                    if k not in ("sleep", "island")}}
+    if report["flags"]["semantic"]:
+        report.setdefault("warn", []).append(
+            "flags_semantic: " + ", ".join(f"{k}={v}" for k, v in report["flags"]["semantic"].items()))
 
     if a.visual:
         vis = visual_ab(a.rec, a.dll_a, a.dll_b)
