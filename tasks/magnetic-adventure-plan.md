@@ -85,3 +85,4 @@
 - 2026-10-28 依据 F05/F17/F20：Pak v0.2 记录布局闭环（24 B 定长 + trailer），T0.1/T1.1/T1.2 完成；`tools/pak.py` 已可 verify/extract 两版。
 
 - 2026-10-28 初版：对齐=行为等价+函数映射；基准=GameTop；范围=宿主 + 两个自有 DLL。
+- 2026-10-29 依据 F124/F127/F128：B2 收口——原版速度钳位是"每步最大平移/旋转"（`2.0` / `0.5π`，速度求解后施加、保号），不是 200/250 常数；改 `vendor/.../b2Island.cpp` + `b2Settings.h`（带 `altered (F124)` 注释）。全量 `a100a690`：52/52 PASS、50/52 零超差；Slipgate 54,709→0、Looking for Keys 与 A/A 地板逐项相同、Good Shot 32,123→4,825（1 ULP，力/冲量路径）。新建仪器 `tools/av_clamp.py`（受控 island/isolated 钳位映射）、`tools/dumpdiff.py`（双 DLL 内部状态转储比对）；probe 的 trace 增加 `B2_TRACE_WINDOW` 区间门控；A/A 地板用 `replay_ffi.py --dll <原版>` 量（F125/F126）。

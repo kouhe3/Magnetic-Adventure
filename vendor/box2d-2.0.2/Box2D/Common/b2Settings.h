@@ -132,6 +132,14 @@ const float32 b2_maxLinearVelocitySquared = b2_maxLinearVelocity * b2_maxLinearV
 /// The maximum angular velocity of a body. This limit is very large and is used
 /// to prevent numerical problems. You shouldn't need to adjust this.
 const float32 b2_maxAngularVelocity = 250.0f;
+
+// altered (F124)：原版不走 250/200 常数钳位，而是"每步最大平移/旋转"钳位（Box2D 2.1 系的写法）。
+// 实测（tools/av_clamp.py，两版 DLL 同输入）：dt=0.02 时 vx 上限 100、w 上限 78.53982(=0.5π/0.02)，
+// dt=0.005 时 w 上限 314.15927，负号保留；且钳位发生在速度求解之后（带接触时 w=1000 → 157.0796）。
+const float32 b2_maxTranslation = 2.0f;
+const float32 b2_maxTranslationSquared = b2_maxTranslation * b2_maxTranslation;
+const float32 b2_maxRotation = 0.5f * b2_pi;
+const float32 b2_maxRotationSquared = b2_maxRotation * b2_maxRotation;
 #ifndef TARGET_FLOAT32_IS_FIXED
 const float32 b2_maxAngularVelocitySquared = b2_maxAngularVelocity * b2_maxAngularVelocity;
 #endif

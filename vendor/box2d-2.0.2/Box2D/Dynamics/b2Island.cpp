@@ -219,22 +219,8 @@ void b2Island::Solve(const b2TimeStep& step, const b2Vec2& gravity, bool allowSl
 
 #else
 
-		if (b2Dot(b->m_linearVelocity, b->m_linearVelocity) > b2_maxLinearVelocitySquared)
-		{
-			b->m_linearVelocity.Normalize();
-			b->m_linearVelocity *= b2_maxLinearVelocity;
-		}
-		if (b->m_angularVelocity * b->m_angularVelocity > b2_maxAngularVelocitySquared)
-		{
-			if (b->m_angularVelocity < 0.0f)
-			{
-				b->m_angularVelocity = -b2_maxAngularVelocity;
-			}
-			else
-			{
-				b->m_angularVelocity = b2_maxAngularVelocity;
-			}
-		}
+		// altered (F124)：常数钳位换成"每步最大平移/旋转"，且整体后移到位置积分循环（见下）。
+		// 原版带接触时 w=1000 → 157.0796（钳位后不再被求解器改动）；先钳位后求解只会得到 53.25。
 #endif
 
 	}
@@ -270,6 +256,22 @@ void b2Island::Solve(const b2TimeStep& step, const b2Vec2& gravity, bool allowSl
 
 		if (b->IsStatic())
 			continue;
+
+		// altered (F124)：每步最大平移/旋转钳位（原版行为，见 b2Settings.h 注释）
+		// 位置：速度求解之后、位置积分之前；带 dt 归一化且保号。
+		{
+			b2Vec2 translation = step.dt * b->m_linearVelocity;
+			if (b2Dot(translation, translation) > b2_maxTranslationSquared)
+			{
+				float32 ratio = b2_maxTranslation / translation.Length();
+				b->m_linearVelocity *= ratio;
+			}
+			float32 rotation = step.dt * b->m_angularVelocity;
+			if (rotation * rotation > b2_maxRotationSquared)
+			{
+				b->m_angularVelocity = (rotation < 0.0f ? -b2_maxRotation : b2_maxRotation) / step.dt;
+			}
+		}
 
 		// Store positions for continuous collision.
 		b->m_sweep.c0 = b->m_sweep.c;
