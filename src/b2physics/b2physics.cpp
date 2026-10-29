@@ -233,10 +233,8 @@ static void DbgContacts(b2World* world, b2Body* target, int stepNo) {
     if (!n) DbgPrint("[dbg] step %d no contacts for %p\n", stepNo, (void*)target);
 }
 
-#ifndef B2_NO_VEH
 #include <float.h>
 #include <xmmintrin.h>
-#endif
 
 // 实验：B2_FPU=ftz|dbl|ext 强制设置浮点环境（对齐游戏进程的 FPU/MXCSR 状态）
 static void ApplyFpuEnv() {
