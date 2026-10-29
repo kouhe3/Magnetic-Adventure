@@ -168,6 +168,13 @@ static void DbgJoints(b2Body* target, int stepNo, const char* when) {
                      stepNo, when, pj->GetJointTranslation(), pj->GetLowerLimit(),
                      pj->GetUpperLimit(), (int)pj->IsLimitEnabled(), (int)pj->IsMotorEnabled(),
                      pj->GetMotorSpeed(), 0.0f, 0.0f);
+        } else if (j->m_type == e_revoluteJoint) {
+            b2RevoluteJoint* rj = static_cast<b2RevoluteJoint*>(j);
+            DbgPrint("[dbg] step %d %s revolute: angle=%.5f limits=[%.4f,%.4f] limitOn=%d "
+                     "motorOn=%d speed=%.3f torque=%.4f\n",
+                     stepNo, when, rj->GetJointAngle(), rj->GetLowerLimit(), rj->GetUpperLimit(),
+                     (int)rj->IsLimitEnabled(), (int)rj->IsMotorEnabled(), rj->GetMotorSpeed(),
+                     rj->GetMotorTorque());
         } else {
             DbgPrint("[dbg] step %d %s joint type=%d\n", stepNo, when, (int)j->m_type);
         }
