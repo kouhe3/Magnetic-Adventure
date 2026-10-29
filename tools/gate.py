@@ -128,6 +128,21 @@ def visual_ab(rec, dll_a, dll_b):
             "tail3_a": tail3(a), "tail3_b": tail3(b)}
 
 
+def deciles(series):
+    """按步序号分十个十分位，返回每段的中位数（跳过前 10% 热身）。"""
+    if not series:
+        return []
+    ks = sorted(series, key=int)
+    warm = ks[len(ks) // 10:] or ks
+    out = []
+    n = len(warm)
+    for i in range(10):
+        seg = warm[int(n * i / 10):int(n * (i + 1) / 10)]
+        if seg:
+            out.append(sorted(series[k] for k in seg)[len(seg) // 2])
+    return out
+
+
 def bounded(step_bad):
     """判「是否还在增长」，而不是「比开头高多少」。
 
@@ -192,6 +207,10 @@ def main():
     growth_ok, prev_med, last_med, peak = bounded(off.get("step_bad") or {})
     report["bounded"] = {"ok": growth_ok, "prev_decile": prev_med,
                          "last_decile": last_med, "peak": peak}
+    # 偏差幅度（|Δ|/容差）的十分位中位数：个数可能因场景抖动而变化，
+    # 幅度如果一直停在 1–3 倍容差，说明是噪声而不是发散。
+    dev = deciles(off.get("step_dev") or {})
+    report["dev_deciles"] = [round(v, 2) for v in dev]
 
     if a.visual:
         vis = visual_ab(a.rec, a.dll_a, a.dll_b)

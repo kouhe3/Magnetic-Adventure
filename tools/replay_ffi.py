@@ -95,6 +95,10 @@ class Replayer:
                       'steps': 0, 'bodies': 0, 'digest_bad': 0, 'bodies_bad': 0}
         self.first_digest = None
         self.step_bad = {}
+        self.step_dev = {}     # 每步 |Δ|/容差 的最大值：看幅度是否增长，而不只是个数
+        self.dev_by_field = {}  # 哪个字段在贡献最大偏差
+        self.worst_dev = None   # 全关卡最大偏差的现场（step/body/字段/双方取值）
+        self.trace = int(os.environ['B2_TRACE'], 16) if os.environ.get('B2_TRACE') else 0
         self.last_step_ok = False
         self.call_mem = {}
 
@@ -179,6 +183,7 @@ class Replayer:
             return
         self.stats['steps'] += 1
         self.stats['bodies'] += len(bodies)
+        dev_max = 0.0
         for rec in bodies:
             bad = False
             ptr, flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia = rec
@@ -199,6 +204,10 @@ class Replayer:
                 self.note_digest(seq, ptr, 'read', str(ex), 0)
                 self.stats['bodies_bad'] = self.stats.get('bodies_bad', 0) + 1
                 continue
+            if self.trace and ptr == self.trace:
+                print(f'  TRACE step {seq} flags {got[0]:#06x}->{flags:#06x} '
+                      f'w {got[4]:.4f}->{w:.4f} v ({got[2]:.3f},{got[3]:.3f})->({vx:.3f},{vy:.3f}) '
+                      f'p ({got[5]:.3f},{got[6]:.3f})->({px:.3f},{py:.3f}) sleepT {got[1]:.3f}->{sleep_t:.3f}')
             want = (flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia)
             names = ('flags', 'sleepTime', 'vx', 'vy', 'w', 'px', 'py', 'angle',
                      'mass', 'invMass', 'I', 'invI')
@@ -216,6 +225,18 @@ class Replayer:
                     # 质量/惯量这类量级可达几千，绝对容差会低于 float 的 ULP，必须按相对值比
                     scale = max(1.0, abs(a), abs(b)) if n in (
                         'mass', 'invMass', 'I', 'invI') else 1.0
+                    dev = abs(a - b) / (tol * scale)      # 1.0 = 刚好踩在容差上
+                    if dev > dev_max:
+                        dev_max = dev
+                    if dev > self.dev_by_field.get(n, 0.0):
+                        self.dev_by_field[n] = dev
+                    if self.worst_dev is None or dev > self.worst_dev['dev']:
+                        self.worst_dev = {'dev': round(dev, 1), 'step': seq,
+                                          'body': f'{ptr:#x}', 'field': n,
+                                          'ours': round(float(a), 6),
+                                          'theirs': round(float(b), 6),
+                                          'sleep_ours': bool(got[0] & 0x8),
+                                          'sleep_theirs': bool(flags & 0x8)}
                     if a == b or abs(a - b) <= tol * scale:
                         continue
                     self.note_digest(seq, ptr, n, f'{a:.7g} -> {b:.7g}', 2,
@@ -224,6 +245,8 @@ class Replayer:
                     break
             if bad:
                 self.stats['bodies_bad'] += 1
+        if dev_max > self.step_dev.get(seq, 0.0):
+            self.step_dev[seq] = dev_max
 
     def note_digest(self, seq, body, field, detail, kind, where=''):
         self.stats['digest_bad'] += 1
@@ -383,6 +406,10 @@ def main():
             'mismatches': len(r.mismatches),
             'first_digest': r.first_digest,
             'step_bad': r.step_bad,
+            'step_dev': r.step_dev,
+            'dev_by_field': {k: round(v, 1) for k, v in
+                             sorted(r.dev_by_field.items(), key=lambda kv: -kv[1])[:6]},
+            'worst_dev': r.worst_dev,
         }, ensure_ascii=False))
         return 0
     print(f'unmapped_object_args={r.stats.get("unmapped", 0)}')

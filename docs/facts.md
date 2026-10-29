@@ -88,6 +88,8 @@
 | F69 | **部分关卡初始化是随机场景**：`lvl_o8.lua`（Looking for Keys）用 `math.random()` 决定球的位置（74/75、192 行）与钥匙所在球（`RandomSphereWithKey`，106–117）；全库 8 个脚本含 `random`：`basefs.lua`、`lvl_e8`、`lvl_e17`、`lvl_e45`、`lvl_o8`、`lvl_o9`、`lvl_o43`、`lvl_o45`。宿主未在 Lua 侧 `randomseed`（Lua 5.1 的 `math.random` 走 C `rand()`，受宿主 `srand` 影响）→ **每次进关场景都不同**，鼠标宏/鼠标重放无法复现这些关卡；FFI 日志本身仍是某一具体实例，重放不受影响 | L4 | `work/pak_baseline/lvl_o8.lua`、用户实测 | 已验证 | 验证策略 |
 | F70 | **录制面板改为只录 FFI**：鼠标/键盘钩子、点击截图、events.jsonl 全部删除（鼠标宏已退出流程，F69；门禁视觉默认关闭）；面板每秒显示 `ffi.bin` 的体积与速率，STOP 后提示可复制的门禁命令。窗口尺寸改为按内容自适应（固定 600px 会切掉按钮） | L4 | `tools/recorder_gui.py` | 已验证 | 工具链 |
 | F71 | **每关的验证顺序（用户自 hammer 起固定）**：① 先用**自造 DLL**（`build/Release/b2Physics.dll`）试玩，确认可解、不崩 → ② 再装**代理 DLL** 用原版逻辑玩一遍并录制 `ffi.bin` → ③ 离线门禁。含义：门禁的 `no_crash` **不是**独立证据——被录的关卡都已先被自造 DLL 人工跑通；崩溃证据来自第 ① 步的人工试玩，门禁的独立价值在 `bounded`（数值发散）。副产品：录制路线是"已知解"，操作更干净、更短 | L4 | 用户说明 | 已验证 | 验证策略 |
+| F72 | **A/A 对照升级为"原版自放逐位一致"**：用 `bin/gametop/b2Physics.dll` 重放同一份 `ffi.bin`（golden rule，679,880 调用 / 7,024 步），**302,032 次 body 比对全部 0 差异、0 调用失配** → 录制是确定性的、重放器没有偏差，我们 DLL 的差异全部可归因于实现本身。另：`ApplyForce/ApplyTorque/ApplyImpulse` 对休眠体**会唤醒**（日志中 880/880 个"休眠→被施力"的 body 在下一步均已醒），与我们的包装一致 | L2-A | `tools/replay_ffi.py --dll bin/gametop/...`、`work/wake_probe.py` | 已验证 | 保真度基线 |
+| F73 | **差异的形态**：首分叉恒为 1e-4 量级（如 golden rule 第 4106 步 `w 1.2193→1.2192`，位置仍逐位相同）；在**自由飞行、被磁力/马达驱动的 body** 上该差会被反馈放大到 `w=-139 rad/s`（位置差 30 单位），但关卡下一次 `SetXForm` 传送后**重新合拢**。每步超差 body 数始终是该关清醒体的 2%–28%，不级联。因原版自放为 0 差异（F72），这些差异是我们实现的浮点级偏差，不是录制噪声；门禁仍以"个数有界"为判据（`bounded`），另报 `dev_deciles` 作为幅度诊断 | L2-A | `work/trace_body.txt`、`work/gate_golden_rule.json` | 已验证 | 保真度 |
 
 ## 影响对齐方案的硬约束
 
