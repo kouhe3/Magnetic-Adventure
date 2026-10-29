@@ -1,7 +1,11 @@
 """调用 DLL 内部未导出函数（按 RVA 定位），把同一组形状+位形喂给两个 DLL 比返回值。
 
-用途（B1）：原版 `b2Distance` 对某些近接触的盒子返回 0（判为相交），要确认是"谁算错"，
-不能靠重放日志猜——直接 ctypes 调两边的内部函数，输入完全一样，比返回值。
+用途：ctypes 调 DLL 内部未导出函数（按 base+RVA），输入完全可控。
+
+**限制（F112）**：原版 `b2Distance`（RVA 0xA040）是 MSVC 给内部链接函数的**自定义寄存器约定**
+（`__usercall`，参数在 eax/edx/esi/edi + 两个栈参数），用这里的 cdecl 调用拿到的是垃圾
+（恒定 0、近点恒为 0,0）。目前它只对**我们的构建**（`ours`，外部链接 cdecl）有效；
+要比原版，请走端到端的 `tools/toi_scan.py`（读 `m_toi`，不需要调用约定）。
 
 用法（必须 32 位 Python）：
   python tools/dist_probe.py <dll> orig|ours <16 个 float：hwA hhA posAx posAy c1x c1y c2x c2y 同 B>
