@@ -7,6 +7,8 @@ work/
 build/
 # dotnet/NuGet 构建产物（tools/vdesk/obj 曾误入版本库，2026-10-29 已 untrack）
 obj/
+# 编译器目标文件（sizeof_probe.obj 曾误入版本库，2026-10-29 已 untrack）
+*.obj
 *.zip
 __pycache__/
 *.pyc
