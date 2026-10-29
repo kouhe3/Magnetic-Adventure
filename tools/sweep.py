@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -82,11 +83,50 @@ def replay(ffi, dll):
     return {"ok": False, "error": (p.stderr or p.stdout or "")[-400:]}
 
 
+def build_row(rec, dll, fp):
+    """跑一份录制并算出它那一行（纯函数：不读写共享状态，可并发）。"""
+    ffi = os.path.join(ROOT, "work", rec, "ffi.bin")
+    size = os.path.getsize(ffi)
+    magic = instr.log_magic(ffi)
+    row = {"rec": rec, "size": size, "magic": magic, "build": fp}
+    if not instr.log_usable(magic):
+        row.update({"usable": False, "verdict": "UNUSABLE",
+                    "why": "v01 日志缺返回值/出参且 dump 仅 64B（F87）"})
+    elif size < MIN_LOG_BYTES:
+        row.update({"usable": False, "verdict": "SKIP", "why": "日志过小（停在菜单/对话）"})
+    else:
+        t0 = time.time()
+        r = replay(ffi, dll)
+        growth_ok, prev, last, peak = instr.bounded(r.get("step_bad") or {})
+        dev = instr.deciles(r.get("step_dev") or {})
+        row.update({
+            "usable": True,
+            "calls": r.get("calls"), "steps": r.get("steps"),
+            "bodies": r.get("bodies"), "bad": r.get("bodies_bad"),
+            "mismatches": r.get("mismatches"),
+            "first_tol": (r.get("first_digest") or {}).get("step"),
+            "first_tol_field": (r.get("first_digest") or {}).get("field"),
+            "first_exact": (r.get("first_exact") or {}).get("step"),
+            "bounded": {"ok": growth_ok, "prev": prev, "last": last, "peak": peak},
+            "dev_deciles": [round(v, 2) for v in dev],
+            "flags": r.get("flags_groups") or {},
+            "flags_only": r.get("flags_only", 0),
+            "stale": r.get("stale_body"),
+            "error": r.get("error"),
+            "secs": round(time.time() - t0, 1),
+        })
+        ok = bool(r.get("ok") and r.get("calls") and growth_ok)
+        row["verdict"] = "PASS" if ok else "FAIL"
+    return row
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dll", default=os.path.join(ROOT, "build", "Release", "b2Physics.dll"))
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="并行重放的进程数（0 = min(8, CPU)）；每条录制一个子进程")
     a = ap.parse_args()
 
     fp = instr.fingerprint(a.dll)
@@ -103,48 +143,30 @@ def main():
             row["build"] = fp
     recs = [r for r in recordings() if a.only in r]
     todo = [r for r in recs if a.force or r not in rows or not fresh(rows[r], fp["md5"])]
-    print(f"{len(recs)} recordings, {len(todo)} to run", flush=True)
 
-    for i, rec in enumerate(todo, 1):
-        ffi = os.path.join(ROOT, "work", rec, "ffi.bin")
-        size = os.path.getsize(ffi)
-        magic = instr.log_magic(ffi)
-        row = {"rec": rec, "size": size, "magic": magic, "build": fp}
-        if not instr.log_usable(magic):
-            row.update({"usable": False, "verdict": "UNUSABLE",
-                        "why": "v01 日志缺返回值/出参且 dump 仅 64B（F87）"})
-        elif size < MIN_LOG_BYTES:
-            row.update({"usable": False, "verdict": "SKIP", "why": "日志过小（停在菜单/对话）"})
-        else:
-            t0 = time.time()
-            r = replay(ffi, a.dll)
-            growth_ok, prev, last, peak = instr.bounded(r.get("step_bad") or {})
-            dev = instr.deciles(r.get("step_dev") or {})
-            row.update({
-                "usable": True,
-                "calls": r.get("calls"), "steps": r.get("steps"),
-                "bodies": r.get("bodies"), "bad": r.get("bodies_bad"),
-                "mismatches": r.get("mismatches"),
-                "first_tol": (r.get("first_digest") or {}).get("step"),
-                "first_tol_field": (r.get("first_digest") or {}).get("field"),
-                "first_exact": (r.get("first_exact") or {}).get("step"),
-                "bounded": {"ok": growth_ok, "prev": prev, "last": last, "peak": peak},
-                "dev_deciles": [round(v, 2) for v in dev],
-                "flags": r.get("flags_groups") or {},
-                "flags_only": r.get("flags_only", 0),
-                "stale": r.get("stale_body"),
-                "error": r.get("error"),
-                "secs": round(time.time() - t0, 1),
-            })
-            ok = bool(r.get("ok") and r.get("calls") and growth_ok)
-            row["verdict"] = "PASS" if ok else "FAIL"
-        rows[rec] = row
-        save(rows)
-        b = row.get("bounded") or {}
-        print(f"[{i}/{len(todo)}] {rec:<26}{row['verdict']:<9}"
-              f"steps={row.get('steps')} bad={row.get('bad')} "
-              f"first_exact={row.get('first_exact')} "
-              f"bounded={b.get('prev')}->{b.get('last')} {row.get('secs', 0)}s", flush=True)
+    prev_secs = {r: (rows.get(r, {}).get("secs") or 0) for r in todo}
+    todo.sort(key=lambda r: -prev_secs[r])          # 长任务先跑，缩短尾巴
+    jobs = a.jobs or min(8, os.cpu_count() or 4)
+    print(f"{len(recs)} recordings, {len(todo)} to run, jobs={jobs}", flush=True)
+
+    t_start = time.time()
+    done = 0
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        futs = {ex.submit(build_row, rec, a.dll, fp): rec for rec in todo}
+        for fut in as_completed(futs):
+            rec = futs[fut]
+            row = fut.result()
+            rows[rec] = row
+            save(rows)
+            done += 1
+            b = row.get("bounded") or {}
+            elapsed = time.time() - t_start
+            eta = elapsed / done * (len(todo) - done) if done else 0
+            print(f"[{done}/{len(todo)}] {rec:<26}{row['verdict']:<9}"
+                  f"steps={row.get('steps')} bad={row.get('bad')} "
+                  f"first_exact={row.get('first_exact')} "
+                  f"bounded={b.get('prev')}->{b.get('last')} {row.get('secs', 0)}s "
+                  f"(elapsed {elapsed/60:.1f}m, eta {eta/60:.1f}m)", flush=True)
 
     save(rows)
     print(f"SWEEP DONE -> {os.path.relpath(OUT, ROOT)}")

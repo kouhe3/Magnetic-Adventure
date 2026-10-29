@@ -240,7 +240,11 @@ float32 DistanceGeneric(b2Vec2* x1, b2Vec2* x2,
 #ifdef TARGET_FLOAT32_IS_FIXED
 		if (pointCount == 3 || vSqr <= 5.0*B2_FLT_EPSILON * maxSqr)
 #else
-		if (vSqr <= 100.0f * B2_FLT_EPSILON * maxSqr)
+		// altered (F122): 原版 b2Physics.dll 的同一分支还要求绝对阈值 vSqr < FLT_EPSILON²
+		// （IDA 0x1000AB00: `maxSqr * 1.1920929e-07 >= vSqr && vSqr < 1.4210855e-14`）。
+		// 缺这个绝对项时，近接触的退化构型会过早返回一个 "看起来合理" 的非零距离，
+		// 让 b2TimeOfImpact 误判为接近并推进（On a Leash 第 420 步 0.674 vs 原版 1.0）。
+		if (vSqr <= 100.0f * B2_FLT_EPSILON * maxSqr && vSqr < B2_FLT_EPSILON * B2_FLT_EPSILON)
 #endif
 		{
 			g_GJK_Iterations = iter;
