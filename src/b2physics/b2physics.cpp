@@ -119,9 +119,110 @@ B2API void b2_DestroyWorld(b2World* world) {
     ::operator delete(world);
 }
 
+// 调试：B2DBG_STEP=<body 指针 hex> 时，每步后打印该 body 的接触与冲量（定位"无外力却获得速度"用）
+static const char* DbgEnv(const char* name) {
+    static const char* cache[4] = {NULL, NULL, NULL, NULL};
+    static const char* names[4] = {NULL, NULL, NULL, NULL};
+    for (int i = 0; i < 4; ++i) {
+        if (names[i] == name) return cache[i];
+        if (!names[i]) { names[i] = name; cache[i] = getenv(name); return cache[i]; }
+    }
+    return getenv(name);
+}
+
+static void DbgPrint(const char* fmt, ...) {
+    const char* path = DbgEnv("B2DBG_FILE");
+    if (!path) path = "C:/tmp/Magnetic Adventure/work/b2dbg.txt";
+    FILE* f = fopen(path, "a");
+    if (!f) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fclose(f);
+}
+
+static bool DbgAlive(b2World* world, b2Body* b) {
+    for (b2Body* it = world->m_bodyList; it; it = it->m_next) if (it == b) return true;
+    return false;
+}
+
+static void DbgJoints(b2Body* target, int stepNo, const char* when) {
+    for (b2JointEdge* e = target->m_jointList; e; e = e->next) {
+        b2Joint* j = e->joint;
+        if (j->m_type == e_prismaticJoint) {
+            b2PrismaticJoint* pj = static_cast<b2PrismaticJoint*>(j);
+            DbgPrint("[dbg] step %d %s prismatic: trans=%.9f limits=[%.4f,%.4f] limitOn=%d "
+                     "motorOn=%d speed=%.3f ax=(%.4f,%.4f)\n",
+                     stepNo, when, pj->GetJointTranslation(), pj->GetLowerLimit(),
+                     pj->GetUpperLimit(), (int)pj->IsLimitEnabled(), (int)pj->IsMotorEnabled(),
+                     pj->GetMotorSpeed(), 0.0f, 0.0f);
+        } else {
+            DbgPrint("[dbg] step %d %s joint type=%d\n", stepNo, when, (int)j->m_type);
+        }
+    }
+}
+
+static void DbgContacts(b2World* world, b2Body* target, int stepNo) {
+    int n = 0;
+    for (b2Contact* c = world->m_contactList; c; c = c->m_next) {
+        b2Body* b1 = c->m_shape1 ? c->m_shape1->m_body : NULL;
+        b2Body* b2_ = c->m_shape2 ? c->m_shape2->m_body : NULL;
+        if (b1 != target && b2_ != target) continue;
+        b2Body* other = (b1 == target) ? b2_ : b1;
+        ++n;
+        DbgPrint("[dbg] step %d contact shapes(%p,%p) other=%p manifolds=%d\n",
+               stepNo, (void*)c->m_shape1, (void*)c->m_shape2, (void*)other, c->m_manifoldCount);
+        b2Manifold* mf = c->GetManifolds();
+        for (int k = 0; k < c->m_manifoldCount; ++k) {
+            DbgPrint("[dbg]   mf%d normal=(%.4f,%.4f) points=%d\n", k,
+                   mf[k].normal.x, mf[k].normal.y, mf[k].pointCount);
+            for (int i = 0; i < mf[k].pointCount; ++i)
+                DbgPrint("[dbg]     p%d sep=%.6f nImp=%.6f tImp=%.6f\n", i,
+                       mf[k].points[i].separation, mf[k].points[i].normalImpulse,
+                       mf[k].points[i].tangentImpulse);
+        }
+    }
+    if (!n) DbgPrint("[dbg] step %d no contacts for %p\n", stepNo, (void*)target);
+}
+
 B2API void b2_World_Step(b2World* world, float dt, int velocityIterations, int positionIterations) {
     TRACE("b2_World_Step");
+
+    static int s_step = 0;
+    ++s_step;
+    const char* dbg = DbgEnv("B2DBG_STEP");
+    if (dbg && !*dbg) dbg = NULL;
+    // B2DBG_POS="x,y" 按坐标找 body（重放里原版指针与我们的地址不同）
+    b2Body* target = NULL;
+    if (dbg) {
+        float tx = 0.0f, ty = 0.0f;
+        if (sscanf(dbg, "%f,%f", &tx, &ty) == 2) {
+            for (b2Body* b = world->m_bodyList; b; b = b->m_next) {
+                float dx = b->m_xf.position.x - tx, dy = b->m_xf.position.y - ty;
+                if (dx * dx + dy * dy < 1e-4f) { target = b; break; }
+            }
+        } else {
+            target = (b2Body*)(uintptr_t)strtoul(dbg, NULL, 16);
+        }
+    }
+    if (target && !DbgAlive(world, target)) target = NULL;   // 已销毁的 body 不能解引用
+    if (target && s_step >= 1 && s_step <= 5) {
+        DbgPrint("[dbg] step %d before: type=%d flags=%#x shapes=%p v=(%.4f,%.4f) w=%.4f grav=(%.4f,%.4f) mass=%.4f lc=(%.9f,%.9f) p=(%.9f,%.9f)\n",
+               s_step, (int)target->m_type, (unsigned)target->m_flags, (void*)target->m_shapeList,
+               target->m_linearVelocity.x, target->m_linearVelocity.y, target->m_angularVelocity,
+               world->m_gravity.x, world->m_gravity.y, target->m_mass,
+               target->m_sweep.localCenter.x, target->m_sweep.localCenter.y,
+               target->m_xf.position.x, target->m_xf.position.y);
+        DbgJoints(target, s_step, "before");
+    }
     world->Step(dt, velocityIterations, positionIterations);
+    if (target && s_step >= 1 && s_step <= 5 && DbgAlive(world, target)) {
+        DbgJoints(target, s_step, "after");
+        DbgContacts(world, target, s_step);
+        DbgPrint("[dbg] step %d after: v=(%.4f,%.4f) w=%.4f\n", s_step,
+               target->m_linearVelocity.x, target->m_linearVelocity.y, target->m_angularVelocity);
+    }
 }
 
 B2API void b2_World_SetGravity(b2World* world, const B2Vec2C* gravity) {

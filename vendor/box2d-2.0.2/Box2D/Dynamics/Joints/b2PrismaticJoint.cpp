@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 /*
 * Copyright (c) 2006-2007 Erin Catto http://www.gphysics.com
 *
@@ -213,6 +215,17 @@ void b2PrismaticJoint::InitVelocityConstraints(const b2TimeStep& step)
 	else
 	{
 		m_limitState = e_inactiveLimit;
+	}
+
+	if (m_enableLimit && getenv("B2DBG_JOINT"))
+	{
+		FILE* fp = fopen("C:/tmp/Magnetic Adventure/work/b2joint.txt", "a");
+		if (fp) {
+			fprintf(fp, "joint=%p trans=%.9f lower=%.4f upper=%.4f state=%d motorOn=%d speed=%.3f "
+			            "maxForce=%.3f\n", (void*)this, b2Dot(m_axis, d), m_lowerTranslation,
+			            m_upperTranslation, (int)m_limitState, (int)m_enableMotor, m_motorSpeed, m_maxMotorForce);
+			fclose(fp);
+		}
 	}
 
 	if (m_enableMotor == false)

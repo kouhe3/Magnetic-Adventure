@@ -208,7 +208,8 @@ class Replayer:
                 print(f'  TRACE step {seq} flags {got[0]:#06x}->{flags:#06x} '
                       f'w {got[4]:.4f}->{w:.4f} v ({got[2]:.3f},{got[3]:.3f})->({vx:.3f},{vy:.3f}) '
                       f'p ({got[5]:.3f},{got[6]:.3f})->({px:.3f},{py:.3f}) sleepT {got[1]:.3f}->{sleep_t:.3f} '
-                      f'mass {got[8]:.4f}->{mass:.4f} I {got[10]:.4f}->{inertia:.4f}')
+                      f'mass {got[8]:.4f}->{mass:.4f} I {got[10]:.4f}->{inertia:.4f} '
+                      f'ang {got[7]:.4f}->{ang:.4f}')
             want = (flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia)
             names = ('flags', 'sleepTime', 'vx', 'vy', 'w', 'px', 'py', 'angle',
                      'mass', 'invMass', 'I', 'invI')
@@ -370,6 +371,14 @@ class Replayer:
                 print(f'  [anchor] n={self.n} out={call_args[0]:#x} j={call_args[1]:#x} '
                       f'raw_out={args[0]:#x} raw_j={args[1]:#x} jmap={self.ptrmap.get(args[1], 0):#x}')
             got = f(*call_args)
+            if self.trace and args and args[0] == self.trace:
+                o = self.ptrmap.get(self.trace) or self.trace
+                try:
+                    f32 = ctypes.c_float.from_address
+                    print(f'  TRCALL {name:<28} v=({f32(o+68).value:8.4f},{f32(o+72).value:8.4f}) '
+                          f'w={f32(o+76).value:9.4f} sleepT={f32(o+148).value:7.3f}')
+                except Exception:  # noqa: BLE001
+                    pass
             stack.append((self.n, name, ret_t, got, buf0, seq, rid))
         return 0
 
