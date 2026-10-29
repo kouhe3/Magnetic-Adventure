@@ -96,6 +96,7 @@
 | F77 | **DLL 内调试钩子**（env 开关，默认零开销）：`B2DBG_STEP="x,y"` 或 指针 hex → 每步前后打印目标 body 的类型/flags/速度/重力/质量/localCenter/位置、接触对与流形点、所挂关节的 prismatic 状态（平移量/限位/马达）；`B2DBG_JOINT=1` 打印每个 prismatic 关节的限位状态机取值；输出到 `work/b2dbg.txt` / `work/b2joint.txt`（用文件而非 stdout：DLL 是静态 CRT，缓冲不随宿主刷新）。重放时须按坐标定位 body——日志里是原版指针，我们的对象在别的地址 | L4 | `src/b2physics/b2physics.cpp` | 已验证 | 工具链 |
 | F78 | **接触拓扑进日志（kind=3）**：代理在每个 Step 后导出 `{shape1, shape2, manifoldCount}`（偏移：world.m_contactList=+102984、contact.m_next=+16、m_shape1=+52、m_shape2=+56、m_manifoldCount=+8，由我方 DLL 的 `offsetof` 打印确认，见 F77）；DLL 侧用 `B2DBG_CONTACTS=<path>` 导出自己的接触表；重放器按步序号对齐、用 ptrmap 反查指针后比对集合。**Mail 实测：1,497 步，missing=0 / extra=0** —— 接触拓扑与原版完全一致，无 phantom contact。旧日志（无 kind=3）自动跳过，不影响判定 | L2-A | `src/proxydll/proxy_core.c`、`tools/ffi.py`、`tools/replay_ffi.py` | 已验证 | 工具链 |
 | F79 | **flags 差异分组**：`flags ^` 按位归类（frozen 0x2 / island 0x4 / sleep 0x8 / allowSleep 0x10 / bullet 0x20 / fixedRot 0x40 / other），不再在 flags 处 `break`——继续比对状态字段，从而区分"仅 flags 抖动"与"真状态差异"（`flags_only` 单独计数）。golden rule 实测：`{"sleep": 1706}`、`flags_only=515`，**零 semantic 位差异**；门禁只在出现非 sleep/island 差异时报 `flags_semantic` 告警 | L2-A | `tools/replay_ffi.py`、`tools/gate.py` | 已验证 | 工具链 |
+| F80 | **进关卡的正确点击序列**（窗口 1536×1152，原点左上）：`Play` 会直接续进**最后玩过的关卡**（本次是 The End，纯对话、无 Box2D、日志 0 字节），要进指定关卡须走 **MAP (435,621) → 关卡格子**（如 Mail (608,410)）；归一化后 (0.283,0.539) → (0.396,0.356)。判据：进关后 `ffi.bin` 立刻开始增长（几十 MB/分钟），停在菜单/THE END 时为 0 字节 | L4 | 用户提供坐标、`work/rec_ct` | 已验证 | 操作流程 |
 
 ## 影响对齐方案的硬约束
 
