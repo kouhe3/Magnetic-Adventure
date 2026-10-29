@@ -124,6 +124,11 @@ b2PrismaticJoint::b2PrismaticJoint(const b2PrismaticJointDef* def)
 	m_perp.SetZero();
 }
 
+static bool DbgJointOn() {          // 缓存：避免每个关节每步都查环境变量
+	static const bool on = getenv("B2DBG_JOINT") != NULL;
+	return on;
+}
+
 void b2PrismaticJoint::InitVelocityConstraints(const b2TimeStep& step)
 {
 	b2Body* b1 = m_body1;
@@ -217,12 +222,13 @@ void b2PrismaticJoint::InitVelocityConstraints(const b2TimeStep& step)
 		m_limitState = e_inactiveLimit;
 	}
 
-	if (m_enableLimit && getenv("B2DBG_JOINT"))
+	if (m_enableLimit && DbgJointOn())
 	{
 		FILE* fp = fopen("C:/tmp/Magnetic Adventure/work/b2joint.txt", "a");
 		if (fp) {
-			fprintf(fp, "joint=%p trans=%.9f lower=%.4f upper=%.4f state=%d motorOn=%d speed=%.3f "
-			            "maxForce=%.3f\n", (void*)this, b2Dot(m_axis, d), m_lowerTranslation,
+			b2Vec2 d_alt = (b2->m_sweep.c + r2) - (b1->m_sweep.c + r1);
+			fprintf(fp, "joint=%p trans=%.9f alt=%.9f lower=%.4f upper=%.4f state=%d motorOn=%d speed=%.3f "
+			            "maxForce=%.3f\n", (void*)this, b2Dot(m_axis, d), b2Dot(m_axis, d_alt), m_lowerTranslation,
 			            m_upperTranslation, (int)m_limitState, (int)m_enableMotor, m_motorSpeed, m_maxMotorForce);
 			fclose(fp);
 		}
