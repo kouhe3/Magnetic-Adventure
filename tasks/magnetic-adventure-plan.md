@@ -42,7 +42,7 @@
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
-- [ ] T4.7 对读原版 GJK 的 `ProcessTwo/ProcessThree`（`0x10009980`/`0x10009B90`）与 `Support` 的符号/迭代顺序，找出"重叠形返回 0.008"的终止条件差异；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108
+- [ ] T4.7 用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108
 
 ## M5 汉化目标
 
@@ -51,6 +51,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-29 依据 F111：新增 `tools/dist_probe.py`（直接 ctypes 调 DLL 内部未导出函数，不需要调试器）；最小复现证明**原版** `b2Distance` 对实际分离 ~0.09 的两盒返回 0，我们返回 0.0924 ⇒ 目标是复刻原版的误判，而不是修我们的 GJK；F108 的表述由 F111 纠正。T4.7 改为：扫位姿找原版误判边界 + 调两边内部 `Support`/`ProcessThree` 定位误判步骤。
 
 - 2026-10-29 依据 F109/F110：IDA 侧把原版距离分派读通（circle 情形 `0x10009980`/`0x10009B90` 读半径减 `toiSlop`；poly-poly 泛型 `0x1000AB00` 与我们源码逐句同构，差别只在 `Support`）；但探针的 `iter=0 d=0.008012` 与独立计算的首顶点距离 6.717 矛盾 → **归因未闭合，暂不改代码**，T4.7 增加一条前置：在 TOI 内打印 `GetXForm(0)` 与 `x1/x2/w1/w2`，把日志行与调用钉死。
 
