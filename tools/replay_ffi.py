@@ -226,6 +226,21 @@ class Replayer:
         # body：flags/xf/sweep(c0,c,a0,a)/lv/av/sleepTime 全在这个窗口里
         for b in bodies:
             lines.append('  b {} {!r}'.format(self.rev.get(b, b), ctypes.string_at(b, 160)))
+        # shape：整对象（polygon ~200B：centroid/vertices/normals/coreVertices/count）——
+        # 几何本身不摘要里，b2Distance 与 b2CollidePolygons 都吃它
+        shapes = {}
+        c2 = u32(self.world + 102984).value
+        n2 = 0
+        while c2 and n2 < 4096:
+            for off in (52, 56):
+                sp2 = u32(c2 + off).value
+                if sp2:
+                    shapes[sp2] = True
+            c2 = u32(c2 + 16).value
+            n2 += 1
+        for sp2 in shapes:
+            lines.append('  s {} {!r}'.format(self.rev.get(sp2, sp2), ctypes.string_at(sp2, 224)))
+
         # joint：整对象（revolute 200B）——冲量、限位状态不在摘要里
         j = u32(self.world + 102956).value
         jn = 0

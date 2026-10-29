@@ -129,6 +129,8 @@
 
 | F106 | **重编后行为可重放（指纹只认二进制，不认行为）**：加/删诊断钩子后重编，DLL md5 由 `14bba8ff` 变为 `5f75852c`（PE 时间戳），但 55 份录制的判定数字**逐项不变**——聚合口径 `294,140 步 / 41,737,486 次调用 / 52 份可判定 / 45 份全步零超差` 与上一轮完全一致，关键行（`rec_20261029_170304` 2,094 步 / 19,614 / 首发 420；`rec_20261028_231623` 12,418 / 5,297 / 1,996；`rec_20261028_221503` 9,532 / 69,846 / 1,553）同值。顺带修两处口径：①`sweep.py` 对 `UNUSABLE/SKIP` 行没有测量值，其 `build` 跟着本次运行刷新，且 0 条要跑时也落盘；②`report_sweep.py` 的构建指纹改取**可判定行里的多数 md5**，不再取"第一条 match"（否则会被 v01 行的旧指纹带偏） | L4 | `work/sweep.jsonl`、`tools/sweep.py`、`tools/report_sweep.py` | 已验证 | 判据可追溯 |
 
+| F107 | **残余差异收敛到 `b2TimeOfImpact`/`b2Distance`（同类输入、同一编译器下只有这两个函数给出不同结果）**。做法：在**独立 vendor 副本 + 独立构建目录**（`work/vendor_probe`、`work/build_probe`）里给 `b2World::SolveTOI` 与 `b2TimeOfImpact` 插桩（不碰主干 vendor，主构建 md5 保持 `5f75852c`）。实测第 420 步：①触发 TOI 的是接触对 `0x2efd26b4/0x2efd61f4`（**正在接触**，ptCount=1，body1 静止 `v=(0,0) w=0`、sweep 半径 3.03）；②我们 `t=0` 的 `b2Distance = 0.00801215693`，5 次保守推进收敛到 `alpha=0.674210012`（末次 `d=0.000699`、`target=0.002`）；③**原版同一步该接触 `m_toi=0`**（`e_toiFlag` 已置 ⇒ 确实算过），即它 t=0 就判为接触；④**形状几何逐位相同**（10 个 shape 对象 224B 全比，只有 vtable、`m_body` 指针和未初始化 padding 不同）；⑤显式位姿（`xf/sweep c0,a0,c,a`）在 419 步逐位相同；⑥**VC9 构建**与我们的 VS18 构建同结论（首发 420、bad 19,614），排除编译器版本；⑦官方 tag 构建更早分叉（127），但那是缺 π 修正的后果（F97），不能当作 TOI 差异的证据。结论：同一份输入下两侧只在 `b2TimeOfImpact`/`b2Distance` 上给出不同数字 ⇒ 游戏二进制在这条路径上与 vendor 不等价。下一步（T4.7）：从 `b2_World_Step`（RVA `0x10001490`）跟调用链定位原版 `b2TimeOfImpact`，与 `build/Release/*.map` 里我们的符号逐指令比 | L2-A | `work/toi_probe3.txt`、`work/toi_dist.txt`、`work/cs_orig.txt`、`work/cs_ours.txt`、`work/vendor_probe` | 部分验证 | 保真度 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Delphi/VCL 编译产物**。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。
