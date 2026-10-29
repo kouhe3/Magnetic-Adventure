@@ -90,6 +90,7 @@
 | F71 | **每关的验证顺序（用户自 hammer 起固定）**：① 先用**自造 DLL**（`build/Release/b2Physics.dll`）试玩，确认可解、不崩 → ② 再装**代理 DLL** 用原版逻辑玩一遍并录制 `ffi.bin` → ③ 离线门禁。含义：门禁的 `no_crash` **不是**独立证据——被录的关卡都已先被自造 DLL 人工跑通；崩溃证据来自第 ① 步的人工试玩，门禁的独立价值在 `bounded`（数值发散）。副产品：录制路线是"已知解"，操作更干净、更短 | L4 | 用户说明 | 已验证 | 验证策略 |
 | F72 | **A/A 对照升级为"原版自放逐位一致"**：用 `bin/gametop/b2Physics.dll` 重放同一份 `ffi.bin`（golden rule，679,880 调用 / 7,024 步），**302,032 次 body 比对全部 0 差异、0 调用失配** → 录制是确定性的、重放器没有偏差，我们 DLL 的差异全部可归因于实现本身。另：`ApplyForce/ApplyTorque/ApplyImpulse` 对休眠体**会唤醒**（日志中 880/880 个"休眠→被施力"的 body 在下一步均已醒），与我们的包装一致 | L2-A | `tools/replay_ffi.py --dll bin/gametop/...`、`work/wake_probe.py` | 已验证 | 保真度基线 |
 | F73 | **差异的形态**：首分叉恒为 1e-4 量级（如 golden rule 第 4106 步 `w 1.2193→1.2192`，位置仍逐位相同）；在**自由飞行、被磁力/马达驱动的 body** 上该差会被反馈放大到 `w=-139 rad/s`（位置差 30 单位），但关卡下一次 `SetXForm` 传送后**重新合拢**。每步超差 body 数始终是该关清醒体的 2%–28%，不级联。因原版自放为 0 差异（F72），这些差异是我们实现的浮点级偏差，不是录制噪声；门禁仍以"个数有界"为判据（`bounded`），另报 `dev_deciles` 作为幅度诊断 | L2-A | `work/trace_body.txt`、`work/gate_golden_rule.json` | 已验证 | 保真度 |
+| F74 | **首个 1e-4 差异的根因：`b2_angularSleepTolerance` 少了 `* b2_pi`**。vendor 里的 `2.0f/180.0f` = 0.0111 rad/s，上游 Box2D 2.0.2 是 2°/s = 0.0349。判定依据（The Teleport，原版日志）：某 body 在 `w=0.031` 时 sleepTime 累加、`w=0.060` 时重置 → 原版阈值 ∈ (0.031, 0.060)。修后：The Teleport 首发分歧 第1步→第89步、bad 166,066→153,633；the stones 首发 6526 步→16489 步；oscilloscope 405→617；`dev_deciles` 从量级 1e3–1e5 降到 0.05–几百。差异未归零，但第一批分叉明显后移 | L2-A | `vendor/.../b2Settings.h`、`work/gate_the_*.json` | 已验证 | 保真度 |
 
 ## 影响对齐方案的硬约束
 
