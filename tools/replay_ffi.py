@@ -207,7 +207,8 @@ class Replayer:
             if self.trace and ptr == self.trace:
                 print(f'  TRACE step {seq} flags {got[0]:#06x}->{flags:#06x} '
                       f'w {got[4]:.4f}->{w:.4f} v ({got[2]:.3f},{got[3]:.3f})->({vx:.3f},{vy:.3f}) '
-                      f'p ({got[5]:.3f},{got[6]:.3f})->({px:.3f},{py:.3f}) sleepT {got[1]:.3f}->{sleep_t:.3f}')
+                      f'p ({got[5]:.3f},{got[6]:.3f})->({px:.3f},{py:.3f}) sleepT {got[1]:.3f}->{sleep_t:.3f} '
+                      f'mass {got[8]:.4f}->{mass:.4f} I {got[10]:.4f}->{inertia:.4f}')
             want = (flags, sleep_t, vx, vy, w, px, py, ang, mass, imass, inertia, iinertia)
             names = ('flags', 'sleepTime', 'vx', 'vy', 'w', 'px', 'py', 'angle',
                      'mass', 'invMass', 'I', 'invI')
