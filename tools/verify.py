@@ -101,6 +101,28 @@ def check_physics_sample():
     return (not bad), ("; ".join(bad) if bad else "3/3 PASS"), 0.0
 
 
+def check_e2e():
+    """无人值守跑一遍 Introduction（会改存档，前后自动备份/还原）。"""
+    import shutil
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import profile as saveprofile
+    bak = saveprofile.PROFILE + ".verify.bak"
+    shutil.copy2(saveprofile.PROFILE, bak)
+    try:
+        before = saveprofile.parse(saveprofile.decode()).get("LastCompleteLevel")
+        subprocess.run([sys.executable, "tools/profile.py", "set", "LastCompleteLevel", "0"],
+                       cwd=ROOT, capture_output=True)
+        rc, out, dt = run([sys.executable, "tools/e2e_tutorial.py",
+                           "--dir", "work/winprobe_game",
+                           "--anchors", "work/uianchors.npz", "--clicks", "40",
+                           "--exit-mode", "kill"], timeout=600)
+        after = saveprofile.parse(saveprofile.decode()).get("LastCompleteLevel")
+        ok = rc == 0 and after != "0"
+        return ok, "rc=%d progress 0->%r (原值 %r)" % (rc, after, before), dt
+    finally:
+        shutil.copy2(bak, saveprofile.PROFILE)
+
+
 def check_physics_full():
     rc, out, dt = run([PY32, "tools/sweep.py"], timeout=3600)
     rc2, out2, dt2 = run([sys.executable, "tools/report_sweep.py", "--write"], timeout=300)
@@ -111,6 +133,7 @@ def check_physics_full():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="追加全量物理重放")
+    ap.add_argument("--e2e", action="store_true", help="追加无人值守跑一关（会改存档，前后自动还原）")
     ap.add_argument("--only", default="", help="逗号分隔的门禁名")
     args = ap.parse_args()
 
@@ -129,6 +152,8 @@ def main():
     ]
     if args.full:
         checks.append(("physics:full", check_physics_full))
+    if args.e2e or any(n.startswith("e2e:") for n in (args.only.split(",") if args.only else [])):
+        checks.append(("e2e:introduction", check_e2e))
     if args.only:
         want = {s.strip() for s in args.only.split(",") if s.strip()}
         checks = [c for c in checks if c[0] in want]

@@ -212,6 +212,10 @@
 
 | F171 | **`Play` 的落点由存档 `LastCompleteLevel` 决定，因此它不是"进关"的可靠判据**：`LastCompleteLevel="51"`（全通）时点 Play **直接进结局页**（"Congratulations!!!"，画面静止、CPU 约 2%），采样帧 `work/states2/f0120.png` 就是它；把值改成 `"0"` 才会进第一关。⇒ 自动化脚本必须**固定存档里的关卡指针**（并备份原值），否则同一段脚本在不同存档上会跑到完全不同的界面——这也是 F169 那轮 e2e 判成 `unknown` 的真正原因（不是进不去，是没给结局页建锚点）。**待证**：`LastCompleteLevel="0"` 是否就是用户说的"什么都不干也会 complete 的第一关" | L3/L4 | `python tools/profile.py backup` → `set LastCompleteLevel 0/51` + `python tools/uistate.py capture --dir work/winprobe_game --out work/states2 --seconds 110 --click-at 20:0.35,0.41`；对照帧 `work/states2/f0120.png`（结局页）与 `work/e2e/03_after_level.png` | 已证（"=51 → 结局页"）/ 待证（"=0 → 第一关"） | 自动化驱动、T4.1 |
 
+| F172 | **无人值守跑通 Introduction：50.5 s、6 次点 X、存档 `0 → 1`、进程自行退出（rc=0）**。链路：读存档 → 启动 → `uistate` 等 menu（15.7 s，score 9.2）→ 真实点 Play → 循环｛模板定位 X（首轮得分 **1.00**）就点它的中心，点不到才退回固定比例｝→ 每轮读存档，推进即判定通关 → 齿轮/主菜单/退出/Yes → 进程退出。**踩过的单位坑**：抓到的客户区是**物理 1527×1108**（游戏 DPI-unaware、被系统放大 1.5×），拿游戏自己的 1018×739 去算比例会把 X 算成 0.908（正确 0.605）⇒ 比例必须以抓图尺寸为准。判据用**游戏自己写的进度值**而不是识别结算页，免疫画面/文字差异 | L4 | `python tools/e2e_tutorial.py --dir work/winprobe_game --anchors work/uianchors.npz --clicks 40` → `progress '0' -> '1' after 6 clicks`、`process_exited=True rc=0`；`python tools/uitemplate.py --selftest` → PASS；模板 `tools/templates/close_x.png`（59×55） | 已证 | T4.1 输入回放 |
+
+| F173 | **游戏内正常退出（Exit → Yes）会让原版 `ShellExecuteA` 打开一个网页（"广告弹窗"）；直接杀进程不会**。证据：退出链点完后进程快照新增 2 个 `chrome.exe` 渲染进程（挂在已有浏览器实例上，所以只表现为新标签页），而 `taskkill` 路径没有任何新增进程。对自动化的含义：**默认用杀进程**（零副作用），只有需要覆盖 `SQUALL_Free`/`UnloadAll` 收尾路径时才走菜单退出并接受这个弹窗。`tools/e2e_tutorial.py` 因此默认 `--exit-mode kill`，`--exit-mode menu` 时才报告 `ad_popup_pids` | L3 | 进程快照 diff：起游戏 → 等 menu → 点齿轮/主菜单/退出/Yes → 比对 tokhelp32 的 PID 集合（新增 `chrome.exe` ×2；`taskkill` 版本无新增） | 已证 | 自动化驱动默认策略；F143 的退出链测试需知情 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Lazarus/LCL（Object Pascal，LCL 0.9.28.3 时代）编译产物**（F153 勘误：此前写作 "Delphi/VCL"；RTTI 字符串是 LCL 的 VCL 兼容类名）。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。**LCL 语义（窗口类名 `Window`、DPI unaware、PeekMessage+MsgWait 主循环）可以靠 C++ 仿写或用 Free Pascal/LCL 直接继承，两条路线的取舍是 M3 的 Open Question**（F154/F155/F156）。

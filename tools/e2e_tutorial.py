@@ -12,6 +12,8 @@
         [--clicks 40] [--shots work/e2e]
 """
 import argparse
+import ctypes
+import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
@@ -77,6 +79,34 @@ def shot(win, out):
                     "-frames:v", "1", "-y", out], check=False)
 
 
+def pids():
+    TH32CS_SNAPPROCESS = 0x00000002
+    class PE(ctypes.Structure):
+        _fields_ = [("dwSize", wt.DWORD), ("cntUsage", wt.DWORD), ("th32ProcessID", wt.DWORD),
+                    ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)), ("th32ModuleID", wt.DWORD),
+                    ("cntThreads", wt.DWORD), ("th32ParentProcessID", wt.DWORD),
+                    ("pcPriClassBase", ctypes.c_long), ("dwFlags", wt.DWORD),
+                    ("szExeFile", wt.CHAR * 260)]
+    k32 = ctypes.windll.kernel32
+    snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    e = PE()
+    e.dwSize = ctypes.sizeof(e)
+    out = {}
+    if k32.Process32First(snap, ctypes.byref(e)):
+        while True:
+            out[e.th32ProcessID] = e.szExeFile.decode("mbcs", "ignore")
+            if not k32.Process32Next(snap, ctypes.byref(e)):
+                break
+    k32.CloseHandle(snap)
+    return out
+
+
+def browser_pids():
+    return {pid for pid, name in pids().items()
+            if name.lower() in ("chrome.exe", "msedge.exe", "firefox.exe", "iexplore.exe",
+                                "brave.exe", "opera.exe")}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default=r"C:\tmp\Magnetic Adventure\work\winprobe_game")
@@ -85,6 +115,9 @@ def main():
     ap.add_argument("--template", default=r"work\templates\close_x.png")
     ap.add_argument("--clicks", type=int, default=40)
     ap.add_argument("--shots", default="work/e2e")
+    ap.add_argument("--exit-mode", choices=("kill", "menu"), default="kill",
+                    help="kill=直接杀进程（默认，无副作用）；menu=走游戏内退出链"
+                         "（会触发 SQUALL_Free 等收尾，但原版会 ShellExecute 打开网页广告，F173）")
     ap.add_argument("--keep", action="store_true")
     args = ap.parse_args()
 
@@ -93,6 +126,7 @@ def main():
     os.makedirs(args.shots, exist_ok=True)
 
     start = progress()
+    pids_before = browser_pids()
     print("start LastCompleteLevel=%r" % start)
 
     p = subprocess.Popen([os.path.join(args.dir, args.exe)], cwd=args.dir)
@@ -122,8 +156,10 @@ def main():
             return 3
         shot(win, os.path.join(args.shots, "01_level.png"))
 
-        # 用户实测：气泡位置固定 ⇒ 直接点固定客户区坐标；模板只用于"有没有气泡"的存在性检测
-        X_FRAC = (0.908, 0.827)   # = 模板中心在客户区 1018x739 上的比例
+        # 用户实测：气泡位置固定 ⇒ 优先点固定坐标；模板命中时改点模板中心（更准）。
+        # 注意单位：抓到的客户区是**物理**像素 1527x1108（游戏 DPI-unaware 被放 1.5x），
+        # 不是游戏自己的 1018x739；比例必须按抓图尺寸算（踩过一次：用 1018 算成 0.908）。
+        X_FRAC = (0.605, 0.552)
         print("[3] advance dialogues at %r, progress was %r" % (X_FRAC, start))
         done = False
         for i in range(args.clicks):
@@ -135,29 +171,41 @@ def main():
                 done = True
                 break
             cw, ch = img.size
-            sx, sy = ox + int(cw * X_FRAC[0]), oy + int(ch * X_FRAC[1])
             if score >= 0.7:
+                sx, sy = ox + cx + tpl.shape[1] // 2, oy + cy + tpl.shape[0] // 2
                 click_screen(sx, sy)
                 print("  click X #%d at %d,%d (bubble score=%.2f)" % (i + 1, sx, sy, score))
             else:
+                sx, sy = ox + int(cw * X_FRAC[0]), oy + int(ch * X_FRAC[1])
                 click_screen(sx, sy)
-                print("  未见气泡(score=%.2f)，仍点一次固定坐标 %d,%d" % (score, sx, sy))
+                print("  未见气泡(score=%.2f)，点固定坐标 %d,%d" % (score, sx, sy))
             time.sleep(1.5)
         shot(win, os.path.join(args.shots, "02_after_dialogue.png"))
         if not done:
             print("  dialog 循环耗尽，progress 仍是 %r" % progress())
             return 4
 
-        print("[4] graceful exit")
-        for frac in (GEAR, MAIN_MENU, EXIT, EXIT_YES):
-            click_frac(win, frac)
-            time.sleep(2.5)
+        if args.exit_mode == "menu":
+            print("[4] graceful exit (游戏内退出链；会弹网页广告，F173)")
+            for frac in (GEAR, MAIN_MENU, EXIT, EXIT_YES):
+                click_frac(win, frac)
+                time.sleep(2.5)
+        else:
+            print("[4] exit-mode=kill（默认）：不触发退出链的广告弹窗")
+            subprocess.run(["taskkill", "/PID", str(p.pid), "/F"], capture_output=True)
+            time.sleep(0.5)
         for _ in range(20):
             if p.poll() is not None:
                 break
             time.sleep(0.5)
         exited = p.poll() is not None
         print("  process_exited=%s rc=%r" % (exited, p.returncode))
+        # 原版退出链会用 ShellExecute 打开一个网页（"广告弹窗"，F173）：只在默认浏览器里
+        # 新开标签，不算失败；这里只报告，不动用户的浏览器
+        if args.exit_mode == "menu":
+            new = browser_pids() - pids_before
+            if new:
+                print("  ad_popup_pids=%r（退出链用 ShellExecute 打开的网页，F173）" % sorted(new))
         return 0 if exited else 5
     finally:
         if not args.keep and p.poll() is None:
