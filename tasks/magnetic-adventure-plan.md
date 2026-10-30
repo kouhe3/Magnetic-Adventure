@@ -79,13 +79,17 @@
 > 判据变化：渲染不再靠像素 diff 逼近——同一份库 ⇒ 逐调用（GL 序列 diff）+ 逐指令（库层 sim）+ 像素只作验收。
 
 - [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214、F154、F155、F157、F158、F166（**完成**：`src/host_lcl/magnet.pas` 40 行 —— bsNone 建窗 + 手工补 caption 位 + `SWP_FRAMECHANGED` + 按外框居中 + 视口用真实客户区；`wincompare --ours build/host_lcl --ours-exe magnet.exe` **fields=15 diffs=0**。坑：原版 style 带 `WS_POPUP`（切 BorderStyle 会丢）、LCL 的 `ClientWidth` 缓存改 style 后是旧的、`uses GLFilePNG` 需要 `libpng13.dll`/`zlib1.dll`）
-- [ ] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak（复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187
+- [x] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak （复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187、F225–F230（**完成（菜单层）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 19 个 `TGLHUDSprite`（设计空间 1018×739，顺序=原版 draw 顺序），纹理走 GLFilePNG + 自持 32 位 RGBA（LCL 的 TPicture 丢 alpha，F226）。判据：新仪器 `tools/menu_draw_ab.py`（按素材名对齐）比原版 `glidle.bin` frame 10 vs 宿主 frame 2 ⇒ **19/19 draw 零差（dbbox=0/duv=0/dα=0）**，未配对的只有文本层；像素 `HOST_DUMP_FRAME` 自读帧 mean|Δ| 2.46/255（缺文本 + 光标不旋转为主，F230）。三个库级坑已记账：TextureMode 默认 decal（F227）、ObjectsSorting 默认重排（F228）、GLScene 不发 glBlendFunc（F229）。**剩**：关卡场景模型（归 T6.4 应用层））
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据 依据：F204、F213
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
 
 ## 变更记录
+
+- 2026-10-30 依据 F231（**补上用户名文本层，菜单 21/21 draw 零差**）：`src/host_lcl/menuscene.pas` 新增 `TFontTable`（`gulim1.dat` 258 条 32 B 记录）与 `TMagTextSprite`（继承 `TGLHUDSprite`，重写 `DoRender`：一次 `glBegin(GL_QUADS)` 画 N 个字模 quad，色 `(0.8984,0.7852,0.5195)`）。原版同一串画两遍（alpha=1 + alpha=0），两遍都补。判据：`tools/menu_draw_ab.py` ⇒ **pairs=21 mismatches=0**，不再有未配对项；像素 2.464→2.448/255（文本只占 0.2% 面积）。
+
+- 2026-10-30 依据 F225–F230（**T6.2 菜单层完成：逐 draw 19/19 零差**）：① `src/host_lcl/menuscene.pas`（19 个 TGLHUDSprite，设计空间 1018×739）+ `src/host_lcl/frameshot.pas`（`HOST_DUMP_FRAME` 自读帧缓冲写 BMP）；`magnet.pas` 接场景并加 `BeforeRender` 启动态。② 新仪器 `tools/menu_draw_ab.py`：按**素材名**（id 用像素 CRC 反查）逐 draw 比设计空间 bbox/UV/alpha，判据 `mismatches=0`。③ 三个库级坑入账：`TextureMode` 默认 `tmDecal`（透明区画白，32.75%→0，F227）、`ObjectsSorting` 默认 `osRenderBlendedLast`（重排绘制顺序，F228）、GLScene 不发 `glBlendFunc`（F229）；另 LCL `TPicture` 读 PNG 丢 alpha（F226）。④ 门禁 `verify.py` 仍 6/6 PASS。
 
 - 2026-10-30 依据 F224（**T6.3 桩 harness：52/52 关能初始化**）：新增 `tools/lua_probe.cpp`（CMake target `lua_probe`，链 vendor `lua51`）——从 `mapping/lua-bindings.csv` 注册 144 个桩，`Add_*` 返回递增 id、其余返回 0，返回个数按脚本里的单行多值赋值推断；每次绑定调用写一行 JSONL（名字 / 实参 / 桩返回）。新增 `tools/lua_probe_all.py` 解析 `lvl_info.lvl` 批量跑 52 关，判据 `rc=0`，产物 `work/lua_probe_all.json`。结果：**52/52 rc=0**（调用 34–768、对象 17–177），单关两次运行逐字节相同。边界：桩返回值是约定不是语义；下一步把 `Add_*` 的 id/参数序列与原版 b2 代理的建体调用序对拍（T6.3 验收）。
 

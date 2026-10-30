@@ -23,13 +23,30 @@ program magnet;
 //      还是旧值，直接 alClient 会得到 1024x768。
 uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
-  GLFilePNG, GLTexture, OpenGL1x, PakFile, SysUtils, VectorGeometry, Windows;
+  GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
+  GLRenderContextInfo, FrameShot, Windows;
 
 type
   TCameraEvents = class
     procedure Ortho(const viewport: TRectangle; width, height, DPI: Integer;
       var viewPortRadius: Single);
   end;
+
+  TGLStateInit = class
+    procedure BeforeRender(Sender: TObject);
+  end;
+
+procedure TGLStateInit.BeforeRender(Sender: TObject);
+begin
+  // 每帧开画前设一次：此刻上下文一定 current（BeforeRender 在 Buffer.Render 内部触发）。
+  // 原版启动期就是这个状态（F184：帧内没有 glBlendFunc / glEnable(GL_BLEND) 记录），
+  // GLScene 的 GLStates 认为 blendFunc 已是 SRC_ALPHA/ONE_MINUS 而不再发调用，
+  // 但驱动默认是 (ONE, ZERO) ⇒ alpha 被忽略、透明区画成白块。
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_ALPHA_TEST);
+  glAlphaFunc(GL_GREATER, 0);
+end;
 
 const
   // mapping/textures.csv 的 37 条启动纹理（重复项保留，按原版上传次数）。
@@ -129,21 +146,37 @@ begin
     (buf[0] = '1');
 end;
 
+function EnvStr(const Name: string): string;
+var
+  buf: array[0..MAX_PATH - 1] of Char;
+begin
+  if GetEnvironmentVariable(PChar(Name), @buf[0], MAX_PATH) > 0 then
+    Result := buf
+  else
+    Result := '';
+end;
+
+// 日志一律落在 exe 旁边（build/ 已 gitignore），别污染仓库根的 CWD。
+function ExePath(const Name: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + Name;
+end;
+
 var
   F: TForm;
   S: TGLScene;
   Cam: TGLCamera;
-  Cube: TGLCube;
+  Menu: TMenuScene;
   CamEvents: TCameraEvents;
   Pak: TPakFile;
-  PicImage: TGLPersistentImage;
-  PakStream: TMemoryStream;
-  TmpPath: string;
   n: Integer;
   log: string;
   tf: TextFile;
   V: TGLSceneViewer;
   r: TRect;
+  MouseX, MouseY: Single;
+  DumpVp: array[0..3] of Integer;
+  StateInit: TGLStateInit;
 begin
   Application.Initialize;
 
@@ -152,45 +185,40 @@ begin
   F.BorderStyle := bsNone;
 
   S := TGLScene.Create(F);
+  // GLScene 默认 ObjectsSorting=osRenderBlendedLast：会把"混合对象"排到最后重排
+  // 绘制顺序，菜单的 painter 顺序（背景→黑板→按钮→标题→光标）就乱了——
+  // 实测背景被排到黑板之后，把黑板上半截盖掉。原版是严格按对象顺序画的。
+  S.ObjectsSorting := osNone;
   CamEvents := TCameraEvents.Create;
   Cam := TGLCamera.Create(S);
   Cam.Position.SetPoint(0, 0, 10);
   Cam.CameraStyle := csCustom;
   Cam.OnCustomPerspective := @CamEvents.Ortho;
   S.Objects.AddChild(Cam);
-  Cube := TGLCube.Create(S);
-  Cube.Material.FrontProperties.Diffuse.SetColor(1, 0, 0, 1);
-  Cube.Material.FrontProperties.Emission.SetColor(1, 0, 0, 1);
   Pak := TPakFile.Create;
   if Pak.Open(DataPath) then
   begin
     if EnvFlag('HOST_TEX_SELFTEST') then
     begin
       n := SelfTestTextures(Pak, log);
-      AssignFile(tf, 'host_tex_selftest.log');
+      AssignFile(tf, ExePath('host_tex_selftest.log'));
       Rewrite(tf);
       WriteLn(tf, 'loaded=', n, '/', Length(kTextureAssets));
       Write(tf, log);
       CloseFile(tf);
     end;
-    if Pak.Read('mm_cent2.png', PakStream) then
-    begin
-      TmpPath := TempFileName('.png');
-      try
-        PakStream.SaveToFile(TmpPath);
-        // TPicture.LoadFromFile 走 LCL 的 PNG 解码；owner 必须是 TGLTexture，
-        // 否则 TGLTextureImage.Create 的 AOwner as TGLTexture 会抛 Invalid type cast。
-        PicImage := TGLPersistentImage.Create(Cube.Material.Texture);
-        PicImage.LoadFromFile(TmpPath);
-        Cube.Material.Texture.Image := PicImage;
-        Cube.Material.Texture.Disabled := False;
-      finally
-        DeleteFile(PChar(TmpPath));
-        PakStream.Free;
-      end;
-    end;
+    // 鼠标位置（设计像素，左上原点）：默认停在 glidle 抓包那一帧的位置
+    // (884,684)-(916,716) 的中心 (900,700)，这样 A/B 是同状态（F188/F189）。
+    MouseX := 900;
+    MouseY := 700;
+    Menu := TMenuScene.Create(S, Pak);
+    Menu.Build(True, MouseX, MouseY);
+    AssignFile(tf, ExePath('gl_init.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'layers=', Menu.Layers, ' font=', Menu.Font.Count, ' text=ooo');
+    Write(tf, Menu.Log);
+    CloseFile(tf);
   end;
-  S.Objects.AddChild(Cube);
   V := TGLSceneViewer.Create(F);
   V.Parent := F;
   V.Align := alClient;
@@ -218,7 +246,35 @@ begin
 
   V.Invalidate;
   Application.ProcessMessages;
+  // 上下文在第一帧渲染时才建立，且 PostRender 是唯一"上下文一定 current"的钩子。
+  StateInit := TGLStateInit.Create;
+  V.BeforeRender := @StateInit.BeforeRender;
   V.Render;
+  V.Render;
+  // 像素验收走自读帧缓冲（HOST_DUMP_FRAME），不受窗口层叠影响。
+  if EnvStr('HOST_DUMP_FRAME') <> '' then
+  begin
+    AssignFile(tf, ExePath('gl_dump.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'path=', EnvStr('HOST_DUMP_FRAME'));
+    try
+      // GLScene 在 Render 后会把上下文解绑（此时 glGetIntegerv 全 0），
+      // 读回前必须自己 Activate。
+      if V.Buffer.RenderingContext.IsValid then
+        V.Buffer.RenderingContext.Activate;
+      try
+        WriteLn(tf, 'size=', V.ClientWidth, 'x', V.ClientHeight,
+          ' ok=', DumpFramebufferBmp(EnvStr('HOST_DUMP_FRAME'), V.ClientWidth,
+          V.ClientHeight));
+      finally
+        V.Buffer.RenderingContext.Deactivate;
+      end;
+    except
+      on E: Exception do
+        WriteLn(tf, 'exc=', E.ClassName, ': ', E.Message);
+    end;
+    CloseFile(tf);
+  end;
 
   Application.Run;
 end.

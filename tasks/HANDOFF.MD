@@ -36,7 +36,7 @@ python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 
 python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --float-tol 1e-3
 ```
 
-**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 的"无 swap/glClear"是缓冲尾巴（F222 勘误 F215），加 `GLPROXY_FLUSH=1` 即可抓到。下一步：场景模型/对象接线（纹理表已自检）。
+**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 的"无 swap/glClear"是缓冲尾巴（F222 勘误 F215），加 `GLPROXY_FLUSH=1` 即可抓到。**T6.2 菜单层已完成（F225–F230）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 **19 个 `TGLHUDSprite`**（设计空间 1018×739，创建顺序=原版 draw 顺序）；新仪器 `tools/menu_draw_ab.py` 按**素材名**逐 draw 比 ⇒ **21/21 零差**（dbbox=0/duv=0/dα=0，含用户名文本层的两条 `gulim1.png`）。文本层：`TFontTable` 解析 `gulim1.dat`（258 条 32 B，`advance==w`、`v0` 落在四边形下边）+ `TMagTextSprite`（`TGLHUDSprite` 子类，一次 `glBegin` 画 N 个字模 quad；原版同一串画两遍 alpha=1/0，F231）。像素自读帧 `HOST_DUMP_FRAME`（`src/host_lcl/frameshot.pas`）mean|Δ| **2.45/255**，残差主要是光标不旋转与下采样。**下一步：T6.3（Lua 144 绑定语义）**；关卡场景模型归 T6.4。
 
 **关键覆盖边界（F222/F223，勘误 F215）**：GL 代理**能**看见宿主的绘制调用——之前"没有 glClear/glBegin"是缓冲尾巴被 `p.kill()` 丢掉的假象（默认每 200 ms 或下一条调用才 flush）。单帧/短命进程抓包**必须** `GLPROXY_FLUSH=1`；同一次启动可抓到 `glBegin=2 / glVertex3f=48 / glClear=2`，两次启动 3,526 条名字序列逐条相同（A/A = 0）。仍看不见的只有扩展函数：`wglGetProcAddress` 的 3,158 次解析里 1,756 次返回 NULL（1.1 核心名，走静态导入 = 代理），1,402 次返回 `igxelpicd32.dll`（扩展名直连；渲染路径按 F178 不用扩展）。因此 T6.2 验收仍按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`；宿主日志没有 `wglSwapBuffers`，需要"整段/无帧边界"模式）——像素只作验收。
 
@@ -245,7 +245,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 6. 排队（建议顺序）
 
-**当前主线是 M6（宿主重建）**：T6.2 场景/渲染接入 → T6.3 Lua 144 绑定 → T6.4 应用层复原 → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
+**当前主线是 M6（宿主重建）**：~~T6.2~~（菜单层已完成，F225）→ **T6.3 Lua 144 绑定 + 状态机（下一站）** → T6.4 应用层复原（含关卡场景模型） → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
 
 > 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
@@ -283,6 +283,9 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 - **KnownDLL 决定能不能文件代理**：`dsound` 拦不住（F147，`ole32` 在 KnownDLLs），`opengl32` 能拦（F175）。动手前先查 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs`。
 - **代理日志必须逐条 WriteFile**（F139）：录制用 TerminateProcess 结束，用户态缓冲会整段丢。GL 代理额外做了 200 ms 周期 flush。
 - **单帧宿主抓 GL 必须 `GLPROXY_FLUSH=1`**（F222）：默认 flush 要等「下一条调用」，单帧进程画完就静默，`p.kill()` 再把 4 MB 缓冲整段丢掉 ⇒ 日志里"一条绘制调用都没有"，看起来像代理覆盖缺口（F215 就是这样误判的）。`<log>.wglproc` 另记 `wglGetProcAddress` 的解析归属：ret=0 是 1.1 核心名（静态导入，日志可见），落在驱动模块（`igxelpicd32.dll`）的是扩展名（直连，看不见）。
+- **GLScene 三个默认值会静默毁掉画面**（M6/T6.2 实测，各一条）：① `TGLTexture.TextureMode` 默认 `tmDecal` ⇒ 透明区画成**白块**（白占比 32.75%→0，F227）；② `TGLScene.ObjectsSorting` 默认 `osRenderBlendedLast` ⇒ 绘制顺序被重排（背景盖住黑板，F228），要设 `osNone`；③ 库**不发 `glBlendFunc`**（GLStates 缓存假设已就位），必须在 `TGLSceneViewer.BeforeRender` 里显式设一次（F229）。
+- **LCL 0.9.28.3 的 `TPicture` 读 PNG 丢 alpha**：透明区变黑/白。走 `GLFilePNG` 的 `TGLPNGImage` 解码后自己搬 32 位 RGBA（F226）；`TGLBitmap32` 要 `Blank := False` 才分配像素，且**先设格式再设尺寸**；`TGLPNGImage.Create` 无参。
+- **像素判据用宿主自读帧**（`HOST_DUMP_FRAME`）：GLScene `Render` 后上下文被解绑（`glGetIntegerv` 全 0），读回前要 `RenderingContext.Activate`；`shot_window.py` 抓屏幕会被前台窗口污染（本次被微信盖住半屏，F230）。
 - **代理里的 payload 要防越界**：`IsBadReadPtr` + 长度上限；`glTexImage2D` 的像素按 `w*h*bpp` 算整块 CRC32 才够精确（192 B 前缀对均匀边界的图会多图同分）。
 - **GL 的变换链是 P·M·v**：顶点永远乘 MODELVIEW，和当前 `glMatrixMode` 无关（F181）。GLScene 的 HUD 会在帧中途把投影换成单位阵、用像素空间画东西，乘错就飞出屏幕。
 - **固定管线状态要继承启动态**：`GL_BLEND` 在启动期就常开、帧内不再 `glEnable`，只按帧内调用推状态会漏掉它 → 白屏（F184）。
@@ -310,11 +313,12 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 | 物理 DLL | `src/b2physics/b2physics.cpp`（87 导出）、`b2physics.def`、`vendor/box2d-2.0.2`（带 `altered (F###)` 注释） |
 | 音频 DLL | `vendor/squall`（上游 1.48，3 处 `altered (F136/F138/F148)`）、`vendor/libogg-1.3.5`、`vendor/libvorbis-1.3.7` |
 | Lua | `vendor/lua-5.1.5`（官方 tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，**未改动**）→ CMake target `lua51` + `luac` |
+| 宿主（M6 主线） | `src/host_lcl/magnet.pas`（窗口+场景装配）、`src/host_lcl/menuscene.pas`（菜单 19 层 HUD 精灵 + GLFilePNG 纹理）、`src/host_lcl/pakfile.pas`（pak 只读）、`src/host_lcl/frameshot.pas`（自读帧写 BMP） |
 | 宿主 | `src/host/main.cpp`（窗口/消息）、`src/host/gl_render.cpp`（WGL + 菜单渲染）、`src/host/pak.{h,cpp}`（pak 只读）、`src/host/wic_decode.{h,cpp}`（WIC 解码）、`src/host/texture_table.h`（生成物） |
 | 代理 | `src/proxydll/`（b2，`B2FFI02`）、`src/squallproxy/`（`SQFFI01`）、`src/glproxy/`（`GLFFI02`）；桩由 `tools/gen_proxy.py` 生成 |
 | 仪器 | `tools/instr.py`、`gate.py`、`sweep.py`、`report_sweep.py`、`replay_ffi.py`、`ffi.py`、`verify.py`、`shotdiff.py`（截图像素 A/B）、`host_tex_ab.py`（上传纹理 CRC 对拍）、`draw_ab.py`（绘制列表逐 draw 比）、`gl_seq_ab.py`（GL 调用序逐帧 A/B，F216）、`gen_texture_table.py` |
 | UI/自动化 | `tools/uistate.py`、`uitemplate.py`、`e2e_tutorial.py`、`e2e_record.py`、`driver.py`、`winprobe.py`、`wincompare.py`、`shot_window.py`（窗口客户区截图） |
-| GL | `tools/gl_ffi.py`、`gl_drawlist.py`、`gl_texpack.py`；抓包目录 `work/glprobe/` |
+| GL | `tools/gl_ffi.py`、`gl_drawlist.py`、`gl_texpack.py`、`menu_draw_ab.py`（菜单逐 draw A/B，按素材名对齐）；抓包目录 `work/glprobe/` |
 | 数据 | `mapping/*.csv`（导出表、绑定、关卡映射、纹理 id↔素材 `textures.csv`）、`docs/levels.md`（只能由 `report_sweep.py --write` 生成） |
 | L2-B 侧 | `tools/code_match.py`（`cover`/`units`，本轮新增，已自证）；`work/toolchain_probe/`（`skel.pas` LCL-only / `glskel5.pas` 含 GLScene 的骨架）；`work/glscene_r4700`（最 fit 的候选树）、`work/glscene_v11`、`work/glscene_lcl`、`work/glscene_4493`、`work/glscene_trunk`（编不了）；`C:\tmp\laz9283`（自编 LCL 0.9.28.3 的构建树，不在仓库） |
 | 文档 | `docs/requirements.md`、`docs/facts.md`、`docs/b2physics-abi.md`、`tasks/magnetic-adventure-plan.md`、`tasks/magnetic-adventure-todo.md`、本文 |
