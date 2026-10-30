@@ -13,6 +13,9 @@
 - [ ] T2.4 Squall 行为契约 依据：F06
 - [ ] T2.5 Squall C++ 实现 依据：F06
 - [ ] T2.6 双 DLL 整机回归 依据：F06、F07
+- [x] T2.4a `vendor/squall` 入库 + Win32 构建 + 导出表 99/99 依据：F131、F132、F137
+- [x] T2.4b 补 `libogg`/`libvorbis` 静态库（解 pak 内 OGG） 依据：F133、F134、F137（PCM 逐位比留 T2.5）
+- [ ] T2.4c Squall 代理 DLL 抓包（17 个宿主导入） 依据：F131
 - [ ] T3.1 Win32 窗口/输入 依据：F01
 - [ ] T3.2 渲染层 依据：F03
 - [ ] T3.3 pak + Lua 绑定 依据：F04

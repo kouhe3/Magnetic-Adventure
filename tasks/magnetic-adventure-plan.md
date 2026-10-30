@@ -25,6 +25,10 @@
 - [ ] T2.5 C++ 实现 Squall，PCM 输出 diff 依据：F06
 - [ ] T2.6 原 exe + 新双 DLL 整机回归 依据：F06、F07
 
+- [x] T2.4a 上游 `vendor/squall`（MIT，HEAD `20988426`）入库 + Win32 构建 + 导出表 99/99（`tools/check_exports.py`） 依据：F131、F132、F137（已完成；`squall` target 在 VS18 x86 上干净构建）
+- [ ] T2.4b 补 `libogg`/`libvorbis` 静态库并使 `SQUALL_Sample_LoadFromMemory` 能解 pak 内 OGG 依据：F133、F134
+- [ ] T2.4c Squall 代理 DLL 抓包（17 个宿主导入函数的实参/返回值）→ 契约 依据：F131
+
 ## M3 宿主复刻（L0 + L1）
 
 - [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F01
@@ -51,6 +55,9 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F136/F137：**T2.4a 完成**——`cmake --build build --config Release --target squall` 产出 `build/Release/Squall.dll`（VS18 x86、静态 CRT），导出 `99/99` 序号全中，导入集合与原版相同；`SQUALL_Init`/`GetNumDevice`/`GetDeviceName`/`Sample_LoadFromMemory`/`GetFileLength(Ms)`/`GetFileFrequency` 在两份 pak 内 OGG 上与 oracle 逐项相同。同时抓到**第一处源码漂移**：上游 `SQUALL_GetNumDevice` 是空指针虚调用，自建 DLL 崩、原版返回 4，已按 `altered (F136)` 修好 ⇒ T2.4 纪律：上游源码只是起点，宿主用到的 17 个导出必须逐个对拍。构建适配：SDK `dsound.h`（不用 `ext/` 那份精简头）、`DIRECTSOUND_VERSION=0x0800`、链 `dxguid`；ogg/vorbis 源码直编（`squall_codec`），无外部解码 DLL。
+- 2026-10-30 依据 F131/F132/F133/F134：**T2.4/T2.5 路线更换**——从"逆向 Squall.dll"改为"上游 MIT 源码 + A/B 对拍"。依据：导出名 99/99 与上游 `DLL_API` 定义逐一致、`SquallHiddenWindow` 字面同在、二进制只有 5 个系统 DLL 依赖。`vendor/squall` 已按 pin 入库（HEAD `20988426`），`mapping/squall-exports.csv`（99 行）成为导出契约单一事实源，`tools/check_exports.py` 改为表头驱动（默认仍 b2，`DllEntryPoint` 行跳过）。新增 T2.4a/b/c；风险单列为 F134（libvorbis 版本未知，待证）。物理侧不重开：`Good Shot!` 的 4,825 已是 1 ULP 级、`Looking for Keys` 5,297 = A/A 地板（F125/F128）。
 
 - 2026-10-29 依据 F122：**B1 根因确定并修**——`b2Distance` 的早退缺绝对阈值 `vSqr < FLT_EPSILON²`；补上后 On a Leash `bad 19,614/首发 420` → `bad 0/首发 681`（A/A 地板），three coins（0/1009）与 looking for keys（5,297/1,996）逐项不变。vendor 已改并加 altered 注释，正在全量复跑。
 
