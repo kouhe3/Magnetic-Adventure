@@ -8,12 +8,13 @@
 //   F156 主循环 PeekMessage + MsgWaitForMultipleObjects（无消息时真阻塞）；
 //   F158 唯一的子窗口 = 填满客户区的 GL 视口（style 0x56000000）。
 //
-// 本阶段刻意不渲染、不建 GL 上下文（那是 T3.2）；目的是让窗口参数可对拍。
 #include <windows.h>
 
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+
+#include "gl_render.h"
 
 namespace {
 
@@ -26,6 +27,10 @@ const wchar_t kTitle[] = L"A Magnetic Adventure";
 // 这里照抄；外框能正好 1024×768 靠的是 PE 子系统版本 5.01（F166）。
 const int kClientW = 1018;
 const int kClientH = 739;
+
+// T3.2 里程碑 A：建 GL 上下文、按抓到的绘制列表画菜单（F181/F182/F183/F184）。
+const UINT_PTR kRenderTimer = 1;
+const UINT kRenderIntervalMs = 15;  // F177：菜单/关卡实测恒 61–65 swap/s ≈ 15.6 ms
 
 HWND g_viewer = nullptr;
 FILE* g_log = nullptr;
@@ -69,9 +74,25 @@ LRESULT CALLBACK FormProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SIZE:
       if (g_viewer) {
         MoveWindow(g_viewer, 0, 0, LOWORD(lp), HIWORD(lp), TRUE);
+        GlResize(LOWORD(lp), HIWORD(lp));
+        GlRenderMenu();
         Log("WM_SIZE %dx%d", LOWORD(lp), HIWORD(lp));
       }
       return 0;
+    case WM_TIMER:
+      if (wp == kRenderTimer) {
+        GlRenderMenu();
+        return 0;
+      }
+      break;
+    case WM_PAINT: {
+      // 有失效就重画：内容来自绘制列表，不需要 BeginPaint 的返回值
+      GlRenderMenu();
+      PAINTSTRUCT ps;
+      BeginPaint(hwnd, &ps);
+      EndPaint(hwnd, &ps);
+      return 0;
+    }
     case WM_ERASEBKGND:
       return 1;
     case WM_LBUTTONDOWN:
@@ -154,6 +175,21 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
   UpdateWindow(hwnd);
   Log("form=%p at %d,%d %dx%d (client %dx%d)", static_cast<void*>(hwnd), win_x, win_y,
       outer_w, outer_h, kClientW, kClientH);
+
+  HWND gl_target = g_viewer;
+  if (gl_target) {
+    if (GlInit(gl_target)) {
+      RECT rc_viewer;
+      GetClientRect(gl_target, &rc_viewer);
+      GlResize(rc_viewer.right - rc_viewer.left, rc_viewer.bottom - rc_viewer.top);
+      Log("gl=ok viewer_client=%dx%d", rc_viewer.right, rc_viewer.bottom);
+    } else {
+      Log("gl=fail");
+    }
+    // 固定 ~15.6 ms 渲染循环（F177），不是"有失效才画"
+    SetTimer(hwnd, kRenderTimer, kRenderIntervalMs, nullptr);
+    GlRenderMenu();
+  }
 
   // F156：PeekMessage 抽干 + MsgWaitForMultipleObjects 阻塞等待（不 Sleep 轮询）
   MSG msg;

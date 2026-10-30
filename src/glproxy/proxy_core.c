@@ -62,6 +62,11 @@ static __declspec(thread) uint32_t g_pend[16];
 static __declspec(thread) int g_pdepth = 0;
 
 static uint32_t g_id_wglproc = 0;
+static uint32_t g_id_teximage = 0;
+/* GLPROXY_ONLY=名字1,名字2,...：只记这些函数（启动期抓纹理上传/像素格式，
+ * 不设则全记）。只影响「写不写记录」，解析/尾跳照旧。 */
+static char g_only[512];
+static int g_filter = 0;
 static char g_seen[MAX_NEW_NAMES][64];
 static int g_nseen = 0;
 
@@ -119,6 +124,27 @@ static void NoteName(const char* s) {
 
 static DWORD Since(DWORD tick) { return (DWORD)(tick - g_load_tick); }
 
+/* CRC32（zlib 多项式）：Python 侧 zlib.crc32 直接对拍，比 FNV 快一个数量级。 */
+static uint32_t Crc32(const unsigned char* p, uint64_t n) {
+    static uint32_t table[256];
+    static int init = 0;
+    uint32_t c;
+    uint64_t k;
+    if (!init) {
+        uint32_t i;
+        for (i = 0; i < 256; ++i) {
+            uint32_t v = i;
+            int b;
+            for (b = 0; b < 8; ++b) v = (v & 1) ? (0xEDB88320u ^ (v >> 1)) : (v >> 1);
+            table[i] = v;
+        }
+        init = 1;
+    }
+    c = 0xFFFFFFFFu;
+    for (k = 0; k < n; ++k) c = table[(c ^ p[k]) & 0xFF] ^ (c >> 8);
+    return c ^ 0xFFFFFFFFu;
+}
+
 /* 桩入口：id, 栈指针（指向返回地址）, edx, ecx */
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     FARPROC fn;
@@ -135,6 +161,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     }
     if (!fn) return;                    /* 解析失败：桩会 jmp NULL，问题立刻暴露 */
     if (g_file == INVALID_HANDLE_VALUE) return;
+    if (g_filter && !g_only[id]) return;
 
     g_in = 1;
     {
@@ -157,6 +184,30 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
             SafeCopy(r.mem0, r.args[0], MEM_DUMP);
             SafeCopy(r.mem1, r.args[1], MEM_DUMP);
             SafeCopy(r.mem2, r.args[8], MEM_DUMP);
+            /* glTexImage2D：w/h/fmt/type 推出字节数，对整个像素缓冲算 FNV-1a，
+             * 前 8 字节覆盖 mem2（hash, bytes）+ bpp。用来把纹理 id 精确映射回
+             * pak 素材（192 B 前缀对均匀边界的图不够，见 F183）。 */
+            if (id == g_id_teximage) {
+                uint32_t w = r.args[3], h = r.args[4], fmt = r.args[6], ty = r.args[7];
+                uint32_t ptr = r.args[8], bpp = 0;
+                if (ty == 0x1401) {              /* GL_UNSIGNED_BYTE */
+                    if (fmt == 0x1907) bpp = 3;      /* GL_RGB */
+                    else if (fmt == 0x1908) bpp = 4; /* GL_RGBA */
+                    else if (fmt == 0x80E1) bpp = 4; /* GL_BGRA */
+                    else if (fmt == 0x1909) bpp = 1; /* GL_LUMINANCE */
+                }
+                if (bpp && w && h && ptr) {
+                    uint64_t n = (uint64_t)w * h * bpp;
+                    if (n <= (64u << 20) &&
+                        !IsBadReadPtr((const void*)(uintptr_t)ptr, (SIZE_T)n)) {
+                        const unsigned char* p = (const unsigned char*)(uintptr_t)ptr;
+                        uint32_t hsh = Crc32(p, n), n32 = (uint32_t)n;
+                        memcpy(r.mem2, &hsh, 4);
+                        memcpy(r.mem2 + 4, &n32, 4);
+                        r.mem2[8] = (unsigned char)bpp;
+                    }
+                }
+            }
             Emit(&r, (DWORD)sizeof r);
         }
         if (now - g_last_flush > FLUSH_MS) {
@@ -261,10 +312,32 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         for (i = 1; i < g_n_exports; ++i) {
             if (g_names[i] && !strcmp(g_names[i], "wglGetProcAddress"))
                 g_id_wglproc = (uint32_t)i;
+            if (g_names[i] && !strcmp(g_names[i], "glTexImage2D"))
+                g_id_teximage = (uint32_t)i;
         }
 
         n = GetEnvironmentVariableA("GLPROXY_LOG", log, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(log, dir, "glffi.bin");
+        {
+            char want[512];
+            DWORD wn = GetEnvironmentVariableA("GLPROXY_ONLY", want, sizeof want);
+            if (wn > 0 && wn < sizeof want) {
+                char* p = want;
+                while (*p) {
+                    char* comma = p;
+                    int more;
+                    while (*comma && *comma != ',') ++comma;
+                    more = (*comma != 0);
+                    if (*comma) *comma = 0;
+                    for (i = 1; i < g_n_exports; ++i)
+                        if (g_names[i] && !strcmp(g_names[i], p))
+                            g_only[i] = 1;
+                    if (!more) break;
+                    p = comma + 1;
+                }
+                g_filter = 1;
+            }
+        }
         g_file = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ, NULL,
                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         JoinDir(names, log, ".names");

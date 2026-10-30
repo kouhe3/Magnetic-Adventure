@@ -23,10 +23,19 @@
 """
 import argparse
 import json
+import math
+import os
 import struct
 import sys
 
 import gl_ffi
+
+# 记录进 draw 的固定管线状态位
+CAP_BIT = {0x0DE1: 0,   # GL_TEXTURE_2D
+           0x0B71: 1,   # GL_DEPTH_TEST
+           0x0BE2: 2,   # GL_BLEND
+           0x0BC0: 3,   # GL_ALPHA_TEST
+           0x0B44: 4}   # GL_CULL_FACE
 
 
 def ident():
@@ -72,6 +81,11 @@ class State:
         self.cur = ident()
         self.tex = None
         self.rgba = (1.0, 1.0, 1.0, 1.0)
+        # 启动期实测的固定状态（F184）：BLEND/ALPHA_TEST/CULL_FACE 常开，
+        # TEXTURE_2D/DEPTH_TEST 在帧内逐 draw 切换。帧内没有 glEnable 的 cap
+        # 必须从这个初值继承，否则会漏掉 BLEND（第一版就因此画出白屏）。
+        self.caps = (1 << 2) | (1 << 3) | (1 << 4)
+        self.blend = (0x0302, 0x0303)   # SRC_ALPHA / ONE_MINUS_SRC_ALPHA
         self.in_begin = None
         self.verts = []
         self.uv = (0.0, 0.0)
@@ -91,6 +105,7 @@ def flush(st):
     if not st.verts:
         return
     st.draws.append({"prim": st.in_begin, "tex": st.tex, "rgba": st.rgba,
+                     "caps": st.caps, "blend": st.blend,
                      "n": len(st.verts),
                      "v": [p[0] for p in st.verts], "uv": [p[1] for p in st.verts]})
     st.verts = []
@@ -102,6 +117,7 @@ def main():
     ap.add_argument("--frame", type=int, required=True)
     ap.add_argument("--limit", type=int, default=40)
     ap.add_argument("--json")
+    ap.add_argument("--pack", help="写宿主用的二进制绘制列表（GLDRW01）")
     ap.add_argument("--summary", action="store_true")
     a = ap.parse_args()
 
@@ -151,7 +167,6 @@ def main():
             st.stacks[st.mode][-1] = mul(st.m(), t)
         elif name == "glRotatef":
             ang, x, y, z = (f32(v) for v in args[:4])
-            import math
             c, s1 = math.cos(math.radians(ang)), math.sin(math.radians(ang))
             n = math.sqrt(x * x + y * y + z * z) or 1.0
             x, y, z = x / n, y / n, z / n
@@ -162,6 +177,15 @@ def main():
             st.stacks[st.mode][-1] = mul(st.m(), t)
         elif name == "glBindTexture":
             st.tex = args[1]
+        elif name in ("glEnable", "glDisable"):
+            bit = CAP_BIT.get(args[0])
+            if bit is not None:
+                if name == "glEnable":
+                    st.caps |= (1 << bit)
+                else:
+                    st.caps &= ~(1 << bit)
+        elif name == "glBlendFunc":
+            st.blend = (args[0], args[1])
         elif name == "glColor4fv":
             st.rgba = tuple(struct.unpack("<4f", mem0[:16]))
         elif name == "glColor4f":
@@ -191,6 +215,16 @@ def main():
         with open(a.json, "w", encoding="utf-8") as f:
             json.dump({"frame": a.frame, "draws": st.draws}, f, ensure_ascii=False)
         print("wrote %s (%d draws)" % (a.json, len(st.draws)))
+    if a.pack:
+        with open(a.pack, "wb") as f:
+            f.write(b"GLDRW01\0")
+            f.write(struct.pack("<I", len(st.draws)))
+            for d in st.draws:
+                f.write(struct.pack("<III II 4f", d["tex"] or 0, d["n"], d["caps"],
+                                    d["blend"][0], d["blend"][1], *d["rgba"]))
+                for p, uv in zip(d["v"], d["uv"]):
+                    f.write(struct.pack("<5f", p[0], p[1], p[2], uv[0], uv[1]))
+        print("wrote %s (%d draws, %d bytes)" % (a.pack, len(st.draws), os.path.getsize(a.pack)))
     print("frame=%d calls=%d draws=%d" % (a.frame, end - start + 1, len(st.draws)))
     if a.summary:
         import collections
