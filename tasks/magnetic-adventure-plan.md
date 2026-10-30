@@ -59,6 +59,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F146/F147：**通关音效段已录到；PCM 三条路线全部否掉**。用户手动通关 Good Shot 并正常退出，代理录到 311 次调用（`Sample_PlayEx` 69 / `Channel_Start` 61 / `Channel_SetVolume` 61 / 其余见 F146），接口集合仍是 17 个导入的子集 ⇒ 通关音效无新增 API 面。想拿原版 PCM 的三条路都失败：换 `dsound.dll`（原版走 `CoCreateInstance`，ole32 是 KnownDLL）、在代理里钩 `CoCreateInstance`（`PlayEx` 变 -13）、日志重放（原版自检就有 174/311 差异，声道分配依赖实时状态）。已有仪器与结论按「地板过大」处理，相关文件已删；F134（PCM 逐位）状态仍是 `待证`，下一步要上进程内 hook（Detours 级）或改用 WASAPI 环回。
+
 - 2026-10-30 依据 F144/F145：**T2.4d 收口**——新增 `tools/squall_contract.py`（固定 20 步脚本覆盖 17 个宿主导入），原版 vs 自建 `diffs=0`；顺带确认两个「反直觉但一致」的上游行为（PREPARED 通道 `Channel_Pause` 返回 -13；先内存样本再 `LoadFile` 会因 `strcmp(NULL)` 让两个 DLL 都崩）。整机 3 分钟静置不崩（F145）。至此 Squall 侧：导出 99/99、17 个导入的调用序与返回值全对齐、优雅退出路径对齐；唯一未闭合的是 **PCM 逐位一致（F134）**，需要 DirectSound 层抓包才能验。
 
 - 2026-10-30 依据 F143：**优雅退出路径闭合**——脚本走 Main menu → Exit → Yes，原版与自建各 127 次调用、254 条事件 0 分歧，`game.exe` 自行退出（非 TerminateProcess）。这条覆盖了 T2.4d 里的 `SQUALL_Free`、`Sample_Stop`、`Sample_Unload`、`UnloadAll`；剩下未触发的是 `Channel_Pause/SetVolume/Start/Status` 与 `Sample_LoadFile/Pause`。同时修 `tools/squall_ab.py`：`void` 导出（Free/Unload/UnloadAll/SetWorker）不再比较 EAX，否则会产生假差异。
