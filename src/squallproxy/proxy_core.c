@@ -13,6 +13,7 @@
 #include <windows.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define ARG_DWORDS 16
 #define MEM_DUMP 128
@@ -55,6 +56,11 @@ typedef struct { uint32_t id, ret; } Pending;
 static __declspec(thread) Pending g_pend[16];
 static __declspec(thread) int g_pdepth = 0;
 static __declspec(thread) uint32_t g_lastret = 0;
+/* 可选：Init 返回后把引擎切到指定设备（环回录制用，SQUALL_FORCE_DEVICE=<n>）。
+ * 宿主本身从不调用 SQUALL_SetDevice，所以这只是测量时的旁路，不是契约的一部分。 */
+static uint32_t g_id_init = 0;
+static int g_force_device = -1;
+typedef int (__cdecl *FN_SetDevice)(int);
 
 /* 每条记录直接 WriteFile：录制结束用 TerminateProcess（跳过宿主与 DLL 的 DETACH），
  * 任何用户态缓冲都会丢失 —— 首轮实测 25 秒游戏跑完日志仍是 0 字节。音频调用量小
@@ -128,6 +134,11 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         g_pdepth = d;
     }
     g_lastret = retval;
+    if (id == g_id_init && g_force_device >= 0 && retval > 0) {
+        FN_SetDevice sd = (FN_SetDevice)GetProcAddress(g_orig, "SQUALL_SetDevice");
+        if (sd) sd(g_force_device);
+        g_force_device = -1;   /* 只切一次 */
+    }
     if (g_file != INVALID_HANDLE_VALUE && !g_in && args_ptr) {
         PostRec r;
         uint32_t a0 = *(const uint32_t*)(uintptr_t)args_ptr;
@@ -179,6 +190,13 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             g_orig = LoadLibraryA(path);
         }
 
+        {
+            int k;
+            for (k = 1; k < g_n_exports; ++k)
+                if (g_names[k] && !strcmp(g_names[k], "SQUALL_Init")) g_id_init = (uint32_t)k;
+            if (GetEnvironmentVariableA("SQUALL_FORCE_DEVICE", path, MAX_PATH))
+                g_force_device = atoi(path);
+        }
         n = GetEnvironmentVariableA(ENV_LOG, path, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(path, self, "squallffi.bin");
         g_file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, NULL,
