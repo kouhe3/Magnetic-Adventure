@@ -59,6 +59,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F143：**优雅退出路径闭合**——脚本走 Main menu → Exit → Yes，原版与自建各 127 次调用、254 条事件 0 分歧，`game.exe` 自行退出（非 TerminateProcess）。这条覆盖了 T2.4d 里的 `SQUALL_Free`、`Sample_Stop`、`Sample_Unload`、`UnloadAll`；剩下未触发的是 `Channel_Pause/SetVolume/Start/Status` 与 `Sample_LoadFile/Pause`。同时修 `tools/squall_ab.py`：`void` 导出（Free/Unload/UnloadAll/SetWorker）不再比较 EAX，否则会产生假差异。
+
 - 2026-10-30 依据 F141/F142：**整机冒烟通过 + 全量 OGG 元数据一致**。把自建 `b2Physics.dll` 与 `Squall.dll` 同时装进游戏：进 tutorial 关、跑 ~90 s、推进到 Congratulations 结局页，进程存活且模块表确认加载的是 `work/integration` 下与 `build/Release` 逐字节相同的两个 DLL（md5 核对）。新增 `tools/squall_decode_ab.py`：35 个 pak 内 OGG 的 `length/ms/hz/sid` 两侧 `diffs=0`（覆盖边界：不比 PCM，F134 仍未闭合）。新增 T2.6a（已完成）/T2.6b（长时+优雅退出）。
 
 - 2026-10-30 依据 F140：**T2.4d 的接口集合更正**——脚本化进关（菜单→Play→18 s）后原版与自建各 51 次调用、102 条事件 **0 分歧**；实际用到 7 个接口，`Sample_Play3D*`/`Channel_Set3DPosition`/`Listener_*` 根本不在宿主导入表里（F131），那 82 个导出对本游戏是死码。T2.4d 缩到剩余未触发的 10 个（含只有优雅退出才调的 `SQUALL_Free`）。

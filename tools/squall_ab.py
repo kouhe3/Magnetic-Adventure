@@ -16,6 +16,9 @@ HDR = struct.Struct("<8sIII")
 PRE = struct.Struct("<6I16I128s128s")
 POST = struct.Struct("<4I128s128s")
 SMALL = 0x1000000
+# 头文件里返回 void 的导出：EAX 是调用者残留，跨进程不可比
+VOID_EXPORTS = {"SQUALL_Free", "SQUALL_Sample_Unload", "SQUALL_Sample_UnloadAll",
+                "SQUALL_Channel_SetWorker", "SQUALL_Listener_SetWorker"}
 
 
 def names():
@@ -45,7 +48,9 @@ def load(path):
             off += PRE.size
         else:
             _, rid, rv, seq = struct.unpack_from("<4I", d, off)
-            ev.append(("ret", nm.get(rid, rid), rv))
+            name = nm.get(rid, rid)
+            # void 导出没有返回值：EAX 是残留，不能比（F143）
+            ev.append(("ret", name, None if name in VOID_EXPORTS else rv))
             off += POST.size
     return ev
 
