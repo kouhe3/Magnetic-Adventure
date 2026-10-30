@@ -34,7 +34,7 @@
 
 ## M3 宿主复刻（L0 + L1）
 
-- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；剩余：① 输入分发只做了消息日志，尚未接场景；② 全屏分支参数未测（F157 待证））
+- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166、F167（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；全屏分支参数已实测（F167：`bsNone`+`wsMaximized`+`WS_EX_TOPMOST`，整屏无边框，实现留给 T3.6 接配置）；剩余：输入分发只做了消息日志，接场景属 T3.4）
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03
 - [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07
@@ -60,6 +60,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F167：**全屏分支参数实测完毕**（`FullScreen="1"` → `style=0x970A0000` 无边框最大化、`exstyle=0x8` 置顶、窗口=整屏 1707×960、`showCmd=3`、`normal_rect` 恰好等于 DFM 的 1072×539），切回窗口化后参数与 F154 逐字相同、无残留。F157 的"矛盾点"同时关闭：**DFM 本身就是全屏形态**，窗口化是启动期按配置改写的结果。全屏的宿主实现并入 T3.6（配置），T3.1 只剩输入日志→场景接线（属 T3.4）。
 
 - 2026-10-30 依据 F166（勘误 F163）：**10px 边框偏差的根因是 PE 头 `MajorSubsystemVersion`**。Windows 对 subsystem<6.0 的映像用旧式非客户区度量（3/侧 + 23 标题、无 DWM padding），原版 `game.exe` 是 4.0、我们的默认构建是 6.0。A/B（同一二进制只改 PE 头）确认 5.01 即可复现原版度量；MSVC 拒收 4.0（LNK4010）。修法：`set_target_properties(host PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS,5.01")`，并把 `main.cpp` 的尺寸逻辑还原成 LCL 语义（客户区 1018×739 → `AdjustWindowRectEx` → 外框 1024×768 → 居中），删掉为绕开偏差而写的 `kRef*` 常量。门禁 `tools/wincompare.py` 由 14 项判定升到 **15 项（含 `window_rect`）`diffs=0`**；T3.1 剩余只有"输入接场景"与"全屏分支参数"。
 
