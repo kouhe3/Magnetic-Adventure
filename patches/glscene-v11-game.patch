@@ -1,0 +1,185 @@
+# 原版对 GLScene v1.1 的本地补丁（Magnetic Adventure）
+#
+# 基线：GLScene v1.1 发布包（SourceForge, 2010-08）的 Source/ 树
+# 应用：在树的上一级 `patch -p1 < glscene-v11-game.patch`
+# 作用：让 GLScene 的机器码与原版 game.exe 逐指令一致（F211/F212/F213）
+#   - GLBitmapFont: SetHSpace/SetVSpace 下限钳位；文本 API 改 WideString；
+#                   CalcStringWidth/RenderString 声明为 virtual
+#   - GLHUDObjects: TGLHUDText.FText 改 WideString
+#   - GLScene:      TGLSceneBuffer.DestroyRC 去掉 RemoveBuffer 调用
+#   - GLTexture:    Assign 增加 TGLPNGImage 分支（uses GLFilePNG）
+#   - GLLCLViewer:  LMEraseBkgnd 恒返回 1；LMPaint 去掉 WM_SIZE workaround
+#
+diff --git a/Source/GLBitmapFont.pas b/Source/GLBitmapFont.pas
+index 55789fd..b04d6c8 100644
+--- a/Source/GLBitmapFont.pas
++++ b/Source/GLBitmapFont.pas
+@@ -214,9 +214,9 @@ type
+        of rotated and linear distorted text with this method, OpenGL
+        Enable states are also possibly altered. }
+     procedure RenderString(var rci: TRenderContextInfo;
+-      const aString: AnsiString; alignment: TAlignment;
++      const aString: WideString; alignment: TAlignment;
+       layout: TGLTextLayout; const color: TColorVector;
+-      position: PVector = nil; reverseY: Boolean = False);
++      position: PVector = nil; reverseY: Boolean = False); virtual;
+     {: A simpler canvas-style TextOut helper for RenderString.<p>
+        The rendering is reversed along Y by default, to allow direct use
+        with TGLCanvas }
+@@ -227,7 +227,7 @@ type
+     {: Get the actual width for this char. }
+     function GetCharWidth(ch: AnsiChar): Integer;
+     {: Get the actual pixel width for this string. }
+-    function CalcStringWidth(const st: AnsiString): Integer;
++    function CalcStringWidth(const st: WideString): Integer; virtual;
+ 
+     {: Height of a single character. }
+     property CharHeight: Integer read FCharHeight write SetCharHeight default 16;
+@@ -589,7 +589,7 @@ end;
+ // CalcStringWidth
+ //
+ 
+-function TGLCustomBitmapFont.CalcStringWidth(const st: AnsiString): Integer;
++function TGLCustomBitmapFont.CalcStringWidth(const st: WideString): Integer;
+ var
+   i: Integer;
+ begin
+@@ -714,7 +714,10 @@ procedure TGLCustomBitmapFont.SetHSpace(const val: Integer);
+ begin
+   if val <> FHSpace then
+   begin
+-    FHSpace := val;
++    if val > 1 then
++      FHSpace := val
++    else
++      FHSpace := 1;
+     InvalidateUsers;
+   end;
+ end;
+@@ -726,7 +729,10 @@ procedure TGLCustomBitmapFont.SetVSpace(const val: Integer);
+ begin
+   if val <> FVSpace then
+   begin
+-    FVSpace := val;
++    if val > 1 then
++      FVSpace := val
++    else
++      FVSpace := 1;
+     InvalidateUsers;
+   end;
+ end;
+@@ -873,7 +879,7 @@ end;
+ //
+ 
+ procedure TGLCustomBitmapFont.RenderString(var rci: TRenderContextInfo;
+-  const aString: AnsiString; alignment: TAlignment;
++  const aString: WideString; alignment: TAlignment;
+   layout: TGLTextLayout; const color: TColorVector; position: PVector = nil;
+   reverseY: Boolean = False);
+ 
+diff --git a/Source/GLHUDObjects.pas b/Source/GLHUDObjects.pas
+index 6a98187..0ab98c7 100644
+--- a/Source/GLHUDObjects.pas
++++ b/Source/GLHUDObjects.pas
+@@ -99,7 +99,7 @@ type
+ 	   private
+ 	      { Private Declarations }
+          FBitmapFont : TGLCustomBitmapFont;
+-         FText : String;
++         FText : WideString;
+          FRotation : Single;
+          FAlignment : TAlignment;
+          FLayout : TGLTextLayout;
+@@ -108,7 +108,7 @@ type
+ 	   protected
+ 	      { Protected Declarations }
+          procedure SetBitmapFont(const val : TGLCustomBitmapFont);
+-         procedure SetText(const val : String);
++         procedure SetText(const val : WideString);
+          procedure SetRotation(const val : Single);
+          procedure SetAlignment(const val : TAlignment);
+          procedure SetLayout(const val : TGLTextLayout);
+@@ -135,7 +135,7 @@ type
+          {: Text to render.<p>
+             Be aware that only the characters available in the bitmap font will
+             be rendered. CR LF sequences are allowed. }
+-         property Text : String read FText write SetText;
++         property Text : WideString read FText write SetText;
+          {: Rotation angle in degrees (2d). }
+          property Rotation : Single read FRotation write SetRotation;
+          {: Controls the text alignment (horizontal).<p>
+@@ -329,7 +329,7 @@ end;
+ 
+ // SetText
+ //
+-procedure TGLHUDText.SetText(const val : String);
++procedure TGLHUDText.SetText(const val : WideString);
+ begin
+    FText:=val;
+    StructureChanged;
+diff --git a/Source/GLScene.pas b/Source/GLScene.pas
+index 0728198..09af41b 100644
+--- a/Source/GLScene.pas
++++ b/Source/GLScene.pas
+@@ -8138,8 +8138,6 @@ begin
+     // for some obscure reason, Mesa3D doesn't like this call... any help welcome
+     FRenderingContext.Free;
+     FRenderingContext := nil;
+-    if Assigned(FCamera) and Assigned(FCamera.FScene) then
+-      FCamera.FScene.RemoveBuffer(Self);
+   end;
+ end;
+ 
+diff --git a/Source/GLTexture.pas b/Source/GLTexture.pas
+index a858115..4950374 100644
+--- a/Source/GLTexture.pas
++++ b/Source/GLTexture.pas
+@@ -227,7 +227,8 @@ uses
+   GLColor,
+   GLCoordinates,
+   GLRenderContextInfo,
+-  GLTextureFormat;
++  GLTextureFormat,
++  GLFilePNG;
+ 
+ const
+   cDefaultNormalMapScale = 0.125;
+@@ -1637,6 +1638,8 @@ begin
+       Picture.Assign(Source)
+     else if (Source is TGLPicture) then
+       Picture.Assign(Source)
++    else if (Source is TGLPNGImage) then
++      Picture.Assign(Source)
+     else if (Source is TGLBitmap32) then
+     begin
+       bmp := TGLBitmap32(Source).Create32BitsBitmap;
+diff --git a/Source/Platform/GLLCLViewer.pas b/Source/Platform/GLLCLViewer.pas
+index 51b7b3c..82db4d4 100644
+--- a/Source/Platform/GLLCLViewer.pas
++++ b/Source/Platform/GLLCLViewer.pas
+@@ -361,9 +361,7 @@ end;
+ //
+ procedure TGLSceneViewer.LMEraseBkgnd(var Message: TLMEraseBkgnd);
+ begin
+-   if IsRenderingContextAvailable then
+-      Message.Result:=1
+-   else inherited; 
++   Message.Result:=1;
+ end;
+ 
+ // LMSize
+@@ -382,13 +380,8 @@ var
+    p : TPoint;
+ begin
+    p:=ClientToScreen(Point(0, 0));
+-   if (FLastScreenPos.X<>p.X) or (FLastScreenPos.Y<>p.Y) then begin
+-      // Workaround for MS OpenGL "black borders" bug
+-      if FBuffer.RCInstantiated then
+-         PostMessage(Handle, WM_SIZE, SIZE_RESTORED,
+-                     Width+(Height shl 16));
++   if (FLastScreenPos.X<>p.X) or (FLastScreenPos.Y<>p.Y) then
+       FLastScreenPos:=p;
+-   end;
+    BeginPaint(Handle, PS);
+    try
+       if IsRenderingContextAvailable and (Width>0) and (Height>0) then

@@ -23,7 +23,7 @@ def dirs_with(root, ext):
 def main():
     tree = sys.argv[1].replace("\\", "/")
     out = sys.argv[2].replace("\\", "/")
-    pas = sys.argv[3] if len(sys.argv) > 3 else "work/toolchain_probe/glskel5.pas"
+    pas = sys.argv[3] if len(sys.argv) > 3 else "tools/glskel6.pas"
     src = tree + "/Source" if os.path.isdir(tree + "/Source") else tree
     args = [FPC, "-n", "-Mdelphi", "-O1", "-g-", "-Xs-", "-Xm", "-dLCL", "-dLCLwin32"]
     for d in dirs_with(src, "pas") + LCL_UNITS + dirs_with(FPC_UNITS, "ppu"):
