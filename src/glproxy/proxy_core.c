@@ -11,6 +11,11 @@
  *   record: u32 id, u32 tick, u64 qpc, u32 ret, u32 ecx, u32 edx,
  *           u32 args[12], u8 mem0[192], u8 mem1[192], u8 mem2[192]   = 652 B
  * 字符串：wglGetProcAddress 的入参首次出现时追加到 "<log>.names"
+ *       每条解析结果追加到 "<log>.wglproc"（name, ret, 模块基名, keep/wrap）——
+ *       GLScene 经它拿到的指针若指向 opengl32_orig 或驱动，调用就不进本日志。
+ *       GLPROXY_FLUSH=1 每条记录立即落盘：进程被杀（TerminateProcess）时
+ *       不会丢掉最后一次 200 ms flush 之后的尾巴——单帧宿主曾因此看起来
+ *       "一条绘制调用都没有"。
  *
  * 依据：docs/facts.md F175（opengl32 不在 KnownDLLs）、F176（透明性已证）、
  *       F178（v01 看不到矩阵/纹素）；生成器 tools/gen_proxy.py。
@@ -63,12 +68,17 @@ static __declspec(thread) int g_pdepth = 0;
 
 static uint32_t g_id_wglproc = 0;
 static uint32_t g_id_teximage = 0;
+static int g_flush_each = 0;
+static HANDLE g_proc_file = INVALID_HANDLE_VALUE;
 /* GLPROXY_ONLY=名字1,名字2,...：只记这些函数（启动期抓纹理上传/像素格式，
  * 不设则全记）。只影响「写不写记录」，解析/尾跳照旧。 */
 static char g_only[512];
 static int g_filter = 0;
 static char g_seen[MAX_NEW_NAMES][64];
 static int g_nseen = 0;
+/* wglGetProcAddress 的名字：pre 阶段压栈，post 阶段弹出（同名函数可能重入） */
+static __declspec(thread) const char* g_pnames[16];
+static __declspec(thread) int g_npnames = 0;
 
 static void OutFlush(void) {
     DWORD written = 0;
@@ -124,6 +134,54 @@ static void NoteName(const char* s) {
 
 static DWORD Since(DWORD tick) { return (DWORD)(tick - g_load_tick); }
 
+/* 指针 → 模块基名（"opengl32_orig.dll"/"nvoglv32.dll"/"opengl32.dll"）。
+ * 不落在任何模块（例如返回 0 或垃圾）时给 "?"。 */
+static void BaseNameOf(uint32_t p, char* out, int cap) {
+    HMODULE h = 0;
+    char full[MAX_PATH];
+    DWORD len, i;
+    out[0] = 0;
+    if (!p) return;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCSTR)(uintptr_t)p, &h) || !h)
+        return;
+    len = GetModuleFileNameA(h, full, MAX_PATH);
+    if (!len) return;
+    i = len;
+    while (i > 0 && full[i - 1] != '\\' && full[i - 1] != '/') --i;
+    {
+        int n = 0;
+        while (full[i + n] && n < cap - 1) { out[n] = full[i + n]; ++n; }
+        out[n] = 0;
+    }
+}
+
+/* wglGetProcAddress 的解析结果：name<TAB>ret<TAB>module
+ * 目的是把「函数指针是否绕过代理」变成可读的一行，而不是从缺失的调用去猜：
+ * ret=0 ⇒ 名字是 1.1 核心函数（调用走静态导入 = 本代理）；ret 落在驱动
+ * （如 igxelpicd32.dll）⇒ 扩展函数直连，本日志看不见。 */
+static void NoteResolved(const char* name, uint32_t ret) {
+    char line[320];
+    char mod[MAX_PATH];
+    int n = 0, i;
+    DWORD written = 0;
+    if (g_proc_file == INVALID_HANDLE_VALUE || !name) return;
+    if (IsBadReadPtr(name, 1)) return;
+    BaseNameOf(ret, mod, MAX_PATH);
+    while (name[n] && n < 63) { line[n] = name[n]; ++n; }
+    line[n++] = '\t';
+    for (i = 7; i >= 0; --i) line[n++] = "0123456789abcdef"[(ret >> (i * 4)) & 0xF];
+    line[n++] = '\t';
+    i = 0;
+    while (mod[i] && n < 300) { line[n++] = mod[i]; ++i; }
+    if (!i) line[n++] = '?';
+    line[n++] = '\n';
+    if (g_cs_ready) EnterCriticalSection(&g_cs);
+    WriteFile(g_proc_file, line, (DWORD)n, &written, NULL);
+    if (g_cs_ready) LeaveCriticalSection(&g_cs);
+}
+
 /* CRC32（zlib 多项式）：Python 侧 zlib.crc32 直接对拍，比 FNV 快一个数量级。 */
 static uint32_t Crc32(const unsigned char* p, uint64_t n) {
     static uint32_t table[256];
@@ -148,6 +206,11 @@ static uint32_t Crc32(const unsigned char* p, uint64_t n) {
 /* 桩入口：id, 栈指针（指向返回地址）, edx, ecx */
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     FARPROC fn;
+    if (id == g_id_wglproc) {
+        if (g_npnames < 16)
+            g_pnames[g_npnames++] = (const char*)(uintptr_t)
+                *(const uint32_t*)((uintptr_t)esp0 + 4);
+    }
     if (g_in) return;
     if (id == 0 || (int)id >= g_n_exports) return;
 
@@ -209,6 +272,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
                 }
             }
             Emit(&r, (DWORD)sizeof r);
+            if (g_flush_each) OutFlush();
         }
         if (now - g_last_flush > FLUSH_MS) {
             OutFlush();
@@ -233,9 +297,18 @@ void __cdecl save_ret(unsigned id, uint32_t orig_ret) {
 uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
     uint32_t orig_ret = 0;
     int d = g_pdepth - 1;
+    const char* name = 0;
     if (d >= 0 && d < 16) {
         orig_ret = g_pend[d];
         g_pdepth = d;
+    }
+    if (g_id_wglproc && id == g_id_wglproc) {
+        int nd = g_npnames - 1;
+        if (nd >= 0 && nd < 16) {
+            name = g_pnames[nd];
+            g_npnames = nd;
+        }
+        NoteResolved(name, retval);
     }
     g_lastret = retval;
     (void)id;
@@ -293,6 +366,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         char dir[MAX_PATH];
         char log[MAX_PATH];
         char names[MAX_PATH];
+        char proc[MAX_PATH];
         DWORD n;
         int i;
 
@@ -306,6 +380,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         g_load_tick = GetTickCount();
         g_win_lo = EnvMs("GLPROXY_T0", 0);
         g_win_hi = EnvMs("GLPROXY_T1", 0xFFFFFFFFu);
+        g_flush_each = (int)EnvMs("GLPROXY_FLUSH", 0);
 
         g_orig = LoadOrig(dir, inst);
 
@@ -343,6 +418,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         JoinDir(names, log, ".names");
         g_names_file = CreateFileA(names, GENERIC_WRITE, FILE_SHARE_READ, NULL,
                                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        JoinDir(proc, log, ".wglproc");
+        g_proc_file = CreateFileA(proc, GENERIC_WRITE, FILE_SHARE_READ, NULL,
+                                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (g_file != INVALID_HANDLE_VALUE) {
             struct {
                 char magic[8];
@@ -369,6 +447,10 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         if (g_names_file != INVALID_HANDLE_VALUE) {
             CloseHandle(g_names_file);
             g_names_file = INVALID_HANDLE_VALUE;
+        }
+        if (g_proc_file != INVALID_HANDLE_VALUE) {
+            CloseHandle(g_proc_file);
+            g_proc_file = INVALID_HANDLE_VALUE;
         }
         if (g_orig) {
             FreeLibrary(g_orig);

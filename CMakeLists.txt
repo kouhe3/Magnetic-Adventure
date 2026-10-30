@@ -209,6 +209,14 @@ set_target_properties(luac PROPERTIES OUTPUT_NAME luac
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# lua_probe：144 个绑定的桩 harness（tools/lua_probe.cpp）。跑一关的脚本、把
+# 绑定调用落成 JSONL，用于 T6.3 的"脚本能起来 + 初始化调用序"判据。
+add_executable(lua_probe tools/lua_probe.cpp)
+target_link_libraries(lua_probe PRIVATE lua51)
+set_target_properties(lua_probe PROPERTIES OUTPUT_NAME lua_probe
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # ---- 宿主脚手架（T3.1）----
 # 只复刻窗口/消息参数（F154/F155/F156/F158），暂不含 GL 与 pak 加载。
 # 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。

@@ -36,9 +36,9 @@ python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 
 python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --float-tol 1e-3
 ```
 
-**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 无 swap/glClear 仍是 F215 的代理覆盖问题，不影响像素判据。下一步：场景模型/对象接线（纹理表已自检）。
+**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 的"无 swap/glClear"是缓冲尾巴（F222 勘误 F215），加 `GLPROXY_FLUSH=1` 即可抓到。下一步：场景模型/对象接线（纹理表已自检）。
 
-**关键覆盖边界（F215）**：GL 代理只看得见**直接 import 的 GL**；GLScene 经 `OpenGLAdapter.GetAddress`（`wglGetProcAddress`/`GLLibGetProcAddress`）拿到的函数指针直连驱动，**内部渲染调用不进 GLFFI02**。因此 T6.2 验收按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`，13 帧 A/A 口径）；像素只作验收。代理侧试过把 `wglGetProcAddress` 返回值换成代理桩，未取得可见调用，改动已回滚、未入库。
+**关键覆盖边界（F222/F223，勘误 F215）**：GL 代理**能**看见宿主的绘制调用——之前"没有 glClear/glBegin"是缓冲尾巴被 `p.kill()` 丢掉的假象（默认每 200 ms 或下一条调用才 flush）。单帧/短命进程抓包**必须** `GLPROXY_FLUSH=1`；同一次启动可抓到 `glBegin=2 / glVertex3f=48 / glClear=2`，两次启动 3,526 条名字序列逐条相同（A/A = 0）。仍看不见的只有扩展函数：`wglGetProcAddress` 的 3,158 次解析里 1,756 次返回 NULL（1.1 核心名，走静态导入 = 代理），1,402 次返回 `igxelpicd32.dll`（扩展名直连；渲染路径按 F178 不用扩展）。因此 T6.2 验收仍按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`；宿主日志没有 `wglSwapBuffers`，需要"整段/无帧边界"模式）——像素只作验收。
 
 ## 1. 先读这几份（按顺序）
 
@@ -249,7 +249,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 > 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
-1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。先做一条竖切：加载 `basefs.lua` + 单关的 `lvl_o*.lua`，用桩打开世界并 dump 造出的对象清单。
+1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。**桩 harness 已落地（F224）**：`tools/lua_probe.cpp`（144 个桩 + JSONL）+ `tools/lua_probe_all.py`，**52/52 关脚本初始化 rc=0**。竖切已完成，下一步是把 `Add_*` 的实参/id 序列与**原版 b2 代理的建体调用序**对拍，再逐个把桩换成真实语义。
 2. **T3.4 场景/关卡接线**。铁律：**初始化顺序是契约**——loading→intro→menu→关卡，纹理在启动期上传（F179），不能冷启动造场景（F169/F171/F177）。做关卡渲染前先把 `gl_drawlist` 的世界坐标归纳成宿主侧场景模型（±26.86 正交相机、逐 sprite `glMultMatrixf`）。
 3. **T3.5 文本排版**（字模表 + 步进；见 §7）。菜单以外还有关卡 HUD/提示框。
 4. **T4.1 输入回放**（现在是脚本化操作，还不是"录一次任意次重放"）。
@@ -282,6 +282,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 - **KnownDLL 决定能不能文件代理**：`dsound` 拦不住（F147，`ole32` 在 KnownDLLs），`opengl32` 能拦（F175）。动手前先查 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs`。
 - **代理日志必须逐条 WriteFile**（F139）：录制用 TerminateProcess 结束，用户态缓冲会整段丢。GL 代理额外做了 200 ms 周期 flush。
+- **单帧宿主抓 GL 必须 `GLPROXY_FLUSH=1`**（F222）：默认 flush 要等「下一条调用」，单帧进程画完就静默，`p.kill()` 再把 4 MB 缓冲整段丢掉 ⇒ 日志里"一条绘制调用都没有"，看起来像代理覆盖缺口（F215 就是这样误判的）。`<log>.wglproc` 另记 `wglGetProcAddress` 的解析归属：ret=0 是 1.1 核心名（静态导入，日志可见），落在驱动模块（`igxelpicd32.dll`）的是扩展名（直连，看不见）。
 - **代理里的 payload 要防越界**：`IsBadReadPtr` + 长度上限；`glTexImage2D` 的像素按 `w*h*bpp` 算整块 CRC32 才够精确（192 B 前缀对均匀边界的图会多图同分）。
 - **GL 的变换链是 P·M·v**：顶点永远乘 MODELVIEW，和当前 `glMatrixMode` 无关（F181）。GLScene 的 HUD 会在帧中途把投影换成单位阵、用像素空间画东西，乘错就飞出屏幕。
 - **固定管线状态要继承启动态**：`GL_BLEND` 在启动期就常开、帧内不再 `glEnable`，只按帧内调用推状态会漏掉它 → 白屏（F184）。

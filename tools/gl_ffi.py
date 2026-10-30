@@ -22,6 +22,12 @@ id → 名字用 mapping/opengl32-exports.csv 的序号（368 项）。
     纹理像素只够指纹（192 B），大顶点数组不看。
   - 经 wglGetProcAddress 拿到的函数指针直连驱动，**代理看不到那些调用**；
     `.names` 只证明「被请求过」，是否真被调用本日志判不了。
+  - 同路径 "<log>.wglproc" 是每条解析结果（name / ret / 模块基名）：ret=0 是
+    1.1 核心名（调用走静态导入，本日志可见）；ret 落在驱动模块（如
+    igxelpicd32.dll）是扩展函数，直连、看不见。
+  - 单帧/短命进程（自建宿主）必须设 GLPROXY_FLUSH=1：默认每 200 ms 或下一条
+    调用才落盘，TerminateProcess 会丢掉最后一次 flush 之后的绘制记录（F222，
+    曾据此误判「宿主一条绘制调用都没有」）。
   - 记的是「调用发生过」，不是「画面对不对」；qpc 是 QueryPerformanceCounter，
     同机可比，跨进程/跨次运行只可比间隔，不可比绝对时刻。
   - 帧边界 = 相邻两次 wglSwapBuffers（opengl32 的导出）。`SwapBuffers` 在 gdi32

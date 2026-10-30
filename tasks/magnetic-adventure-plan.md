@@ -87,6 +87,10 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F224（**T6.3 桩 harness：52/52 关能初始化**）：新增 `tools/lua_probe.cpp`（CMake target `lua_probe`，链 vendor `lua51`）——从 `mapping/lua-bindings.csv` 注册 144 个桩，`Add_*` 返回递增 id、其余返回 0，返回个数按脚本里的单行多值赋值推断；每次绑定调用写一行 JSONL（名字 / 实参 / 桩返回）。新增 `tools/lua_probe_all.py` 解析 `lvl_info.lvl` 批量跑 52 关，判据 `rc=0`，产物 `work/lua_probe_all.json`。结果：**52/52 rc=0**（调用 34–768、对象 17–177），单关两次运行逐字节相同。边界：桩返回值是约定不是语义；下一步把 `Add_*` 的 id/参数序列与原版 b2 代理的建体调用序对拍（T6.3 验收）。
+
+- 2026-10-30 依据 F222/F223（**勘误 F215：GL 代理没有覆盖缺口，丢的是缓冲尾巴**）：`src/glproxy` 三处改动——① 新增 `<log>.wglproc`，逐条记录 `wglGetProcAddress` 的解析结果（name / ret / 模块基名），把"函数指针是否绕过代理"变成可读一行（实测 1,756 次 NULL = 1.1 核心名走静态导入、1,402 次 `igxelpicd32.dll` = 扩展名直连）；② 新增 `GLPROXY_FLUSH=1` 每条立即落盘——单帧宿主画完首帧后不再调 GL，默认 200 ms flush 永远等不到下一次调用，`shot_window.py` 的 `p.kill()` 又把 4 MB 缓冲整段丢掉，这正是"宿主一条绘制调用都没有"的来源；③ 删除 F215 那次无效的 `GLPROXY_WRAP`（核心名 `wglGetProcAddress` 返回 0、扩展名不在代理的 368 个导出里，wrap 永远不适用）。判据：同一次启动日志 `glBegin=2 / glEnd=2 / glVertex3f=48 / glClear=2 / glMultMatrixf=8`，抓屏仍有 702 个纯红像素；同一 exe 两次启动各 3,526 条、名字序列逐条相同。⇒ T6.2 的「调用序」判据**恢复可用**（固定管线立即模式全覆盖）；下一步给 `gl_seq_ab.py` 加「宿主日志无 `wglSwapBuffers`」的整段比较模式。
+
 - 2026-10-30 依据 F221（**37 条启动纹理全部可解码**）：`magnet.pas` 增加 `kTextureAssets`（`mapping/textures.csv` 37 条）+ `HOST_TEX_SELFTEST=1` 自检；`PakFile` 逐条读出、按扩展名临时落盘、LCL `TPicture` 解码，日志 `loaded=37/37`（PNG+JPG 两条路径）。这只覆盖 pak→像素，不含 GL 上传格式（F183/F187）。
 
 - 2026-10-30 依据 F220（**T6.2 纹理直读 pak 打通**）：① 新增 `src/host_lcl/pakfile.pas`（Pascal 版 v0.2 解析，按名字大小写不敏感读取，支持尾部记录）；`magnet.pas` 用 `HOST_DATA` 打开 pak，把 `mm_cent2.png` 解出为 `TGLPersistentImage` 上到立方体，抓屏中心出现木纹 (146,125,101)。② 实测坑：`TGLTextureImage.Create` 的 owner 必须是 `TGLTexture`（传 `TGLScene` 抛 Invalid type cast）；`TGLPictureImage.Assign` 会落到 inherited 再抛；改用 `TGLPersistentImage` + owner=`Cube.Material.Texture`。③ 临时文件必须 `.png` 后缀，否则 `TPicture.LoadFromFile` 报 Unknown picture extension。④ 判据见 F220；下一步把 37 张纹理表与场景模型接上。
