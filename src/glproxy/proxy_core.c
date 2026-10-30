@@ -1,24 +1,26 @@
 /* GL 转发 DLL 核心：占住 opengl32.dll 文件名，把 368 个导出尾跳给改名副本
- * opengl32_orig.dll（失败再退到系统目录全路径加载），记录每次调用的
- * (id, tick, QPC, 返回地址, ecx/edx, 栈上前 6 个 dword)。
+ * opengl32_orig.dll（失败再退到系统目录全路径加载），记录每次调用。
  *
- * 本版只记「名字面 + 时序」，不解码指针 payload（纹理像素、顶点数组）：
- * 先回答"原版一帧调了哪些函数、什么顺序、什么频率、有没有走扩展"。
+ * v02（GLFFI02）在 v01 的「名字 + 时序」之上补 payload：栈上 12 个 dword
+ * （glOrtho 的 6 个 double 要 12 个）+ 三块 192 B 指针内容
+ * （args[0] / args[1] / args[8]——glTexImage2D 的像素指针在 args[8]）。
+ * 时间窗：GLPROXY_T0/GLPROXY_T1（毫秒，从 DLL 加载算起），不设则全记。
  *
  * 记录格式（小端）：
- *   header: "GLFFI01" + u32 pid + u32 game_base + u32 orig_base
- *   record: u32 id, u32 tick, u64 qpc, u32 ret, u32 ecx, u32 edx, u32 args[6]
- * 字符串：wglGetProcAddress 的入参首次出现时追加到 "<log>.names"（一行一个）
+ *   header: "GLFFI02" + u32 pid + u32 game_base + u32 orig_base
+ *   record: u32 id, u32 tick, u64 qpc, u32 ret, u32 ecx, u32 edx,
+ *           u32 args[12], u8 mem0[192], u8 mem1[192], u8 mem2[192]   = 652 B
+ * 字符串：wglGetProcAddress 的入参首次出现时追加到 "<log>.names"
  *
- * 依据：docs/facts.md F175（opengl32 不在 KnownDLLs、导入面 53+6 / GLU32 32）、
- *       F176（透明性待证）。
- * 生成物：tools/gen_proxy.py --csv mapping/opengl32-exports.csv --library opengl32
+ * 依据：docs/facts.md F175（opengl32 不在 KnownDLLs）、F176（透明性已证）、
+ *       F178（v01 看不到矩阵/纹素）；生成器 tools/gen_proxy.py。
  */
 #include <windows.h>
 #include <stdint.h>
 #include <string.h>
 
-#define ARG_DWORDS 6
+#define ARG_DWORDS 12
+#define MEM_DUMP 192
 #define OUT_BUF_SIZE (4u << 20)
 #define FLUSH_MS 200
 #define MAX_NEW_NAMES 256
@@ -32,6 +34,9 @@ typedef struct {
     uint32_t ecx;
     uint32_t edx;
     uint32_t args[ARG_DWORDS];
+    uint8_t mem0[MEM_DUMP];   /* args[0] 指向的内存（矩阵 64B、颜色 16B…） */
+    uint8_t mem1[MEM_DUMP];   /* args[1] 指向的内存 */
+    uint8_t mem2[MEM_DUMP];   /* args[8] 指向的内存（glTexImage2D 的像素） */
 } Rec;
 #pragma pack(pop)
 
@@ -45,6 +50,9 @@ static HMODULE g_orig = 0;
 static char g_out[OUT_BUF_SIZE];
 static DWORD g_out_used = 0;
 static DWORD g_last_flush = 0;
+static DWORD g_load_tick = 0;
+static DWORD g_win_lo = 0;
+static DWORD g_win_hi = 0xFFFFFFFFu;
 static CRITICAL_SECTION g_cs;
 static int g_cs_ready = 0;
 static int g_in = 0;
@@ -81,6 +89,13 @@ static void Emit(const void* p, DWORD n) {
     if (g_cs_ready) LeaveCriticalSection(&g_cs);
 }
 
+static void SafeCopy(uint8_t* dst, uint32_t src, uint32_t n) {
+    memset(dst, 0, n);
+    if (!src || src < 0x10000) return;
+    if (IsBadReadPtr((const void*)(uintptr_t)src, n)) return;
+    memcpy(dst, (const void*)(uintptr_t)src, n);
+}
+
 /* wglGetProcAddress 的参数：记下字符串（去重），用于判断是否用了 1.1 之外的扩展 */
 static void NoteName(const char* s) {
     int i;
@@ -101,6 +116,8 @@ static void NoteName(const char* s) {
         WriteFile(g_names_file, line, (DWORD)(n + 1), &written, NULL);
     }
 }
+
+static DWORD Since(DWORD tick) { return (DWORD)(tick - g_load_tick); }
 
 /* 桩入口：id, 栈指针（指向返回地址）, edx, ecx */
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
@@ -123,20 +140,28 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     {
         Rec r;
         LARGE_INTEGER q;
+        DWORD now = GetTickCount();
+        DWORD rel = Since(now);
+        int inwin = (rel >= g_win_lo && rel <= g_win_hi);
         QueryPerformanceCounter(&q);
         r.id = id;
-        r.tick = GetTickCount();
+        r.tick = now;
         r.qpc = (uint64_t)q.QuadPart;
         r.ret = *(const uint32_t*)(uintptr_t)esp0;
         r.ecx = ecx;
         r.edx = edx;
         memcpy(r.args, (const void*)((uintptr_t)esp0 + 4), ARG_DWORDS * 4);
-        Emit(&r, (DWORD)sizeof r);
         if (id == g_id_wglproc)
             NoteName((const char*)(uintptr_t)r.args[0]);
-        if (GetTickCount() - g_last_flush > FLUSH_MS) {
+        if (inwin) {
+            SafeCopy(r.mem0, r.args[0], MEM_DUMP);
+            SafeCopy(r.mem1, r.args[1], MEM_DUMP);
+            SafeCopy(r.mem2, r.args[8], MEM_DUMP);
+            Emit(&r, (DWORD)sizeof r);
+        }
+        if (now - g_last_flush > FLUSH_MS) {
             OutFlush();
-            g_last_flush = GetTickCount();
+            g_last_flush = now;
         }
     }
     g_in = 0;
@@ -180,6 +205,13 @@ static void JoinDir(char* dst, const char* dir, const char* leaf) {
     }
 }
 
+static DWORD EnvMs(const char* name, DWORD dflt) {
+    char buf[32];
+    DWORD n = GetEnvironmentVariableA(name, buf, sizeof buf);
+    if (n == 0 || n >= sizeof buf) return dflt;
+    return (DWORD)strtoul(buf, NULL, 10);
+}
+
 /* 加载真身：优先改名副本；退到系统目录全路径（但要防回落到自己） */
 static HMODULE LoadOrig(const char* selfdir, HINSTANCE self) {
     const char* cand[] = { "opengl32_orig.dll", "opengl32.orig.dll", "orig\\opengl32.dll" };
@@ -220,6 +252,10 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         memcpy(dir, self, (size_t)i + 1);
         dir[i + 1] = 0;
 
+        g_load_tick = GetTickCount();
+        g_win_lo = EnvMs("GLPROXY_T0", 0);
+        g_win_hi = EnvMs("GLPROXY_T1", 0xFFFFFFFFu);
+
         g_orig = LoadOrig(dir, inst);
 
         for (i = 1; i < g_n_exports; ++i) {
@@ -241,7 +277,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
                 uint32_t game_base;
                 uint32_t orig_base;
             } hdr;
-            memcpy(hdr.magic, "GLFFI01", 8);
+            memcpy(hdr.magic, "GLFFI02", 8);
             hdr.pid = GetCurrentProcessId();
             hdr.game_base = (uint32_t)(uintptr_t)GetModuleHandleA(NULL);
             hdr.orig_base = (uint32_t)(uintptr_t)g_orig;
