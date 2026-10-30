@@ -352,13 +352,40 @@ def cmd_funcs(args):
         f0 = a - 0x401000
         best_d, best_s = None, -1.0
         cands = [d for d in cands if d is not None]
-        ranked = sorted(cands, key=lambda d: -_word_score(cand, tgt, f0, size, d))[:3]
+        ranked = sorted(cands, key=lambda d: -_word_score(cand, tgt, f0, size, d))[:16]
         for d in ranked:
             s = _sim(md, cand, tgt, f0, size, d)
             if s > best_s:
                 best_d, best_s = d, s
-        out.append((unit, name, size, best_d, 0.0 if best_d is None else best_s))
-    rows = out
+        out.append([a, size, unit, name, best_d, 0.0 if best_d is None else best_s])
+
+    # 第二轮：没找准位移的函数，以"自己的最佳 d / 相邻函数的 d"为中心做局部细扫。
+    # 单元内的位移是逐函数缓慢漂移的（函数长短有差），粗候选常常差 0xE0 这种量级。
+    by_unit = collections.defaultdict(list)
+    for r in out:
+        by_unit[r[2]].append(r)
+    for _, grp in by_unit.items():
+        grp.sort(key=lambda r: r[0])
+        for i, r in enumerate(grp):
+            if r[5] >= 0.90:
+                continue
+            a, size = r[0], r[1]
+            f0 = a - 0x401000
+            centers = [r[4]] + [grp[j][4] for j in (i - 1, i + 1) if 0 <= j < len(grp)]
+            centers = [c for c in centers if c is not None]
+            if not centers:
+                continue
+            cand_d = set()
+            for c in centers:
+                for d in range(c - 0x600, c + 0x601, 0x10):
+                    if d + f0 >= 0:
+                        cand_d.add(d)
+            ranked = sorted(cand_d, key=lambda d: -_word_score(cand, tgt, f0, size, d))[:4]
+            for d in ranked:
+                s = _sim(md, cand, tgt, f0, size, d)
+                if s > r[5]:
+                    r[4], r[5] = d, s
+    rows = [(r[2], r[3], r[1], r[4], r[5]) for r in out]
     if args.unit is None:
         print(f"{'unit':18s} {'funcs':>6s} {'bytes':>8s} {'>=95%':>7s} {'80-95%':>7s} {'<80%':>7s}")
         by = collections.defaultdict(list)

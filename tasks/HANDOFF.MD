@@ -20,6 +20,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - `units` 已改为候选坐标系（`candidate_coverage()`）：LCL 单元 78–89%、GLScene 族 28–68%。
 - 新增 `code_match.py funcs`（capstone，操作数归一 → 指令序 `difflib`）才是"是不是同一份源码"的判据：自证 A/A = **100%**；**四个 LCL 单元 `win32int`/`stdctrls` 100%、`controls`/`forms` 99.9%**（⇒ "LCL 单元集差异"那条旧结论被否）；GLScene 族 **47–94%** ≥0.95，缺口聚集在 `GenerateSilhouette` 0.12 / `ApplyMappingMode` 0.24 / `RenderString` 0.66 / `CalcStringWidth` 0.19 这批函数（F210）。
 - 结论：工具链与开关已经"对"（LCL 99.9% 是硬证据），r4700 与目标**同代但不是同一修订**；逐字节路线剩下的活是**版本夹逼**，不是重写或找源。
+- **版本夹逼已完成（F211）**：`tools/ver_bisect.py` 扫 r4700→r5025，跳变点 r4850/r4900/r4980/r5002 ⇒ 原版 GLScene = **v1.1 / trunk r5000 一带**（v1.1 发布包与 r5002–r5025 的逐单元数字完全相同）。**11 个单元 1,043 个函数里只剩 12 个（2,448 B）sim<0.95**，全在文本/HUD/视口（`RenderTextAtPosition`/`RenderString` 助手/`DoRender`/`CalcStringWidth`/`SetHSpace`/`SetVSpace`/`LMPaint`/`LMEraseBkgnd`/`TGLPictureImage.Assign`/`DestroyRC`）。`SetHSpace` 的下限钳位在 trunk r4600–r6150 **一版都没有** ⇒ 这 12 个是**原版本地补丁**（与 F192 的 `gulim1.dat` 自绘字模吻合）。**库层到此算复原完成**。
 - `cover` 的 72.8% / 59.0% / 尾部 19.9% **不受影响**（全局量与目标侧窗口，口径本来就对）。
 
 ## 1. 先读这几份（按顺序）
@@ -221,7 +222,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 6. 排队（建议顺序）
 
-> 主交付线仍是下面 1–7。**L2-B 的函数级归因已经做完**（F209/F210，见 §0.1）：`tools/code_match.py funcs` 逐指令比对——LCL 单元 **99.9–100%**（A/A=100%）、GLScene 族 **47–94%**（`OpenGL1x` 27.7%），缺口聚集在 `GenerateSilhouette`/`RayCastIntersect`/`Apply*`/`PrepareParams`/`RenderString`/`CalcStringWidth` 这批函数 ⇒ r4700 与目标**同代但不是同一修订**。**下一步是版本夹逼**：拿那 ~20 个 <0.80 的函数当指纹，r4680–r4740 逐修订只编 `GLObjects`/`GLTexture`/`GLBitmapFont` 三个单元比 `sim` 总和，并优先用 `OpenGL1x`（27.7%）当第一指纹；同时抽 3–5 个用 IDA 反编译人工确认"确实是另一份实现"。⚠️ 旧的逐单元百分比已作废（F209）。
+> 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
 1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。先做一条竖切：加载 `basefs.lua` + 单关的 `lvl_o*.lua`，用桩打开世界并 dump 造出的对象清单。
 2. **T3.4 场景/关卡接线**。铁律：**初始化顺序是契约**——loading→intro→menu→关卡，纹理在启动期上传（F179），不能冷启动造场景（F169/F171/F177）。做关卡渲染前先把 `gl_drawlist` 的世界坐标归纳成宿主侧场景模型（±26.86 正交相机、逐 sprite `glMultMatrixf`）。
@@ -302,7 +303,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 11. 需要人拍板的一件事（L2-B 要不要转正）
 
-现状：**前置条件全部成立，函数级归因也做完了**（F209/F210）⇒ 库层（LCL + GLScene）确已"同代"：LCL 逐指令 **99.9–100%**、GLScene 族 **47–94%**（`OpenGL1x` 只 27.7%），缺口是 GLScene 的若干**函数**属于另一个修订。唯一剩下的未知是**能不能夹到那个修订**（决定 B 的形态是"换个修订号"还是"一组补丁"）。
+现状：**前置条件成立，版本也夹到了**（F211）⇒ 库层（LCL + GLScene v1.1/r5000）**已复原**：LCL 逐指令 99.9–100%，GLScene 11 个单元 1,043 个函数只剩 **12 个（2,448 B）**，且已证是原版本地补丁（文本/HUD/视口）。剩下的是**应用代码**（≤390 KB，本就没有源）。⇒ 选项 B 的形态从"未知工程量"变成"**补 12 个函数 + 复原应用层**"。
 
 | 选项 | 含义 | 代价 |
 |---|---|---|
