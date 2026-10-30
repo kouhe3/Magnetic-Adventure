@@ -14,6 +14,7 @@
 | 宿主窗口 | 15 个字段 `diffs=0`（类名/样式/客户区/子窗口/外框，F166） |
 | 宿主渲染（C++ 仿写路线） | GL 上下文 + 主菜单宿主现算：与原版逐像素 mean\|Δ\| **1.088/255**，A/A 地板 0.00；纹理直读 pak，上传像素 **37/37** 逐字节相同（F187/F190）。⚠️ 这是 `src/host` 的残差；若改走 FPC/LCL + GLScene 重建（F213 后可行），渲染由同一份库产出，应改用逐调用/逐指令判据，像素只作验收 |
 | Lua | vendor Lua 5.1.5；pak 里 111 个脚本 111/111 编译；`lvl_info.lvl` 解析出 52 关（F191） |
+| 宿主（FPC/LCL 路线，M6） | **2026-10-30 拍板转此路线**；窗口层已复刻：`src/host_lcl/magnet.pas` 让 `wincompare` **15 字段 diffs=0**（F214）。渲染/场景/Lua 待接 |
 | 库层复原（L2-B） | GLScene = **v1.1 + `patches/glscene-v11-game.patch`**；12 个单元 **1,054 个函数残差 0**（F211–F213） |
 | 关卡渲染 / Lua 绑定 | 未做（T3.3/T3.4） |
 
@@ -23,7 +24,8 @@
 |---|---|
 | `src/b2physics/` | 兼容 DLL：87 个 `cdecl` 导出，转调 `vendor/box2d-2.0.2` |
 | `src/squallproxy/` `src/proxydll/` `src/glproxy/` | 三个转发代理 DLL（b2 / Squall / opengl32），只记录调用 |
-| `src/host/` | C++ 宿主（窗口、WGL、pak 直读、WIC 解码、菜单布局、字模表） |
+| `src/host/` | C++ 宿主（窗口、WGL、pak 直读、WIC 解码、菜单布局、字模表）——**路线切换后保留作对照物** |
+| `src/host_lcl/` | FPC/LCL + GLScene 新宿主（M6）；`magnet.pas` 已过窗口门禁 |
 | `vendor/` | box2d-2.0.2（已按原版修正）、squall、libogg、libvorbis、lua-5.1.5 |
 | `patches/` | 原版对 GLScene v1.1 的本地补丁（`patch -p1` 到 v1.1 的 `Source/` 树） |
 | `tools/` | 全部可重跑仪器（门禁、重放、GL 抓包、代码对应率、版本夹逼） |
@@ -45,6 +47,11 @@ python tools/verify.py --full        # 追加 52 关全量重放并重生成 doc
 
 # 单关重放（退出码 0 = PASS）
 python tools/gate.py work/rec_20261029_134434 --name three_coins
+
+# 新宿主（FPC/LCL 路线）：需要打过补丁的 GLScene v1.1 树，见 patches/
+python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas
+cp bin/gametop/libpng13.dll bin/gametop/zlib1.dll build/host_lcl/   # GLFilePNG 的运行时依赖
+python tools/wincompare.py --orig work/winprobe_game --ours build/host_lcl --ours-exe magnet.exe
 
 # 库层对应率（指令级，重定位无关）
 python tools/code_match.py cover bin/gametop/game.exe <候选.exe> --tail 0x521000

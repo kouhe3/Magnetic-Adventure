@@ -61,13 +61,29 @@
 - [ ] T4.8 残余 1 ULP：`Good Shot!` 的 `lvy`（首发 4847、bad 4,825，该录制 A/A 地板 0） 依据：F128
 - [ ] T4.9 PCM 逐位（阻塞：dsound 文件代理 / 代理内 IAT / 日志重放三条路线均否） 依据：F134、F147、F195（**F195 追加**：环回 A/A 自身就不逐位（52.5% 样本差、`max|Δ|` 433，与 A/B 同量级）⇒ loopback 只作波形等价证据；逐位改抓 DLL 写进 DSound 缓冲区的字节，vtable hook 只替换返回对象的方法、不拦 `CoCreateInstance`）
 
+
 ## M5 汉化目标
 
 - [ ] T5.1 汉化版资源作为交付资产（不改原 pak） 依据：F08
 - [ ] T5.2 中文文本/字形核对 依据：F08、F11
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
+
+## M6 宿主重建（L2-B 路线，2026-10-30 拍板）
+
+> 决策依据：库层已 100% 复原（F213），原版就是 FPC/LCL + GLScene（F202）。C++ 宿主（M3）**保留作对照物**，不再作为交付主线。
+> 判据变化：渲染不再靠像素 diff 逼近——同一份库 ⇒ 逐调用（GL 序列 diff）+ 逐指令（库层 sim）+ 像素只作验收。
+
+- [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214、F154、F155、F157、F158、F166（**完成**：`src/host_lcl/magnet.pas` 40 行 —— bsNone 建窗 + 手工补 caption 位 + `SWP_FRAMECHANGED` + 按外框居中 + 视口用真实客户区；`wincompare --ours build/host_lcl --ours-exe magnet.exe` **fields=15 diffs=0**。坑：原版 style 带 `WS_POPUP`（切 BorderStyle 会丢）、LCL 的 `ClientWidth` 缓存改 style 后是旧的、`uses GLFilePNG` 需要 `libpng13.dll`/`zlib1.dll`）
+- [ ] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak（复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187
+- [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201
+- [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据 依据：F204、F213
+- [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
+
+
 ## 变更记录
+
+- 2026-10-30 依据 F213/F214（**路线拍板：宿主改走 FPC/LCL + GLScene 重建**）：① `requirements.md` 的 L2-B 从"明确不做"改为**目标**——原否决理由（跨语言不可达）已被 F153/F202 证伪，库层 100% 复原（F213），只剩应用层（≤390 KB）。② 新增 M6（T6.1–T6.5）；M3 的 C++ 宿主**保留作对照物**，不再是交付主线。③ **T6.1 当天完成**：`src/host_lcl/magnet.pas` 40 行让 `wincompare` 的 15 个字段 `diffs=0`（F214）。配方要点：原版 style 带 `WS_POPUP` ⇒ 必须"无边框建窗 + 事后补 caption 位"，切 `BorderStyle` 会丢 popup 位；定位要按**外框**居中（LCL 的 poDesktopCenter 按客户区，差 3/14 px）；视口要用 `GetClientRect` 的真实客户区（LCL 缓存是改 style 前的 1024）。④ 判据随之改变：渲染不再靠像素 diff 逼近，改成逐调用（GL 序列）+ 逐指令（库层 sim），像素只作验收。⑤ 运行时依赖：新宿主 `uses GLFilePNG` ⇒ 需要 `libpng13.dll`/`zlib1.dll`（原版目录自带；缺失时进程不退出但无窗口）。
 
 - 2026-10-30 依据 F213/F190（澄清，不改判据）：**把"宿主像素 1%"标清归属，并解开宿主实现的硬编码**。① `tools/verify.py` 的 6 项门禁里**没有像素判据**（docstring 明写"不含人眼看画面"），所以"像素差 1%"不是门禁在卡，而是 `src/host`（C++ 仿写路线）的历史测量（F190）。② 唯一耦合是 `window` 门禁把 `--ours` 写死成 `build/Release/magnethost.exe`——已改成 `HOST_DIR`/`HOST_EXE` 可覆盖，换实现零改脚本，判据（15 个窗口字段）不变。③ README/HANDOFF 给该数字加了"属于 C++ 仿写路线"的限定：若转 FPC/LCL + GLScene 重建，渲染由同一份库产出，判据应换成逐调用/逐指令，像素只作验收。④ 新增 T3.9 记录这个岔路（待拍板，决策点 HANDOFF §11）。
 

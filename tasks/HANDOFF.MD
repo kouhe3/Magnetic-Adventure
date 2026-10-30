@@ -303,7 +303,9 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 4. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误）与 **F202–F208**（L2-B 工具链考古），再读计划 §变更记录 最近三条。
 5. 按 §6 第 1 条（T3.3 pak+Lua）开工；改计划记得追加变更记录并写 `依据：F##`。
 
-## 11. 需要人拍板的一件事（L2-B 要不要转正）
+## 11. 已拍板：宿主走 FPC/LCL + GLScene 重建（原"要不要转正"）
+
+**2026-10-30 决定：选 B。** 依据 F213（库层 100% 复原）+ F214（窗口层当天 15/15）。落地在新里程碑 **M6**：`src/host_lcl/magnet.pas` 是种子实现（窗口层已过门禁），`build/host_lcl/magnet.exe` 可用 `wincompare --ours build/host_lcl --ours-exe magnet.exe` 复验。M3 的 C++ 宿主保留作对照物，不再是交付主线。下面这张表保留为当时的决策依据。
 
 现状：**前置条件成立，版本也夹到了**（F211）⇒ 库层（LCL + GLScene v1.1/r5000）**已复原**：LCL 逐指令 99.9–100%，GLScene 11 个单元 1,043 个函数只剩 **12 个（2,448 B）**，且已证是原版本地补丁（文本/HUD/视口）。剩下的是**应用代码**（≤390 KB，本就没有源）。⇒ 选项 B 的形态从"未知工程量"变成"**补 12 个函数 + 复原应用层**"。
 
