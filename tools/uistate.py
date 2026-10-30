@@ -140,6 +140,12 @@ def cpu_seconds(pid):
 
 def cmd_capture(args):
     p = subprocess.Popen([os.path.join(args.dir, args.exe)], cwd=args.dir)
+    clicks = []
+    for spec in getattr(args, "click_at", None) or []:
+        t_str, frac = spec.split(":", 1)
+        fx, fy = (float(v) for v in frac.split(","))
+        clicks.append((float(t_str), fx, fy))
+    clicks.sort()
     print("pid=%d" % p.pid)
     os.makedirs(args.out, exist_ok=True)
     meta = open(os.path.join(args.out, "meta.jsonl"), "w", encoding="utf-8")
@@ -161,6 +167,17 @@ def cmd_capture(args):
         i = 0
         nxt = t0
         while time.time() - t0 < args.seconds:
+            now = time.time() - t0
+            while clicks and now >= clicks[0][0]:
+                _, fx, fy = clicks.pop(0)
+                u.SetForegroundWindow(win[0])
+                time.sleep(0.2)
+                u.SetCursorPos(int(rect[0] + rect[2] * fx), int(rect[1] + rect[3] * fy))
+                time.sleep(0.15)
+                u.mouse_event(0x0002, 0, 0, 0, 0)
+                time.sleep(0.1)
+                u.mouse_event(0x0004, 0, 0, 0, 0)
+                print("click at t=%.1f -> %s" % (now, (fx, fy)))
             img = gr.grab(rect)
             t = time.time() - t0
             cpu = cpu_seconds(p.pid) - c0
@@ -330,6 +347,8 @@ def main():
     c.add_argument("--out", required=True)
     c.add_argument("--seconds", type=float, default=45)
     c.add_argument("--every", type=float, default=0.4)
+    c.add_argument("--click-at", nargs="*", default=None,
+                   help="t:fx,fy —— 采集途中按真实输入点一下（如 20:0.35,0.41 进关）")
     c.set_defaults(func=cmd_capture)
 
     lb = sub.add_parser("label")
