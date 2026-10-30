@@ -48,6 +48,7 @@
 - [x] T4.3 音频 diff（输出层）：环回 A/B 已跑通，逐秒 corr 0.9998–0.9999；PCM 逐位不可达见 T4.9 依据：F06、F149、F150
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
+- [ ] T4.10 宿主 exe 的 A/B（exe 不能像 DLL 那样替换，改为"同脚本串行跑 + 在边界对拍"） 依据：F154、F166、F172、F174（四层判据，从便宜到贵：① 窗口层已可用——`tools/wincompare.py` 本身就是 exe-vs-exe，15 字段 diffs=0；② **DLL 调用层**：代理 DLL 与宿主无关，同一份 b2Physics/Squall 代理分别装进原版目录与自建宿主目录，两边跑同一脚本，用 `squall_ab` 的结构对拍比"调用序列/返回值"；③ 状态层：跑完 diff 存档（`tools/profile.py` 解码后逐键比）；④ 输出层：固定尺寸/DPI 的像素 diff 与环回音频 diff（只能给输出等价）。三个约束：单实例→串行且跑前 kill 干净；存档共享→每次备份复原；输入一致性→复用 `e2e_tutorial` 的脚本（F174 已证两次运行日志字节数相同））
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
 - [ ] T4.7 （路线已作废）用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108（dist_probe 的 cdecl 调用约定错误见 F112；真实根因是 b2Distance 早退阈值，F122 已修）
 - [ ] T4.8 残余 1 ULP：`Good Shot!` 的 `lvy`（首发 4847、bad 4,825，该录制 A/A 地板 0） 依据：F128
