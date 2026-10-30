@@ -21,8 +21,8 @@
 - [x] T2.1 `b2Physics` 导出表 → ABI 契约（函数签名、结构体布局、调用约定） 依据：F07
 - [x] T2.2 C++ 实现（Box2D 2.x + C 包装），导出逐项一致 依据：F07
 - [x] T2.3 差分：原 `game.exe` 加载新 DLL，逐帧物理状态比对 依据：F07（验收物：53 份录制全量重放，F99；逐关人工试玩，F71）
-- [ ] T2.4 `Squall` 导出表 + DSound 行为契约 依据：F06
-- [ ] T2.5 C++ 实现 Squall，PCM 输出 diff 依据：F06
+- [x] T2.4 `Squall` 导出表 + DSound 行为契约 依据：F06、F131–F152（T2.4a–d 全完成）
+- [ ] T2.5 C++ 实现 Squall（已完成）与输出对拍（已完成，F149/F150）；剩 PCM 逐位（F147 已证明三条直取路线不可行） 依据：F06、F137、F144、F147、F149、F150
 - [ ] T2.6 原 exe + 新双 DLL 整机回归 依据：F06、F07
 - [x] T2.6a 整机冒烟：原 exe + 自建双 DLL 进 tutorial 关到结局页、模块 md5 核对、~90 s 不崩 依据：F141（细化 T2.6）
 - [ ] T2.6b 长时/多关整机回归（含正常退出路径，触发 `SQUALL_Free`） 依据：F141
@@ -45,11 +45,13 @@
 
 - [ ] T4.1 确定性输入回放 harness 依据：F03
 - [ ] T4.2 GL 调用序列 diff + 像素 diff 依据：F03
-- [ ] T4.3 音频 PCM diff 依据：F06
+- [x] T4.3 音频 diff（输出层）：环回 A/B 已跑通，逐秒 corr 0.9998–0.9999；PCM 逐位不可达见 T4.9 依据：F06、F149、F150
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
-- [ ] T4.7 用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108
+- [ ] T4.7 （路线已作废）用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108（dist_probe 的 cdecl 调用约定错误见 F112；真实根因是 b2Distance 早退阈值，F122 已修）
+- [ ] T4.8 残余 1 ULP：`Good Shot!` 的 `lvy`（首发 4847、bad 4,825，该录制 A/A 地板 0） 依据：F128
+- [ ] T4.9 PCM 逐位（阻塞：dsound 文件代理 / 代理内 IAT / 日志重放三条路线均否） 依据：F134、F147
 
 ## M5 汉化目标
 
@@ -58,6 +60,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F131–F152：**plan/todo 任务状态同步**。T2.4（含 a–d）标完成；T2.5 改为「实现与输出对拍已完成，只剩 PCM 逐位」；T4.3 改为「音频 diff 输出层」并标完成；T4.7（dist_probe 路线）标为作废并注明 F112/F122；新增 T4.8（Good Shot 残余 1 ULP）与 T4.9（PCM 逐位，阻塞）。todo 按里程碑重排，`[x]` 只增不减。
 
 - 2026-10-30 依据 F152：**第二批九关实录**——1951 次调用，`Sample_Pause`（1032 次，集中在 sample `0x10019` 的暂停/恢复）与 `Channel_Status`（8 次）首次在游戏内出现 ⇒ 游戏内覆盖 16/17，唯一没用到的 `Sample_LoadFile` 由探针覆盖。9 关没有引入任何新接口，17 个导入的实机覆盖基本到顶。
 
