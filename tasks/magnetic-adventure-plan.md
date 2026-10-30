@@ -42,13 +42,13 @@
 - [x] T3.2b GL payload 解码 + 绘制列表 依据：F178、F179、F181（**全部落地**：`GLFFI02` payload + 时间窗（F179）；`tools/gl_drawlist.py` 把一帧还原成 26–27 个 draw（纹理 id + 世界坐标 + UV + 颜色），JSON 可导出。坑：顶点永远乘 MODELVIEW（P·M·v），GLScene 的 HUD 会在帧中途把投影换成单位阵用像素空间画横幅，乘错"当前 mode"会让 bbox 飞到 ±509。**这就是渲染器的对拍基准**：逐 draw 比 bbox/UV/纹理 id）
 - [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04、F180（**关卡数据面已摊开**：`lvl_info.lvl` 是 UTF-16LE 文本清单（`Caption`/`LevelFiles`/`LevelGroup`），零件与行为全在 Lua——116 个 `Add*` 工厂、144 个绑定、事件走 `Attach_ScriptToObject`（`OnMove`/`OnAddContact`/`OnPersistContact`/`OnRotate`）。⇒ **关卡编辑器的可行形态 = 产出「清单 + Lua」**，不改引擎；判据用原版加载（能过门禁/推进存档）；缺 pak 回写（`tools/pak.py` 只读）；**第一切片已落地（F191）**：vendor Lua 5.1.5（未改动）→ `lua51` 静态库 + `luac`，pak 里 111 个脚本 `luac -p` **111/111 通过**；`lvl_info.lvl`（pak 尾部记录）解析出 **52 关**，宿主 `host_data.log` 记录 `levels=52 / lua_ok=111`。**剩**：144 个绑定（`mapping/lua-bindings.csv`）+ 执行语义（状态机、事件回调））
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07、F169、F171、F177、F179（**初始化顺序是契约**：loading/intro/menu 三段的内容与循环节奏都不同（F169、F177），37 张纹理在启动期一次性上传（F179），`Play` 落点还依赖存档 `LastCompleteLevel`（F171）⇒ 宿主不能"直接构造关卡场景"冷启动，必须按原顺序跑；状态判定用 `uistate` 像素锚点，不用定时点击（F172 的教训：intro 占 12.5 s，定时点击必落空））
-- [ ] T3.5 文本渲染路径 依据：F11
+- [ ] T3.5 文本渲染路径 依据：F11、F192（**路线已定**：文字 = pak 内 `*.dat` 32 B/字记录表（`u32 字符码; f32 u0,v0,u1,v1; u32 w,h,flag`，UV 以 512 归一化），抓包 'o' quad 与表内字符 111 记录**逐位相同**、`advance==w`、行高 `==h` ⇒ 解析 `.dat` 即可，不需要反推字宽；剩：行距/换行/左右对齐、关卡字体 `pt_sans*.dat`（3176 B，非 32 B 对齐，格式未解）与 `gulim2.dat`（32 条））
 - [ ] T3.6 配置/存档写入（`cfg.ini` 等） 依据：F01
 
 ## M4 行为对齐验收
 
 - [ ] T4.1 确定性输入回放 harness 依据：F03、F169、F172、F174（**自动化驱动已可用**：`uistate` 状态机 + `uitemplate` 模板定位 + `e2e_tutorial` 无人值守跑关（38 s）+ `e2e_record` 自走录制并直接过门禁（40 s）。剩余：输入**回放**（按键/鼠标事件逐帧记录再重放）尚未做——现在是脚本化操作，同一脚本两次运行日志字节数相同（F174），但还没到「录一次输入、任意次重放」）
-- [ ] T4.2 GL 调用序列 diff + 像素 diff 依据：F03
+- [ ] T4.2 GL 调用序列 diff + 像素 diff 依据：F03、F194（**口径**：同状态对 + 16×16 窗口最大计数 + A/A 地板；`orig_menu` vs `host_menu` 这类跨状态对作废。已定位两个紧凑差异区：悬停 Play（205/256）与光标（120/256），归因见 F196）
 - [x] T4.3 音频 diff（输出层）：环回 A/B 已跑通，逐秒 corr 0.9998–0.9999；PCM 逐位不可达见 T4.9 依据：F06、F149、F150
 - [ ] T4.4 存档字节 diff 依据：F01
 - [ ] T4.5 映射覆盖率报告 依据：F01
@@ -56,7 +56,7 @@
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
 - [ ] T4.7 （路线已作废）用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108（dist_probe 的 cdecl 调用约定错误见 F112；真实根因是 b2Distance 早退阈值，F122 已修）
 - [ ] T4.8 残余 1 ULP：`Good Shot!` 的 `lvy`（首发 4847、bad 4,825，该录制 A/A 地板 0） 依据：F128
-- [ ] T4.9 PCM 逐位（阻塞：dsound 文件代理 / 代理内 IAT / 日志重放三条路线均否） 依据：F134、F147
+- [ ] T4.9 PCM 逐位（阻塞：dsound 文件代理 / 代理内 IAT / 日志重放三条路线均否） 依据：F134、F147、F195（**F195 追加**：环回 A/A 自身就不逐位（52.5% 样本差、`max|Δ|` 433，与 A/B 同量级）⇒ loopback 只作波形等价证据；逐位改抓 DLL 写进 DSound 缓冲区的字节，vtable hook 只替换返回对象的方法、不拦 `CoCreateInstance`）
 
 ## M5 汉化目标
 
@@ -65,6 +65,10 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F192–F195（探针轮，**无生产代码改动**）：把上一轮"剩余任务最佳实践"里三条只有 L1/文档级依据的建议先做成探针，两条被实测改写。① **T3.5 路线换掉**：菜单文字不是 GLScene 定宽渲染，而是 `gulim1.dat` 的 32 B/字记录表（字符码 + UV 矩形 + w/h + flag）驱动——抓到的 'o' quad 与表内字符 111 那条记录**逐位相同**（`advance==w==17`、行高 `==h==31`、UV 以 512 归一化），所以不存在"从 UV 间距反推步进"这回事，改成解析 `.dat`（F192）。② **T3.3 绑定纪律收紧、C++ 编译路线降级**：当前 `lua51` 是 C 编译（`ldo.obj` 引 `_longjmp`），Lua 错误不展开 C++ 栈；而 `lua.h` 没有 `extern "C"` 守卫，改 C++ 编译会改符号修饰，宿主与 `luac` 现有的 include 包装会链接失败 ⇒ 默认走"绑定体 POD-only + `lua_pcall`/`lua_gettop` 边界"，C++ 路只有当同步去掉 include 包装时才可选（F193）。③ **T4.2 判据换口径**：`orig_menu` vs `host_menu` 这一对不是同状态（原版悬停 Exit + 光标位置不同），其 mean/百分比不可当渲染证据；同状态对的差异是**紧凑块**（悬停 Play 的 16×16 窗口 205/256、光标区 120/256），不是散点滤波噪声 ⇒ 判据改成「同状态对 + 16×16 窗口最大计数」，并把悬停区/光标区列为待归因缺口（F194、F196）。④ **T4.9 仪器降级**：环回 A/A 自身 52.5% 样本不同（`max|Δ|=433`，与 A/B 同量级）⇒ loopback 只能证明波形等价，PCM 逐位必须抓 DLL 写进缓冲区的字节（`IDirectSoundBuffer8` 的 Lock/Unlock vtable hook，不拦 `CoCreateInstance`）（F195）。
+
+- 2026-10-30 依据 F197（同一探针轮）：**F196 的 H2 被否**——悬停/空闲两帧 draw 集合完全相同（21 draw、纹理序一致），唯一差异是 tex 23/24 的 alpha 互斥翻转 ⇒ 悬停区的紧凑差异来自"同一批 draw 的合成/采样"，不是"多一层 glow"。顺带发现**门禁盲区**：`tools/draw_ab.py` 丢掉 alpha=0 的 draw 且不比 caps/prim/颜色（文件头明写），F190 的 13/13 因此不含这类差异 ⇒ T4.2 的下一刀是给 `draw_ab.py` 加 caps/blend 与 alpha 双份 draw 的分组比对（alpha=0 的 draw 保留但单独成组），再用 `HOST_DRAW_DUMP` 对同一帧核。
 
 - 2026-10-30 依据 F191：**T3.3 第一切片落地——Lua 跑得起来、关卡清单读得出来**。vendor 官方 Lua 5.1.5（tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，未改动）→ `lua51` 静态库 + `luac`；`luac -p` 全量编译 pak 里的 **111 个脚本：111/111 通过**（证明方言就是 5.1，且宿主可自给自足，不依赖游戏目录 `lua51.dll`——两版该 DLL md5 不同，F12）。顺带修正 pak 解析：`lvl_info.lvl` 是**尾部附加记录**，`Pak::Find` 现在同查条目与尾部；宿主解析出 **52 关**（首关 Introduction、末关 The End），启动写 `host_data.log`（`entries=707 levels=52 lua_ok=111`）。**剩**：144 个绑定与执行语义（状态机/事件），另加 `tools/check_lua.py` 作为可重跑判据。
 
