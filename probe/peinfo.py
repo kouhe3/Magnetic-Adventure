@@ -11,7 +11,7 @@ def entropy(b):
     return -sum(v / n * math.log2(v / n) for v in Counter(b).values())
 
 
-def main(path):
+def main(path, want=None):
     d = open(path, 'rb').read()
     print(path, len(d), hashlib.md5(d).hexdigest())
     e = struct.unpack_from('<I', d, 0x3c)[0]
@@ -70,7 +70,12 @@ def main(path):
                     oo = rva2off(v & 0x7fffffff)
                     fns.append(d[oo + 2:d.index(b'\0', oo + 2)].decode('latin1'))
                 thunk += 4
-            print(f'  IMPORT {dll} ({len(fns)}): {", ".join(fns[:10])}{" ..." if len(fns) > 10 else ""}')
+            if want and want.lower() in dll.lower():
+                print(f'  IMPORT {dll} ({len(fns)}):')
+                for fn in fns:
+                    print(f'    {fn}')
+            else:
+                print(f'  IMPORT {dll} ({len(fns)}): {", ".join(fns[:10])}{" ..." if len(fns) > 10 else ""}')
             off += 20
     for sig, label in [(b'mscoree', '.NET'), (b'Borland', 'Delphi/Borland'), (b'Lua 5.1', 'Lua5.1'),
                        (b'UPX0', 'UPX'), (b'TGLDirectOpenGL', 'GLScene'), (b'TForm', 'VCL forms')]:
@@ -80,4 +85,4 @@ def main(path):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
