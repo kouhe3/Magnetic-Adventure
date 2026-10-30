@@ -205,6 +205,8 @@
 
 | F167 | **全屏模式（存档 `FullScreen="1"`）的窗口参数**：`style=0x970A0000`（`WS_POPUP\|WS_VISIBLE\|WS_CLIPSIBLINGS\|WS_CLIPCHILDREN\|**WS_MAXIMIZE**\|WS_SYSMENU\|WS_MINIMIZEBOX`，**无 `WS_CAPTION`** ⇒ 无边框无标题栏）、`exstyle=0x8`（`WS_EX_TOPMOST`）、窗口 `0,0,1707,960`（= 整个虚拟屏幕）且 `client` 同尺寸、边框 0/0、`placement showCmd=3`（最大化）、`is_zoomed=1`、子窗口（GL 视口）= 整屏 1707×960；**DPI awareness 仍是 0**。`normal_rect=341,96,1413,635` = 1072×539，正好是 Form1 的 DFM 设计尺寸（F157）⇒ 全屏只是把 DFM 尺寸的原窗体最大化，没有改尺寸。切回 `FullScreen="0"` 后参数与 F154 **逐字相同**（无残留窗口状态） | L3 | `python tools/profile.py backup` → `set FullScreen 1` → `python tools/winprobe.py work/winprobe_game` → `set FullScreen 0` 再跑一次对照；存档备份 `%APPDATA%\Magnet's Story\hg_lmpgl.prf.bak` | 已证 | T3.1 全屏分支；T3.6 配置 |
 
+| F168 | **渲染是按需重绘，不是固定帧率循环**。仪器 `tools/frame_probe.py`（GDI `StretchBlt` 把屏幕上一块区域缩到 160×120，按 100 Hz 采样并逐帧比字节）：主菜单采样 3 s → **17 次/秒**画面变化（间隔中位 10.9 ms、p90 13.4 ms，成簇出现 ⇒ 局部失效重绘而非稳定 60 fps）；真实点击进入关卡后再采样 3 s → **0 次/秒**（画面完全静止，含对话气泡），与 F156 的空闲 CPU 0.0% 互为印证。⇒ 宿主不能按"固定 60 fps 循环"实现，必须"有失效才画"；**运动中（拖磁铁/物理未静止时）的实际重绘率仍未测**——需要人在拖拽时采样，或等 T3.2 的 GL 代理给出 `SwapBuffers` 时间戳 | L3/L4 | `python tools/frame_probe.py --dir work/winprobe_game --seconds 3 --hz 100 --click 0.35,0.41 --wait 22`（采样区 614×460、物理像素）；对照 `pwsh` 的 `$p.CPU` 采样 | 已证 | T3.2 渲染节奏 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Lazarus/LCL（Object Pascal，LCL 0.9.28.3 时代）编译产物**（F153 勘误：此前写作 "Delphi/VCL"；RTTI 字符串是 LCL 的 VCL 兼容类名）。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。**LCL 语义（窗口类名 `Window`、DPI unaware、PeekMessage+MsgWait 主循环）可以靠 C++ 仿写或用 Free Pascal/LCL 直接继承，两条路线的取舍是 M3 的 Open Question**（F154/F155/F156）。
