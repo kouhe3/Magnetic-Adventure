@@ -30,7 +30,7 @@
 - [x] T2.4a 上游 `vendor/squall`（MIT，HEAD `20988426`）入库 + Win32 构建 + 导出表 99/99（`tools/check_exports.py`） 依据：F131、F132、F137（已完成；`squall` target 在 VS18 x86 上干净构建）
 - [x] T2.4b 补 `libogg`/`libvorbis` 静态库并使 `SQUALL_Sample_LoadFromMemory` 能解 pak 内 OGG 依据：F133、F134、F137（PCM 逐位比留 T2.5）
 - [x] T2.4c Squall 代理 DLL 抓包（17 个宿主导入函数的实参/返回值）→ 契约 依据：F131、F139（启动路径 5 个函数 / 44 次调用已抓并与自建 DLL 零差异；剩余 12 个见 T2.4d）
-- [ ] T2.4d 剩余宿主导入抓包：`Channel_Pause/SetVolume/Start/Status`、`Sample_LoadFile/Pause/Stop/UnloadAll`、`Free`（优雅退出才调） 依据：F139、F140（3D/Listener 路径宿主不导入，已确认死码）
+- [x] T2.4d 剩余宿主导入抓包：`Channel_Pause/SetVolume/Start/Status`、`Sample_LoadFile/Pause/Stop/UnloadAll`、`Free`（优雅退出才调） 依据：F139、F140、F143、F144（17 个导入全部覆盖：游戏内 12 个 + 探针 20 步全对齐）
 
 ## M3 宿主复刻（L0 + L1）
 
@@ -58,6 +58,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F144/F145：**T2.4d 收口**——新增 `tools/squall_contract.py`（固定 20 步脚本覆盖 17 个宿主导入），原版 vs 自建 `diffs=0`；顺带确认两个「反直觉但一致」的上游行为（PREPARED 通道 `Channel_Pause` 返回 -13；先内存样本再 `LoadFile` 会因 `strcmp(NULL)` 让两个 DLL 都崩）。整机 3 分钟静置不崩（F145）。至此 Squall 侧：导出 99/99、17 个导入的调用序与返回值全对齐、优雅退出路径对齐；唯一未闭合的是 **PCM 逐位一致（F134）**，需要 DirectSound 层抓包才能验。
 
 - 2026-10-30 依据 F143：**优雅退出路径闭合**——脚本走 Main menu → Exit → Yes，原版与自建各 127 次调用、254 条事件 0 分歧，`game.exe` 自行退出（非 TerminateProcess）。这条覆盖了 T2.4d 里的 `SQUALL_Free`、`Sample_Stop`、`Sample_Unload`、`UnloadAll`；剩下未触发的是 `Channel_Pause/SetVolume/Start/Status` 与 `Sample_LoadFile/Pause`。同时修 `tools/squall_ab.py`：`void` 导出（Free/Unload/UnloadAll/SetWorker）不再比较 EAX，否则会产生假差异。
 

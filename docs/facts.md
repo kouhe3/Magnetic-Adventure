@@ -169,6 +169,9 @@
 
 | F143 | **优雅退出路径也对齐：127 次调用（含 35×`Sample_Stop`、35×`Sample_Unload`、`UnloadAll`、`Free`），原版与自建 254 条事件 0 分歧，进程自行退出**。脚本：起游戏 → Play 进关 → 齿轮菜单 → Main menu → Exit → Yes；两边都在 10 秒内 `game.exe` 计数归 0（不是被杀）。**顺带修正 `tools/squall_ab.py` 的一个假差异源**：`SQUALL_Free` 等返回 `void` 的导出没有返回值，EAX 是残留（实测自建侧 `0x6CE6…`），原来会被当成返回码比较 ⇒ 现在对 `VOID_EXPORTS` 一律不比 | L4 | `work/sq_exit_orig.bin` / `work/sq_exit.bin`；`python tools/squall_ab.py work/sq_exit_orig.bin work/sq_exit.bin` → `a=254 b=254 diffs=0`；驱动 `work/exit_run.py` | 已证 | T2.4d/T2.6b |
 
+| F144 | **17 个宿主导入的接口契约全部对齐（20 步探针，两侧 `diffs=0`）**。仪器 `tools/squall_contract.py`：固定脚本 `Init → LoadFile → LoadFromMemory → PlayEx(start=0) → Status/Pause×2/SetVolume/SetPriority/Start → Status → Sample_Pause×2/Stop → ChannelGroup_Pause×2/SetVolume/Stop → Unload×2/UnloadAll → Free`。两侧逐项相同，含几处"反直觉但一致"的行为：`Channel_Pause` 作用在 PREPARED 通道上返回 **-13**（`SQUALL_ERROR_SET_CHANNEL_PARAM`）、`Status` 依次 `3`（prepared）→`3`→`3`→`1`（playing）、`LoadFile` 与 `LoadFromMemory` 的 sample_id 连续 `0x10000/0x10001`。**另一个一致的上游缺陷**：先 `LoadFromMemory` 再 `LoadFile` 会让 `api_SampleLoadFile` 里的 `strcmp(filename, GetFileName())` 读到 NULL → **两个 DLL 都崩**（内存样本没有文件名）；游戏只走内存路径，所以碰不到 | L4 | `"C:/Users/K/.local/bin/python3.12.exe" tools/squall_contract.py bin/gametop/Squall.dll build/Release/Squall.dll` → `steps=20/20 diffs=0` | 已证 | T2.4d |
+| F145 | **整机 3 分钟停留不崩**：原 exe + 自建双 DLL 进 tutorial 关后静置 180 s，进程存活、画面停在 Congratulations 结局页（`work/long_1.png`）。覆盖边界：静态画面、无输入，不覆盖长时间物理/音频活动 | L4 | `work/long_1.png`；`Get-Process game` 计数 1 | 已证 | T2.6b |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Delphi/VCL 编译产物**。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。
