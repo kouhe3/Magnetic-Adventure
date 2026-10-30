@@ -21,16 +21,11 @@ const wchar_t kClassName[] = L"Window";
 const wchar_t kHintClassName[] = L"HintWindow";
 const wchar_t kTitle[] = L"A Magnetic Adventure";
 
-// 原版窗口化尺寸：外框 1024×768、客户区 1018×739（F154）。
-// 我们的非客户区比原版厚 10px（原版 3/26 边框=3+23 标题，我们 8/31），
-// 所以按**客户区**对齐：客户区尺寸与屏幕位置逐像素相同，外框会比原版大 10px。
-// 未解问题记在 docs/facts.md F154 的"待证"里（原版客户区为何是未加 DWM padding 的度量）。
+// 原版窗口化尺寸：客户区 1018×739、外框 1024×768（F154）。
+// LCL 的语义是「TForm.Width/Height = 客户区，外框由 AdjustWindowRectEx 补」（F164），
+// 这里照抄；外框能正好 1024×768 靠的是 PE 子系统版本 5.01（F166）。
 const int kClientW = 1018;
 const int kClientH = 739;
-const int kRefOuterW = 1024;  // 原版外框，用于算出原版客户区原点
-const int kRefOuterH = 768;
-const int kRefFrameX = 3;   // 原版每边边框
-const int kRefFrameTop = 26;  // 原版标题栏 + 上边框
 
 HWND g_viewer = nullptr;
 FILE* g_log = nullptr;
@@ -142,16 +137,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
   // exstyle WS_EX_WINDOWEDGE；外框 1024×768，屏幕居中（LCL poScreenCenter）
   const DWORD style = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU |
                       WS_MINIMIZEBOX;
-  // 先按客户区反推外框，再把窗口摆到「客户区原点 = 原版客户区原点」的位置
+  // 客户区 → 外框（LCL AdjustFormBounds 的同款做法），外框居中（poScreenCenter）
   RECT rc = {0, 0, kClientW, kClientH};
   AdjustWindowRectEx(&rc, style, FALSE, WS_EX_WINDOWEDGE);
   const int outer_w = rc.right - rc.left;
   const int outer_h = rc.bottom - rc.top;
-  const int client_x = (GetSystemMetrics(SM_CXSCREEN) - kRefOuterW) / 2 + kRefFrameX;
-  const int client_y = (GetSystemMetrics(SM_CYSCREEN) - kRefOuterH) / 2 + kRefFrameTop;
-  // AdjustWindowRectEx 返回的 rc.left/rc.top 是负数（边框向外扩），客户区原点 = 窗口原点 - 它们
-  const int win_x = client_x + rc.left;
-  const int win_y = client_y + rc.top;
+  const int win_x = (GetSystemMetrics(SM_CXSCREEN) - outer_w) / 2;
+  const int win_y = (GetSystemMetrics(SM_CYSCREEN) - outer_h) / 2;
   HWND hwnd = CreateWindowExW(WS_EX_WINDOWEDGE, kClassName, kTitle, style, win_x, win_y,
                               outer_w, outer_h, nullptr, nullptr, inst, nullptr);
   if (!hwnd) {
@@ -160,8 +152,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
   }
   ShowWindow(hwnd, SW_SHOW);
   UpdateWindow(hwnd);
-  Log("form=%p at %d,%d %dx%d (client at %d,%d %dx%d)", static_cast<void*>(hwnd), win_x, win_y,
-      outer_w, outer_h, client_x, client_y, kClientW, kClientH);
+  Log("form=%p at %d,%d %dx%d (client %dx%d)", static_cast<void*>(hwnd), win_x, win_y,
+      outer_w, outer_h, kClientW, kClientH);
 
   // F156：PeekMessage 抽干 + MsgWaitForMultipleObjects 阻塞等待（不 Sleep 轮询）
   MSG msg;

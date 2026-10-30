@@ -8,8 +8,8 @@
     main_title, main_class, main_style, main_exstyle, client_size, dpi, dpi_awareness,
     placement_showcmd, is_zoomed, has_menu, class_hbrBackground,
     viewer(style + rect + client size)
-**不参与判定**（只打印）：window_rect / border_x,y —— 自建宿主的非客户区比原版厚 10px
-（原版 3/26，我们 8/31），客户区坐标与尺寸已对齐，边框厚度是已知偏差（F154 待证项）。
+window_rect / border_x,y 也参与判定：把 exe 的 MajorSubsystemVersion 设成 5.01（<6.0）后，
+Windows 用旧式非客户区度量，外框与边框厚度与原版逐字相同（F166）。
 可比范围外（故意不比）：hwnd/pid、类句柄（hIcon/hCursor/hInstance）、monitor 名字、
 top= 列表（含第三方注入窗口如 Groupie/IME）。
 
@@ -25,8 +25,8 @@ PROBE = ROOT + r"\tools\winprobe.py"
 
 FIELDS = ["main_title", "main_class", "main_style", "main_exstyle", "client_size",
           "dpi", "dpi_awareness", "placement_showcmd", "is_zoomed",
-          "has_menu", "class_hbrBackground"]
-INFO = ["window_rect", "border_x", "border_y"]
+          "has_menu", "class_hbrBackground", "window_rect"]
+INFO = ["border_x", "border_y"]
 
 
 def run_probe(directory, exe):
@@ -96,7 +96,7 @@ def main():
             bad += 1
         print("%-20s %-30s %-30s %s" % (k, va, vb, "OK" if ok else "DIFF"))
     print("\n-- 仅报告（不判定）--")
-    for k in ("window_rect", "border_x", "border_y"):
+    for k in INFO:
         print("%-20s %-30s %-30s" % (k, a.get("info_" + k), b.get("info_" + k)))
     print("\nfields=%d diffs=%d" % (len(keys), bad))
     return 0 if bad == 0 else 1

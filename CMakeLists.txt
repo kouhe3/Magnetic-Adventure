@@ -178,6 +178,10 @@ set_target_properties(host PROPERTIES OUTPUT_NAME magnethost
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_compile_definitions(host PRIVATE UNICODE _UNICODE)
 target_link_libraries(host PRIVATE user32)
+# 子系统版本必须写成 4.0：原版 game.exe 的 MajorSubsystemVersion=4.0（Lazarus 0.9.28 时代），
+# 而 Windows 对 subsystem<6 的映像用**旧式非客户区度量**（对话框边框 3/侧、无 DWM padding），
+# 这正是原版外框 1024×768 / 客户区 1018×739 的来源；用默认 6.0 会得到 8/31（F166）。
+set_target_properties(host PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS,5.01")
 
 # 不嵌清单：原版 game.exe 完全没有 manifest（F154）。实测这条**不改变**非客户区边框
 # （加不加清单都是 8/31，原版是 3/26），保留只是为了与原版一致。
