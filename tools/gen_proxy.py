@@ -91,6 +91,8 @@ def main():
     ap.add_argument("--out-def", default=str(OUT_DEF))
     ap.add_argument("--library", default="b2Physics")
     ap.add_argument("--prefix", default="b2_")
+    ap.add_argument("--basis", default="F35/F131（导出清单与序号）",
+                    help="生成物头部注释里引用的依据（默认 b2/Squall 的台账 id）")
     a = ap.parse_args()
     csv_path = pathlib.Path(a.csv)
     out_c = pathlib.Path(a.out_c)
@@ -106,7 +108,7 @@ def main():
     n = max(o for o, _ in rows)
     parts = [
         "/* 生成文件，勿手改：python tools/gen_proxy.py",
-        " * 依据：docs/facts.md F35/F131（导出清单与序号） */",
+        f" * 依据：docs/facts.md {a.basis} */",
         "#include <windows.h>",
         "#include <stdint.h>",
         "",

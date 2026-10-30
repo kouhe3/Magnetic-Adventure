@@ -147,6 +147,22 @@ set_target_properties(squall_proxy PROPERTIES OUTPUT_NAME Squall
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy_squall"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# ---- 转发 DLL（OpenGL）：占住 opengl32.dll 文件名，把 368 个导出尾跳给
+#      opengl32_orig.dll（改名副本），记录名称/QPC/栈上 6 个实参。
+#      opengl32 不在 KnownDLLs（F175）⇒ 应用目录代理能接住静态导入；
+#      SwapBuffers/ChoosePixelFormat 在 gdi32（KnownDLL）⇒ 帧边界靠 gl* 时间戳推断。
+#      桩由 tools/gen_proxy.py 生成：
+#        python tools/gen_proxy.py --csv mapping/opengl32-exports.csv \
+#          --out-c src/glproxy/proxy_stubs.c --out-def src/glproxy/proxy.def \
+#          --library opengl32 --prefix ""
+add_library(gl_proxy SHARED
+  src/glproxy/proxy_core.c
+  src/glproxy/proxy_stubs.c
+  src/glproxy/proxy.def)
+set_target_properties(gl_proxy PROPERTIES OUTPUT_NAME opengl32
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy_gl"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # ---- 诊断变体：SQUALL_DEBUG=1 时 api_Startup 会在进程 CWD 写 Squall.log，
 #      每个导出记参数与结果。默认不编；cmake -DSQUALL_DEBUG_LOG=ON 打开。
 option(SQUALL_DEBUG_LOG "构建带 SQUALL_DEBUG 日志的 Squall 变体" OFF)
