@@ -87,6 +87,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F219（**T6.2 正交相机接通**）：`src/host_lcl/magnet.pas` 用 `Cam.CameraStyle := csCustom` + `OnCustomPerspective` 调 `glOrtho(-26.862,26.862,-19.5,19.5,-100,100)`；1 单位红色立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI），与 F179 一致。判据用像素几何（代理仍看不到 `glOrtho`，F215）。下一步：纹理直读 pak（37 张表）/场景模型。
+
 - 2026-10-30 依据 F218（**勘误 F217：视口/呈现已证通**）：① `src/host_lcl/magnet.pas` 设 `V.Buffer.BackgroundColor := clBlack`、`V.Buffer.Lighting := False`，并加一个 `TGLCube`（Diffuse/Emission 红色）；`tools/shot_window.py --wait 2` 抓屏得到 **3,306 个纯红 (255,0,0)** 像素、其余 (0,0,0) ⇒ GLScene 的 clear + draw + present 都工作。② 之前的 240 灰是 `TGLSceneBuffer.FBackgroundColor` 默认 `clBtnFace`（`GLScene.pas:7986`），不是 DC/上下文失效；上一条变更记录里"视口/呈现未打通"作废。③ 代理无 swap/glClear 仍是 F215 的覆盖边界，不影响像素判据。T6.2 下一步：相机改 ±26.862 正交、接纹理直读 pak 与场景模型。
 
 - 2026-10-30 依据 F215/F216/F217（**T6.2 判据先落地：调用序仪器 + A/A 地板；GLScene 内部调用不在代理覆盖内**）：① 新增仪器 `tools/gl_seq_ab.py`（GLFFI02 双日志逐帧对拍，名字 + 已知签名参数，首个分歧；`--names-only` 只看结构；默认忽略 wgl 上下文函数与 `glGetError`）；`tools/gl_ffi.py` 加 `iter_records()` 复用唯一日志解析。② A/A（原版、菜单、17–19 s，两份 62 帧/110,559 条）：`--names-only` 1–13 帧 **0 bad_frames**，1–60 帧 **2 bad_frames**（frame14 上下文事件）⇒ 有效窗口 13 帧或扣 2 帧地板；参数 `--float-tol 1e-3` 1–13 帧 **0 bad**（逐位时 glRotatef 有 1e-4 差、GLboolean 高字节是栈残渣）。③ 新宿主接相机并 `V.Render`（`src/host_lcl/magnet.pas`），窗口门禁仍 **15/15**；但 `work/host_gl_final.bin` 只有 3,273 条初始化记录、**无 swap/glClear**，抓屏主体是 LCL 灰 ⇒ **T6.2 还没打通视口/呈现**。④ **T6.2 验收改为三层**：库层 `code_match funcs`（已过）+ 场景参数（相机/对象/变换）+ **直接 import 的 GL 调用序**（`gl_seq_ab.py`，用 13 帧 A/A 口径）；GLScene 内部渲染由库层 sim 保证，代理看不见（F215），像素只作验收。⑤ 代理侧试过把 `wglGetProcAddress` 返回值换成代理桩（名字取 pre 桩 args[0]），未取得可见调用，改动已回滚、未入库；后续二选一：泛型扩展 thunk 或坚持三层判据。⑥ `tools/glskel_build.py` 修掉硬编码 `glskel5.exe` 的 exe 检查（现在按 `pas` basename 报 `exe=True`）。

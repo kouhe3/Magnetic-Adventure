@@ -22,13 +22,29 @@ program magnet;
 //   4. GL 视口用 GetClientRect 的真实客户区重排：原生改 style 后 LCL 缓存的 ClientWidth
 //      还是旧值，直接 alClient 会得到 1024x768。
 uses
-  Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer, Windows;
+  Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
+  OpenGL1x, VectorGeometry, Windows;
+
+type
+  TCameraEvents = class
+    procedure Ortho(const viewport: TRectangle; width, height, DPI: Integer;
+      var viewPortRadius: Single);
+  end;
+
+procedure TCameraEvents.Ortho(const viewport: TRectangle; width, height,
+  DPI: Integer; var viewPortRadius: Single);
+begin
+  // 原版菜单/关卡的正交相机：glOrtho(±26.862, ±19.5) ⇒ 18.95 px/unit（F179）。
+  glOrtho(-26.862, 26.862, -19.5, 19.5, -100, 100);
+  viewPortRadius := 33.2;
+end;
 
 var
   F: TForm;
   S: TGLScene;
   Cam: TGLCamera;
   Cube: TGLCube;
+  CamEvents: TCameraEvents;
   V: TGLSceneViewer;
   r: TRect;
 begin
@@ -39,8 +55,11 @@ begin
   F.BorderStyle := bsNone;
 
   S := TGLScene.Create(F);
+  CamEvents := TCameraEvents.Create;
   Cam := TGLCamera.Create(S);
   Cam.Position.SetPoint(0, 0, 10);
+  Cam.CameraStyle := csCustom;
+  Cam.OnCustomPerspective := @CamEvents.Ortho;
   S.Objects.AddChild(Cam);
   Cube := TGLCube.Create(S);
   Cube.Material.FrontProperties.Diffuse.SetColor(1, 0, 0, 1);
