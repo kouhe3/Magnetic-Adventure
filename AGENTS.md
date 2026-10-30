@@ -7,6 +7,7 @@
 - 目标不是"跑通"，是**行为等价**：同一份真实调用序列重放到两个 DLL，逐调用、逐 step 比对。
 - 验收口径（`docs/requirements.md`）：L2-A = 导出名/序号/调用约定 + 原版 `game.exe` 直接加载新 DLL 跑通；整 exe 字节级复刻明确**不做**。
 - 文档三件套：`docs/requirements.md`（口径）、`docs/facts.md`（事实台账，只增不减）、`tasks/magnetic-adventure-plan.md`（任务树 + 变更记录）。
+- 交接：`tasks/HANDOFF.MD`（自包含的接手说明：现状/命令/排队/坑），每轮收尾更新。
 
 ## Architecture & Data Flow
 
