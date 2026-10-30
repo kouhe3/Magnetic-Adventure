@@ -24,6 +24,8 @@
 - [ ] T2.4 `Squall` 导出表 + DSound 行为契约 依据：F06
 - [ ] T2.5 C++ 实现 Squall，PCM 输出 diff 依据：F06
 - [ ] T2.6 原 exe + 新双 DLL 整机回归 依据：F06、F07
+- [x] T2.6a 整机冒烟：原 exe + 自建双 DLL 进 tutorial 关到结局页、模块 md5 核对、~90 s 不崩 依据：F141（细化 T2.6）
+- [ ] T2.6b 长时/多关整机回归（含正常退出路径，触发 `SQUALL_Free`） 依据：F141
 
 - [x] T2.4a 上游 `vendor/squall`（MIT，HEAD `20988426`）入库 + Win32 构建 + 导出表 99/99（`tools/check_exports.py`） 依据：F131、F132、F137（已完成；`squall` target 在 VS18 x86 上干净构建）
 - [x] T2.4b 补 `libogg`/`libvorbis` 静态库并使 `SQUALL_Sample_LoadFromMemory` 能解 pak 内 OGG 依据：F133、F134、F137（PCM 逐位比留 T2.5）
@@ -56,6 +58,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F141/F142：**整机冒烟通过 + 全量 OGG 元数据一致**。把自建 `b2Physics.dll` 与 `Squall.dll` 同时装进游戏：进 tutorial 关、跑 ~90 s、推进到 Congratulations 结局页，进程存活且模块表确认加载的是 `work/integration` 下与 `build/Release` 逐字节相同的两个 DLL（md5 核对）。新增 `tools/squall_decode_ab.py`：35 个 pak 内 OGG 的 `length/ms/hz/sid` 两侧 `diffs=0`（覆盖边界：不比 PCM，F134 仍未闭合）。新增 T2.6a（已完成）/T2.6b（长时+优雅退出）。
 
 - 2026-10-30 依据 F140：**T2.4d 的接口集合更正**——脚本化进关（菜单→Play→18 s）后原版与自建各 51 次调用、102 条事件 **0 分歧**；实际用到 7 个接口，`Sample_Play3D*`/`Channel_Set3DPosition`/`Listener_*` 根本不在宿主导入表里（F131），那 82 个导出对本游戏是死码。T2.4d 缩到剩余未触发的 10 个（含只有优雅退出才调的 `SQUALL_Free`）。
 
