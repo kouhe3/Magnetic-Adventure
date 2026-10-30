@@ -78,6 +78,15 @@ python tools/check_exports.py build/Release/b2Physics.dll
 cmake --build build --config Release --target squall            # → build/Release/Squall.dll
 python tools/check_exports.py build/Release/Squall.dll mapping/squall-exports.csv   # 99/99
 
+# Squall 转发 DLL（占住 Squall.dll，加载 Squall_orig.dll，写 SQFFI01 日志）
+cmake --build build --config Release --target squall_proxy      # → build/proxy_squall/Release/Squall.dll
+#   装法：游戏目录里 Squall.dll = 代理、Squall_orig.dll = 真身；SQUALL_LOG=<path> 指定日志
+python tools/squall_ffi.py <log> [--show N]      # 解析（pre/post 1:1 自检）
+python tools/squall_ab.py <a.bin> <b.bin>        # 两份日志结构对拍（指针不参与比对）
+
+# 诊断变体：SQUALL_DEBUG=1 时 api_Startup 在进程 CWD 写 Squall.log（每个导出记参数与结果）
+cmake -S . -B build -DSQUALL_DEBUG_LOG=ON && cmake --build build --config Release --target squall_dbg
+
 # 指纹（确认 build_info.json 与产物一致）
 python -c "import sys;sys.path.insert(0,'tools');import instr;print(instr.fingerprint('build/Release/b2Physics.dll')['match'])"
 
