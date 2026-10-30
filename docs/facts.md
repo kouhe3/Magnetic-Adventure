@@ -180,6 +180,8 @@
 
 | F150 | **真实关卡整段音频对拍通过：同一脚本进关 55 s，两段录音除 9 ms 启动偏移外逐秒重合**。做法：代理在 `SQUALL_Init` 返回后强制 `SQUALL_SetDevice(3)`（`SQUALL_FORCE_DEVICE` 环境变量，宿主本身从不调这个导出），把游戏输出路由到 VB-Cable；`game_drive` 起游戏 → 17 s 点 Play → 再跑 33 s → 杀，ffmpeg 同步录 `CABLE Output`。结果（原版 vs 自建）：逐秒最佳 lag 恒为 395 样本（9.0 ms），20–21 s / 25–26 s / 30–31 s / 35–36 s / 40–41 s 的相关系数 **0.9998–0.9999**，RMS 比如 25–26 s 为 2903 vs 2903、30–31 s 3075 vs 3087（差 <1%），全段 RMS 2981.3 vs 2982.3。**边界**：这是"输出等价"的证据，不是 PCM 逐位（两边各自经过共享模式重采样、起录相位独立）；且脚本化路径只覆盖 tutorial 关 | L4 | `work/level_orig.wav` / `work/level_ours.wav`（各 9.7 MB / 55 s）；`work/level_audio_run.py`；逐秒 lag/corr 分析脚本（本会话） | 已证 | T2.5/T4.3 |
 
+| F151 | **多关实录（Steam Engine / Gramophone / Hold Your Breath / Fill 'Er Up，同一进程）906 次调用，接口集合仍是那 17 个导入的子集，没有新 API 面**。分布：`Sample_PlayEx` 274、`Channel_SetVolume`/`Channel_Start` 各 227、`Sample_Stop` 37、`ChannelGroup_Pause` 34、`Sample_LoadFromMemory`/`Sample_Unload` 各 35、`ChannelGroup_Stop` 22、`ChannelGroup_SetVolume` 4、`Channel_SetPriority` 4、**`Channel_Pause` 4（本会话首次出现）**、`Init`/`UnloadAll`/`Free` 各 1。音乐（`loop=1, group=1`）只起 4 次，sample id 依次 `0x10001 / 0x10003 / 0x10001 / 0x10002`，与 4 个关卡一一对上；`group 2` 是音效（252 次），`group 3/4` 各 9 次（UI/环境）。**游戏内累计覆盖 14/17**：`Channel_Status`、`Sample_LoadFile`、`Sample_Pause` 从未被宿主调用，由 20 步契约探针覆盖（F144） | L4 | `work/sq_levels_multi.bin`（558,116 B，pre=post=906）；`python tools/squall_ffi.py … --show 0` | 已证 | T2.4d/T2.5 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Delphi/VCL 编译产物**。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。
