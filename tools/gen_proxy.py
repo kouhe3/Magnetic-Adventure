@@ -1,16 +1,21 @@
-"""生成转发 DLL（proxy b2Physics.dll）的 87 个 naked 桩 + 同名同序号 .def。
+"""生成转发 DLL 的 naked 桩 + 同名同序号 .def（默认 b2Physics，可选 Squall）。
 
-原理：把原 b2Physics.dll 改名为 b2Physics_orig.dll，代理 DLL 占据原文件名，
+原理：把原 DLL 改名为 `<name>_orig.dll`，代理 DLL 占据原文件名，
 首次调用时 GetProcAddress 解析真实函数。桩入口保存所有寄存器与 EFLAGS，
-把「返回地址 + 前 32 个 dword 实参」（cdecl 全部在栈上）连同 ecx/edx 交给
+把「返回地址 + 前 N 个 dword 实参」（cdecl 全部在栈上）连同 ecx/edx 交给
 log_call 记录，然后 popad/popfd + jmp 真实函数 —— 栈与寄存器完全原样，
-对宿主与被代理 DLL 都是透明的。不需要知道 87 个函数各自的签名。
+对宿主与被代理 DLL 都是透明的。不需要知道每个函数各自的签名。
 
-依据：docs/facts.md F31/F35（导出清单与序号）、F38（ReFilter 参数）；
-实参形状未知项见 F34（关节工厂）。
+依据：docs/facts.md F35（b2 导出清单与序号）、F38（ReFilter 参数）、
+      F131（Squall 99 个导出/序号）、F136（上游源码与原版不等价，需对拍）。
 
-用法：python tools/gen_proxy.py
+用法：
+  python tools/gen_proxy.py
+  python tools/gen_proxy.py --csv mapping/squall-exports.csv \
+      --out-c src/squallproxy/proxy_stubs.c --out-def src/squallproxy/proxy.def \
+      --library Squall --prefix SQUALL_
 """
+import argparse
 import csv
 import pathlib
 
@@ -20,12 +25,12 @@ OUT_C = ROOT / "src" / "proxydll" / "proxy_stubs.c"
 OUT_DEF = ROOT / "src" / "proxydll" / "proxy.def"
 
 
-def load():
+def load(csv_path, prefix):
     rows = []
-    with CSV.open(encoding="utf-8", errors="replace") as f:
+    with csv_path.open(encoding="utf-8", errors="replace") as f:
         for r in csv.DictReader(f):
             name = r["name"]
-            if not name.startswith("b2_"):
+            if not name.startswith(prefix):
                 continue  # DllEntryPoint 之类的伪条目
             rows.append((int(r["ordinal"]), name))
     rows.sort()
@@ -80,11 +85,28 @@ __declspec(naked) void proxy_post_{ord}(void) {{
 
 
 def main():
-    rows = load()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--csv", default=str(CSV))
+    ap.add_argument("--out-c", default=str(OUT_C))
+    ap.add_argument("--out-def", default=str(OUT_DEF))
+    ap.add_argument("--library", default="b2Physics")
+    ap.add_argument("--prefix", default="b2_")
+    a = ap.parse_args()
+    csv_path = pathlib.Path(a.csv)
+    out_c = pathlib.Path(a.out_c)
+    out_def = pathlib.Path(a.out_def)
+    if not csv_path.is_absolute():
+        csv_path = ROOT / csv_path
+    if not out_c.is_absolute():
+        out_c = ROOT / out_c
+    if not out_def.is_absolute():
+        out_def = ROOT / out_def
+
+    rows = load(csv_path, a.prefix)
     n = max(o for o, _ in rows)
     parts = [
         "/* 生成文件，勿手改：python tools/gen_proxy.py",
-        " * 依据：docs/facts.md F35（87 个导出/序号）、F31（check_exports 零差异） */",
+        " * 依据：docs/facts.md F35/F131（导出清单与序号） */",
         "#include <windows.h>",
         "#include <stdint.h>",
         "",
@@ -108,19 +130,20 @@ def main():
         parts.append(STUB_POST.format(ord=off, off=off * 4))
     for off, _ in rows:
         parts.append(STUB_PRE.format(ord=off, off=off * 4))
-    OUT_C.parent.mkdir(parents=True, exist_ok=True)
+    out_c.parent.mkdir(parents=True, exist_ok=True)
+
     # 生成物入库，换行必须与仓库一致：CRLF（`.gitattributes` 的 `* -text`，见 F130）。
     def write_crlf(path, text):
         with path.open("w", encoding="utf-8", newline="\r\n") as f:
             f.write(text)
 
-    write_crlf(OUT_C, "\n".join(parts))
+    write_crlf(out_c, "\n".join(parts))
 
-    d = ["LIBRARY b2Physics", "EXPORTS"]
+    d = [f"LIBRARY {a.library}", "EXPORTS"]
     d += [f"{name}=proxy_stub_{ord} @{ord}" for ord, name in rows]
-    write_crlf(OUT_DEF, "\n".join(d) + "\n")
-    print(f"{OUT_C.relative_to(ROOT)}: {len(rows)} stubs")
-    print(f"{OUT_DEF.relative_to(ROOT)}: {len(rows)} exports")
+    write_crlf(out_def, "\n".join(d) + "\n")
+    print(f"{out_c.relative_to(ROOT)}: {len(rows)} stubs")
+    print(f"{out_def.relative_to(ROOT)}: {len(rows)} exports")
 
 
 if __name__ == "__main__":

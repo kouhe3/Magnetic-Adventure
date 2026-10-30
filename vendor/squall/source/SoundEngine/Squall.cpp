@@ -48,7 +48,11 @@ static const char* ErrorTable[] = {
 #endif
 
 // таблица для преобразования громкости
-int volume_table[100];
+// altered (F138): 上游是 int volume_table[100]，但 API 文档与宿主都把 Volume=100 当作满音量，
+// 于是 volume_table[100] 越界读相邻全局内存 —— 原版 2006 DLL 恰好读到 0（=0 dB，满音量，
+// 实测 SQUALL_Channel_GetVolume 返回 100），我们的构建读到垃圾值 → DSERR_INVALIDPARAM
+// → SQUALL_Sample_PlayEx 返回 -13。扩到 101 并把 100 映射为满音量。
+int volume_table[101];
 
 int naturalvolume_to_dxvolume( float volume )
 {
@@ -242,6 +246,7 @@ DLL_API int SQUALL_Init(squall_parameters_t* SystemParam)
 	// создание таблицы громкостей
 	for (i = 0; i < 100; ++i)
 		volume_table[i] = naturalvolume_to_dxvolume(i * (1 / 99.0f));
+	volume_table[100] = volume_table[99];   // altered (F138): Volume=100 → 满音量（0 dB）
 
 	// проверка входных параметров
 	InitParameters(SystemParam, & sys);

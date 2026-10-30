@@ -1,5 +1,5 @@
 /* 生成文件，勿手改：python tools/gen_proxy.py
- * 依据：docs/facts.md F35（87 个导出/序号）、F31（check_exports 零差异） */
+ * 依据：docs/facts.md F35/F131（导出清单与序号） */
 #include <windows.h>
 #include <stdint.h>
 

@@ -132,3 +132,39 @@ target_link_libraries(squall PRIVATE squall_codec dsound dxguid winmm ole32 user
   "${SQUALL_ROOT}/../external/dshow/amstrmid.lib")
 set_target_properties(squall PROPERTIES OUTPUT_NAME Squall
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- 转发 DLL（Squall）：占住 Squall.dll 文件名，加载 Squall_orig.dll，
+#      记录每次导出的实参/返回值/出参内存。依据 F131/F136（契约要以原版调用序为准）。
+#      桩由 tools/gen_proxy.py 生成：
+#        python tools/gen_proxy.py --csv mapping/squall-exports.csv \
+#          --out-c src/squallproxy/proxy_stubs.c --out-def src/squallproxy/proxy.def \
+#          --library Squall --prefix SQUALL_
+add_library(squall_proxy SHARED
+  src/squallproxy/proxy_core.c
+  src/squallproxy/proxy_stubs.c
+  src/squallproxy/proxy.def)
+set_target_properties(squall_proxy PROPERTIES OUTPUT_NAME Squall
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy_squall"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- 诊断变体：SQUALL_DEBUG=1 时 api_Startup 会在进程 CWD 写 Squall.log，
+#      每个导出记参数与结果。默认不编；cmake -DSQUALL_DEBUG_LOG=ON 打开。
+option(SQUALL_DEBUG_LOG "构建带 SQUALL_DEBUG 日志的 Squall 变体" OFF)
+if(SQUALL_DEBUG_LOG)
+  add_library(squall_dbg SHARED ${SQUALL_SOURCES})
+  target_include_directories(squall_dbg PRIVATE
+    ${SQUALL_ROOT}
+    ${SQUALL_ROOT}/SoundEngine
+    ${SQUALL_ROOT}/SoundFile
+    ${SQUALL_ROOT}/SoundFile/WAV
+    ${SQUALL_ROOT}/SoundFile/MP3
+    ${SQUALL_ROOT}/SoundFile/Ogg
+    ${SQUALL_ROOT}/../external/dshow)
+  target_compile_definitions(squall_dbg PRIVATE _WINDOWS _USRDLL SQUALL_EXPORTS WIN32
+    DIRECTSOUND_VERSION=0x0800 SQUALL_DEBUG=1)
+  target_link_libraries(squall_dbg PRIVATE squall_codec dsound dxguid winmm ole32 user32
+    "${SQUALL_ROOT}/../external/dshow/amstrmid.lib")
+  set_target_properties(squall_dbg PROPERTIES OUTPUT_NAME Squall
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/dbg_squall"
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
