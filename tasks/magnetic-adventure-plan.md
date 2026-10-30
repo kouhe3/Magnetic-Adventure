@@ -28,7 +28,7 @@
 - [x] T2.4a 上游 `vendor/squall`（MIT，HEAD `20988426`）入库 + Win32 构建 + 导出表 99/99（`tools/check_exports.py`） 依据：F131、F132、F137（已完成；`squall` target 在 VS18 x86 上干净构建）
 - [x] T2.4b 补 `libogg`/`libvorbis` 静态库并使 `SQUALL_Sample_LoadFromMemory` 能解 pak 内 OGG 依据：F133、F134、F137（PCM 逐位比留 T2.5）
 - [x] T2.4c Squall 代理 DLL 抓包（17 个宿主导入函数的实参/返回值）→ 契约 依据：F131、F139（启动路径 5 个函数 / 44 次调用已抓并与自建 DLL 零差异；剩余 12 个见 T2.4d）
-- [ ] T2.4d 关卡内音频路径抓包：`Sample_Play3D/Play3DEx`、`Channel_*`、`ChannelGroup_*`、`Listener_*`（要从菜单进关才触发） 依据：F139
+- [ ] T2.4d 剩余宿主导入抓包：`Channel_Pause/SetVolume/Start/Status`、`Sample_LoadFile/Pause/Stop/UnloadAll`、`Free`（优雅退出才调） 依据：F139、F140（3D/Listener 路径宿主不导入，已确认死码）
 
 ## M3 宿主复刻（L0 + L1）
 
@@ -56,6 +56,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F140：**T2.4d 的接口集合更正**——脚本化进关（菜单→Play→18 s）后原版与自建各 51 次调用、102 条事件 **0 分歧**；实际用到 7 个接口，`Sample_Play3D*`/`Channel_Set3DPosition`/`Listener_*` 根本不在宿主导入表里（F131），那 82 个导出对本游戏是死码。T2.4d 缩到剩余未触发的 10 个（含只有优雅退出才调的 `SQUALL_Free`）。
 
 - 2026-10-30 依据 F138/F139：**T2.4c 仪器落地 + 两处漂移修完**。`src/squallproxy/`（99 个 naked 桩，`Squall_orig.dll` 尾跳，日志 `SQFFI01`）+ `tools/squall_ffi.py`（解析）+ `tools/squall_ab.py`（结构对拍）+ `tools/gen_proxy.py` 参数化（b2/Squall 共用）。实抓宿主启动路径：44 次调用（`Init` → 35×`LoadFromMemory` → 4×`ChannelGroup_SetVolume` → 2×`Sample_PlayEx` → 2×`ChannelGroup_Pause`）；自建 DLL 复原后 88 条事件 **0 分歧**。期间修掉第二处源码漂移：`volume_table[100]` 越界（原版读到 0 dB、我们读到垃圾 → `PlayEx=-13`），已按 `altered (F138)` 扩到 101。**教训：代理日志必须逐条 WriteFile**，TerminateProcess 会吞掉用户态缓冲（首轮 25 秒日志 0 字节）。新增 T2.4d（关卡内剩余 12 个导入）。
 - 2026-10-30 依据 F136/F137：**T2.4a 完成**——`cmake --build build --config Release --target squall` 产出 `build/Release/Squall.dll`（VS18 x86、静态 CRT），导出 `99/99` 序号全中，导入集合与原版相同；`SQUALL_Init`/`GetNumDevice`/`GetDeviceName`/`Sample_LoadFromMemory`/`GetFileLength(Ms)`/`GetFileFrequency` 在两份 pak 内 OGG 上与 oracle 逐项相同。同时抓到**第一处源码漂移**：上游 `SQUALL_GetNumDevice` 是空指针虚调用，自建 DLL 崩、原版返回 4，已按 `altered (F136)` 修好 ⇒ T2.4 纪律：上游源码只是起点，宿主用到的 17 个导出必须逐个对拍。构建适配：SDK `dsound.h`（不用 `ext/` 那份精简头）、`DIRECTSOUND_VERSION=0x0800`、链 `dxguid`；ogg/vorbis 源码直编（`squall_codec`），无外部解码 DLL。

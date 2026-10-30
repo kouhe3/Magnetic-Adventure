@@ -46,6 +46,7 @@ game.exe + 代理 DLL ──B2PROXY_LOG──> work/rec_<ts>/ffi.bin (B2FFI02)
 |---|---|---|
 | `src/b2physics/` | 兼容 DLL 实现（`b2physics.cpp` 933 行 + `.h` + `.def`） | ✓ |
 | `src/proxydll/` | 代理 DLL；`proxy_stubs.c` / `proxy.def` 是**生成物** | ✓ |
+| `src/squallproxy/` | Squall 代理 DLL（`SQFFI01` 日志）；`proxy_stubs.c` / `proxy.def` 由 `tools/gen_proxy.py --csv mapping/squall-exports.csv --library Squall --prefix SQUALL_` 生成 | ✓ |
 | `vendor/box2d-2.0.2/` | **已按原版修正过的快照，不要当上游** | ✓ |
 | `vendor/squall/` | 上游 Squall v1.48（MIT，HEAD `20988426`）源码：原 `Squall.dll` 与它导出名 99/99 一致；与 2006 二进制**行为不等价**，改动处标 `// altered (Fxxx)` | ✓ |
 | `vendor/libogg-1.3.5/` `vendor/libvorbis-1.3.7/` | Ogg Vorbis 解码源码，直编进 `Squall.dll`（不生成独立 DLL） | ✓ |
