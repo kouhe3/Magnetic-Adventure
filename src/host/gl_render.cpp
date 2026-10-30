@@ -1,10 +1,12 @@
 // 宿主渲染层 v0（T3.2 里程碑 A）：建 WGL 上下文 + 按抓到的二进制绘制列表画菜单。
 //
-// 输入是两份数据文件（同 exe 目录，可用 MENU_TEX / MENU_DRAW 覆盖）：
-//   menu_tex.bin  "GLTEX01\0" + u32 count + count × {u32 id,w,h, RGBA 像素（自下而上）}
-//                 由 tools/gl_texpack.py 从启动期 GL 日志 + pak 素材生成（F183）
-//   menu_draw.bin "GLDRW01\0" + u32 count + 每个 draw{u32 tex,n,caps,src,dst; f32 rgba[4];
-//                 n × f32 (x,y,z,u,v)}，由 tools/gl_drawlist.py --pack 生成（F181/F182）
+// 纹理：**直接读游戏 pak**（`data`）里的 37 张素材，WIC 解码后按原版顺序/格式上传
+// （F183 的 id↔素材映射、F185 的逐字节解码一致性）。pak 路径：HOST_DATA 指向 pak 文件
+// 或含 `data` 的目录，否则用 exe 同级的 `data`。
+// 绘制列表：menu_draw.bin "GLDRW02\0" + u32 count + 每个 draw{u32 tex,n,caps,prim,src,dst;
+// f32 rgba[4]; n × f32 (x,y,z,u,v)}，由 tools/gl_drawlist.py --pack 生成（F181/F182）。
+// prim 必须原样回放：原版文本串是 12 顶点的 GL_QUADS（三连字），当 TRIANGLE_FAN 画会把
+// 三块连成蝴蝶结（F186）。T3.2d 会用宿主侧布局替掉这份绘制列表。
 //
 // 状态复刻（F184）：PFD 24 色 / 24 深度 / 双缓冲 / 无 alpha；纹理用
 // WRAP=REPEAT、MIN=LINEAR_MIPMAP_LINEAR、MAG=LINEAR、GL_GENERATE_MIPMAP=1（与启动期实测一致），
@@ -23,7 +25,13 @@
 #include <string>
 #include <vector>
 
+#include "pak.h"
+#include "texture_table.h"
+#include "wic_decode.h"
+
 namespace {
+
+using namespace host;  // pak / WIC / 纹理表都在 host 命名空间
 
 #ifndef GL_GENERATE_MIPMAP
 #define GL_GENERATE_MIPMAP 0x8191
@@ -39,12 +47,12 @@ const unsigned CAP_ALPHA_TEST = 1u << 3;
 const unsigned CAP_CULL_FACE = 1u << 4;
 
 struct Tex {
-  unsigned id, w, h;
+  unsigned id;
   GLuint gl;
 };
 
 struct Draw {
-  unsigned tex, n, caps, src, dst;
+  unsigned tex, n, caps, prim, src, dst;
   float rgba[4];
   std::vector<float> v;  // n × (x,y,z,u,v)
 };
@@ -80,7 +88,7 @@ bool ReadFileBytes(const std::string& path, std::vector<unsigned char>* out) {
   return got == out->size();
 }
 
-// 从目录读，可用环境变量覆盖
+// 从目录读，可用环境变量覆盖（目前只有绘制列表还走这条路，T3.2d 之后会一并去掉）
 std::string DataPath(const char* env, const char* leaf) {
   char buf[MAX_PATH];
   DWORD n = GetEnvironmentVariableA(env, buf, MAX_PATH);
@@ -88,63 +96,119 @@ std::string DataPath(const char* env, const char* leaf) {
   return ExeDir() + leaf;
 }
 
-bool LoadTex(const std::string& path) {
-  std::vector<unsigned char> b;
-  if (!ReadFileBytes(path, &b)) return false;
-  if (b.size() < 12 || std::memcmp(b.data(), "GLTEX01", 7) != 0) return false;
-  unsigned count = 0;
-  std::memcpy(&count, b.data() + 8, 4);
-  size_t off = 12;
-  for (unsigned i = 0; i < count; ++i) {
-    Tex t = {};
-    if (off + 12 > b.size()) return false;
-    std::memcpy(&t.id, b.data() + off, 4);
-    std::memcpy(&t.w, b.data() + off + 4, 4);
-    std::memcpy(&t.h, b.data() + off + 8, 4);
-    off += 12;
-    size_t bytes = static_cast<size_t>(t.w) * t.h * 4;
-    if (off + bytes > b.size()) return false;
-    glGenTextures(1, &t.gl);
-    glBindTexture(GL_TEXTURE_2D, t.gl);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    // 与启动期实测一致（F183）：REPEAT + 三线性。mipmap 用 gluBuild2DMipmaps 显式生成
-    // ——GL_GENERATE_MIPMAP(0x8191) 在部分驱动的兼容 profile 里不生效，会让纹理不完整
-    // 而采样成白色（第一版就踩了这个）。
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    if (std::getenv("HOST_GL_NOMIP")) {
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, t.w, t.h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                   b.data() + off);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    } else {
-      gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA8, t.w, t.h, GL_RGBA, GL_UNSIGNED_BYTE,
-                        b.data() + off);
+// HOST_DATA 可以是 pak 文件本身，也可以是含 `data` 的目录；默认 exe 同级 data
+std::string PakPath() {
+  char buf[MAX_PATH];
+  DWORD n = GetEnvironmentVariableA("HOST_DATA", buf, MAX_PATH);
+  std::string s = (n > 0 && n < MAX_PATH) ? std::string(buf) : ExeDir() + "data";
+  DWORD attr = GetFileAttributesA(s.c_str());
+  if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) s += "\\data";
+  return s;
+}
+
+unsigned Crc32(const unsigned char* p, size_t n) {
+  static unsigned table[256];
+  static bool init = false;
+  if (!init) {
+    for (unsigned i = 0; i < 256; ++i) {
+      unsigned c = i;
+      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+      table[i] = c;
     }
-    off += bytes;
-    g_menu.tex.push_back(t);
+    init = true;
   }
-  return true;
+  unsigned c = 0xFFFFFFFFu;
+  for (size_t i = 0; i < n; ++i) c = table[(c ^ p[i]) & 0xFF] ^ (c >> 8);
+  return c ^ 0xFFFFFFFFu;
+}
+
+// 与启动期实测一致（F183）：内/外部格式配对 GL_RGB8/GL_RGB 与 GL_RGBA8/GL_RGBA，
+// WRAP=REPEAT、MIN=LINEAR_MIPMAP_LINEAR、MAG=LINEAR。mipmap 用 gluBuild2DMipmaps 显式生成
+// ——GL_GENERATE_MIPMAP(0x8191) 在部分驱动的兼容 profile 里不生效，会让纹理不完整
+// 而采样成白色（第一版就踩了这个）。
+GLuint UploadTexture(const unsigned char* px, int w, int h, bool rgb) {
+  GLuint id = 0;
+  glGenTextures(1, &id);
+  glBindTexture(GL_TEXTURE_2D, id);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, rgb ? 1 : 4);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  const GLint internal = rgb ? GL_RGB8 : GL_RGBA8;
+  const GLenum format = rgb ? GL_RGB : GL_RGBA;
+  if (std::getenv("HOST_GL_NOMIP")) {
+    glTexImage2D(GL_TEXTURE_2D, 0, internal, w, h, 0, format, GL_UNSIGNED_BYTE, px);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  } else {
+    GLint gluerr = gluBuild2DMipmaps(GL_TEXTURE_2D, internal, w, h, format, GL_UNSIGNED_BYTE, px);
+    if (const char* dp = std::getenv("HOST_TEX_DIAG")) {
+      // 诊断：glu 的返回值 + level 0/1 的实际尺寸（非 2 的幂会被 glu 缩放，800x600→1024x512）
+      GLint l0w = 0, l0h = 0, l1w = 0, l1h = 0;
+      glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &l0w);
+      glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &l0h);
+      glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_WIDTH, &l1w);
+      glGetTexLevelParameteriv(GL_TEXTURE_2D, 1, GL_TEXTURE_HEIGHT, &l1h);
+      if (FILE* f = std::fopen(dp, "a")) {
+        std::fprintf(f, "tex=%u %s %dx%d internal=%#x fmt=%#x gluerr=%d l0=%dx%d l1=%dx%d glerr=%#x\n",
+                     id, rgb ? "RGB" : "RGBA", w, h, internal, format, gluerr, l0w, l0h, l1w,
+                     l1h, glGetError());
+        std::fclose(f);
+      }
+    }
+  }
+  return id;
+}
+
+// 直接读 pak：按 mapping/textures.csv（F183）的 id→素材映射逐张解码上传。
+// HOST_TEX_CRC=<path> 时把每张上传像素的 CRC32 落盘，供 tools 与原版日志对拍（F185）。
+bool LoadTexturesFromPak() {
+  Pak pak;
+  const std::string pak_path = PakPath();
+  if (!pak.Open(pak_path)) return false;
+  const char* crc_env = std::getenv("HOST_TEX_CRC");
+  FILE* crc = crc_env ? std::fopen(crc_env, "w") : nullptr;
+  bool ok = true;
+  const size_t want = sizeof(kTextures) / sizeof(kTextures[0]);
+  for (size_t i = 0; i < want && ok; ++i) {
+    const TextureDef& def = kTextures[i];
+    const PakEntry* e = pak.Find(def.asset);
+    const bool rgb = def.rgb;
+    std::vector<unsigned char> px;
+    int w = 0, h = 0;
+    ok = e && DecodeImage(pak.Data(*e), e->size, rgb, &w, &h, &px);
+    if (!ok) break;
+    Tex t = {};
+    t.id = def.id;
+    t.gl = UploadTexture(px.data(), w, h, rgb);
+    g_menu.tex.push_back(t);
+    if (crc)
+      std::fprintf(crc, "%u %s %d %d %08x\n", def.id, def.asset, w, h,
+                   Crc32(px.data(), px.size()));
+  }
+  if (crc) std::fclose(crc);
+  if (g_menu.tex.size() != want) return false;
+  return ok;
 }
 
 bool LoadDraw(const std::string& path) {
   std::vector<unsigned char> b;
   if (!ReadFileBytes(path, &b)) return false;
-  if (b.size() < 12 || std::memcmp(b.data(), "GLDRW01", 7) != 0) return false;
+  if (b.size() < 12 || std::memcmp(b.data(), "GLDRW02", 7) != 0) return false;
   unsigned count = 0;
   std::memcpy(&count, b.data() + 8, 4);
   size_t off = 12;
   for (unsigned i = 0; i < count; ++i) {
     Draw d = {};
-    if (off + 28 > b.size()) return false;
+    if (off + 32 > b.size()) return false;
     std::memcpy(&d.tex, b.data() + off, 4);
     std::memcpy(&d.n, b.data() + off + 4, 4);
     std::memcpy(&d.caps, b.data() + off + 8, 4);
-    std::memcpy(&d.src, b.data() + off + 12, 4);
-    std::memcpy(&d.dst, b.data() + off + 16, 4);
-    std::memcpy(d.rgba, b.data() + off + 20, 16);
-    off += 36;
+    std::memcpy(&d.prim, b.data() + off + 12, 4);
+    std::memcpy(&d.src, b.data() + off + 16, 4);
+    std::memcpy(&d.dst, b.data() + off + 20, 4);
+    std::memcpy(d.rgba, b.data() + off + 24, 16);
+    off += 40;
     d.v.resize(static_cast<size_t>(d.n) * 5);
     if (off + d.v.size() * 4 > b.size()) return false;
     std::memcpy(d.v.data(), b.data() + off, d.v.size() * 4);
@@ -180,12 +244,13 @@ bool GlInit(HWND viewer) {
   g_rc = wglCreateContext(g_dc);
   if (!g_rc || !wglMakeCurrent(g_dc, g_rc)) return false;
 
-  g_menu.ok = LoadTex(DataPath("MENU_TEX", "menu_tex.bin")) &&
-              LoadDraw(DataPath("MENU_DRAW", "menu_draw.bin"));
+  if (!WicInit()) return false;
+  const std::string pak_path = PakPath();
+  g_menu.ok = LoadTexturesFromPak() && LoadDraw(DataPath("MENU_DRAW", "menu_draw.bin"));
   if (FILE* f = std::fopen(std::string(ExeDir() + "gl_init.log").c_str(), "w")) {
-    std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu draws=%zu err=%#x\n",
+    std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu draws=%zu pak=%s err=%#x\n",
                  static_cast<void*>(g_dc), static_cast<void*>(g_rc), g_menu.ok ? 1 : 0,
-                 g_menu.tex.size(), g_menu.draws.size(), glGetError());
+                 g_menu.tex.size(), g_menu.draws.size(), pak_path.c_str(), glGetError());
     std::fclose(f);
   }
   return g_menu.ok;
@@ -230,7 +295,7 @@ void GlRenderMenu() {
     GLuint tex = FindTex(d.tex);
     if (tex) glBindTexture(GL_TEXTURE_2D, tex);
     glColor4fv(d.rgba);
-    glBegin(GL_TRIANGLE_FAN);
+    glBegin(d.prim);  // 原样回放：QUADS 的 12 顶点是三连字，按 fan 画会连成蝴蝶结（F186）
     for (unsigned i = 0; i < d.n; ++i) {
       const float* p = &d.v[i * 5];
       glTexCoord2f(p[3], p[4]);

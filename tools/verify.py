@@ -56,9 +56,15 @@ def check_exports(dll, csv=None):
 def check_window():
     rc, out, dt = run([sys.executable, "tools/wincompare.py",
                        "--orig", "work/winprobe_game", "--ours", "build/Release"])
+    # 偶发失败要能事后归因：完整字段表落盘（2026-10-30 出现过一次 diffs=2，随后 20 次不复现）
+    with open(os.path.join(ROOT, "work", "gate_window_last.log"), "w", encoding="utf-8") as f:
+        f.write(out)
     m = re.search(r"diffs=(\d+)", out)
     ok = rc == 0 and m and m.group(1) == "0"
-    return ok, (m.group(0) if m else out.strip().splitlines()[-1:] or [""]), dt
+    detail = m.group(0) if m else ((out.strip().splitlines() or ["(no output)"])[-1])
+    if not ok:
+        detail += " · 见 work/gate_window_last.log"
+    return ok, detail, dt
 
 
 def check_contract():

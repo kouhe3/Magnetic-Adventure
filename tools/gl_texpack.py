@@ -96,6 +96,7 @@ def main():
     ap.add_argument("--pak", default="work/pak_gametop")
     ap.add_argument("--out", default="work/menu_tex.bin")
     ap.add_argument("--manifest", default="work/menu_tex.json")
+    ap.add_argument("--csv", default="", help="可选：把 id↔素材映射写成 CRLF 的 mapping/textures.csv")
     a = ap.parse_args()
 
     ups = load_uploads(a.log)
@@ -153,6 +154,13 @@ def main():
     with open(a.manifest, "w", encoding="utf-8") as f:
         json.dump({"textures": [{k: e[k] for k in ("id", "w", "h", "fmt", "asset")}
                                 for e in entries]}, f, ensure_ascii=False, indent=1)
+    if a.csv:
+        # 仓库约定：git 追踪的文本用 CRLF（.gitattributes 是 * -text）
+        with open(a.csv, "w", encoding="ascii", newline="") as f:
+            f.write("id,asset,w,h,fmt\r\n")
+            for e in entries:
+                f.write("%d,%s,%d,%d,%s\r\n" % (e["id"], e["asset"] or "", e["w"], e["h"],
+                                                e["fmt"]))
     ok = sum(1 for e in entries if e["asset"])
     print("textures=%d matched=%d bytes=%d" % (len(entries), ok, os.path.getsize(a.out)))
     for e in entries:

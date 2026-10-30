@@ -68,9 +68,13 @@ def f32(x):
     return struct.unpack("<f", struct.pack("<I", x & 0xFFFFFFFF))[0]
 
 
-PRIMS = {0x0000: "POINTS", 0x0001: "LINES", 0x0003: "LINE_STRIP", 0x0004: "LINE_LOOP",
-         0x0005: "TRIANGLES", 0x0006: "TRIANGLE_STRIP", 0x0007: "TRIANGLE_FAN",
-         0x0008: "QUADS", 0x0009: "QUAD_STRIP", 0x000A: "POLYGON"}
+# GL 的 prim 枚举是 0..9 连续段：POINTS/LINES/LINE_LOOP/LINE_STRIP/TRIANGLES/
+# TRIANGLE_STRIP/TRIANGLE_FAN/QUADS/QUAD_STRIP/POLYGON。**原版的文本串是 12 顶点的
+# GL_QUADS**（三连字），第一版把 0x0007 标成 TRIANGLE_FAN，宿主按 fan 回放就把三块
+# 连成蝴蝶结——"Welcome, ooo" 渲染成 "o>>"（F186 勘误 F181/F182 的措辞）。
+PRIMS = {0x0000: "POINTS", 0x0001: "LINES", 0x0002: "LINE_LOOP", 0x0003: "LINE_STRIP",
+         0x0004: "TRIANGLES", 0x0005: "TRIANGLE_STRIP", 0x0006: "TRIANGLE_FAN",
+         0x0007: "QUADS", 0x0008: "QUAD_STRIP", 0x0009: "POLYGON"}
 MODES = {0x1700: "MODELVIEW", 0x1701: "PROJECTION", 0x1702: "TEXTURE"}
 
 
@@ -87,6 +91,7 @@ class State:
         self.caps = (1 << 2) | (1 << 3) | (1 << 4)
         self.blend = (0x0302, 0x0303)   # SRC_ALPHA / ONE_MINUS_SRC_ALPHA
         self.in_begin = None
+        self.prim = 0
         self.verts = []
         self.uv = (0.0, 0.0)
         self.draws = []
@@ -104,7 +109,7 @@ def vertex(st, x, y, z):
 def flush(st):
     if not st.verts:
         return
-    st.draws.append({"prim": st.in_begin, "tex": st.tex, "rgba": st.rgba,
+    st.draws.append({"prim": st.in_begin, "prim_enum": st.prim, "tex": st.tex, "rgba": st.rgba,
                      "caps": st.caps, "blend": st.blend,
                      "n": len(st.verts),
                      "v": [p[0] for p in st.verts], "uv": [p[1] for p in st.verts]})
@@ -191,6 +196,7 @@ def main():
         elif name == "glColor4f":
             st.rgba = tuple(f32(v) for v in args[:4])
         elif name == "glBegin":
+            st.prim = args[0]
             st.in_begin = PRIMS.get(args[0], hex(args[0]))
             st.verts = []
         elif name == "glEnd":
@@ -217,11 +223,11 @@ def main():
         print("wrote %s (%d draws)" % (a.json, len(st.draws)))
     if a.pack:
         with open(a.pack, "wb") as f:
-            f.write(b"GLDRW01\0")
+            f.write(b"GLDRW02\0")
             f.write(struct.pack("<I", len(st.draws)))
             for d in st.draws:
-                f.write(struct.pack("<III II 4f", d["tex"] or 0, d["n"], d["caps"],
-                                    d["blend"][0], d["blend"][1], *d["rgba"]))
+                f.write(struct.pack("<IIII II 4f", d["tex"] or 0, d["n"], d["caps"],
+                                    d["prim_enum"], d["blend"][0], d["blend"][1], *d["rgba"]))
                 for p, uv in zip(d["v"], d["uv"]):
                     f.write(struct.pack("<5f", p[0], p[1], p[2], uv[0], uv[1]))
         print("wrote %s (%d draws, %d bytes)" % (a.pack, len(st.draws), os.path.getsize(a.pack)))

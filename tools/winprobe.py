@@ -125,6 +125,25 @@ def _probe(p, game_dir):
         p.kill()
         return 1
 
+    # 窗口刚可见时子窗口（GL 视口）可能还没被 MoveWindow 到最终尺寸，直接采样会拿到
+    # 瞬时值（2026-10-30 门禁偶发 diffs=2 的最可能来源）。等两次采样一致再读字段。
+    prev = None
+    for _ in range(20):
+        sizes = []
+
+        def cs(h, l):
+            r = wt.RECT()
+            u.GetClientRect(h, ctypes.byref(r))
+            sizes.append((r.right, r.bottom))
+            return True
+
+        u.EnumChildWindows(hwnd_main, WNDENUMPROC(cs), 0)
+        cur = tuple(sizes)
+        if cur and cur == prev:
+            break
+        prev = cur
+        time.sleep(0.1)
+
     def qt(h):
         buf = ctypes.create_unicode_buffer(512)
         u.GetWindowTextW(h, buf, 512)

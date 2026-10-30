@@ -35,8 +35,8 @@
 ## M3 宿主复刻（L0 + L1）
 
 - [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166、F167（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；全屏分支参数已实测（F167：`bsNone`+`wsMaximized`+`WS_EX_TOPMOST`，整屏无边框，实现留给 T3.6 接配置）；剩余：输入分发只做了消息日志，接场景属 T3.4）
-- [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178、F184（**里程碑 A 已落地**：宿主 `src/host/gl_render.cpp` 建 WGL 上下文（PFD 24/24 双缓冲，F183），按 `menu_tex.bin`+`menu_draw.bin` 画出 21 个 quad 的主菜单，与原版截屏 mean\|Δ\| **1.40/255**、p99 24、>16 像素 2.01%，A/A 地板 0.00（F184）；定时器 ~15 ms 重绘，符合 F177。**剩**：纹理直接读 pak、菜单布局参数化、关卡渲染）
-- [ ] T3.2c 纹理直接读 pak（PNG/JPG 解码进宿主，替掉预烘焙的 `menu_tex.bin`） 依据：F183（37 张素材已一一对上）、F135（pak 内 553 png / 21 jpg）；候选：vendored libpng+zlib 或 stb_image，需与原版同款刷新（行翻转 + REPEAT + 三线性 mipmap）
+- [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178、F184、F187（**里程碑 A 已落地**：宿主 `src/host/gl_render.cpp` 建 WGL 上下文（PFD 24/24 双缓冲，F183），纹理**直读 pak**（37 张，上传 CRC 37/37 一致，F187）+ `menu_draw.bin` 画出 21 个 draw 的主菜单，与原版截屏 mean\|Δ\| **1.375/255**、p99 30、>16 像素 2.105%，A/A 地板 0.00；定时器 ~15 ms 重绘，符合 F177。**剩**：菜单布局参数化（T3.2d）、关卡渲染）
+- [x] T3.2c 纹理直接读 pak（PNG/JPG 解码进宿主，替掉预烘焙的 `menu_tex.bin`） 依据：F183、F185、F187（**已落地**：`src/host/pak.{h,cpp}` + `src/host/wic_decode.{h,cpp}`（WIC，系统自带，不必 vendor）+ 生成物 `src/host/texture_table.h`（源 `mapping/textures.csv`）。判据：`HOST_TEX_CRC` 的 37 条 vs 原版上传 CRC **diffs=0/37**（含 5 张 JPG，F185），截图 mean|Δ| **1.375/255**、>16 2.105%（删掉 `menu_tex.bin` 仍能画）。边界：level 0 一致 ≠ mipmap 一致；800×600 的 `logo_1.JPG` 被 glu 扩到 1024×512）
 - [ ] T3.2d 菜单布局参数化：把 21 个 quad 的 NDC bbox/UV 反推成「按客户区比例 + 纹理」的宿主侧布局（菜单在宿主代码里，F161），替掉预烘焙的 `menu_draw.bin` 依据：F182、F184、F161
 - [x] T3.2a GL 调用面侦察：`opengl32.dll` 代理（368 导出全转发）记录名称/QPC 时间戳/栈上 6 个实参 依据：F03、F158、F175、F176（**已落地**：`src/glproxy/`（368/368 导出）+ `tools/gl_ffi.py`（`stats`/`frames`/`frame`/`init`/`names`）；透明性已证：无代理锚点判 `menu` 于 16.7 s（F169 无代理 16.5 s）、40 s 无崩溃、截图菜单/关卡正常（F176）；产出 F177/F178）
 - [x] T3.2b GL payload 解码 + 绘制列表 依据：F178、F179、F181（**全部落地**：`GLFFI02` payload + 时间窗（F179）；`tools/gl_drawlist.py` 把一帧还原成 26–27 个 draw（纹理 id + 世界坐标 + UV + 颜色），JSON 可导出。坑：顶点永远乘 MODELVIEW（P·M·v），GLScene 的 HUD 会在帧中途把投影换成单位阵用像素空间画横幅，乘错"当前 mode"会让 bbox 飞到 ±509。**这就是渲染器的对拍基准**：逐 draw 比 bbox/UV/纹理 id）
@@ -65,6 +65,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F185/F186/F187：**T3.2c 收口 + 一个会毁文本的 primitive 错标**。① 纹理直读 pak：WIC 解码与原版 37 次 `glTexImage2D` 整块 CRC **37/37 逐字节相同**（含 5 张 JPG）⇒ 不 vendor libpng/libjpeg；宿主上传格式照抄 `GL_RGB8/GL_RGB`（JPG）与 `GL_RGBA8/GL_RGBA`，`menu_tex.bin` 退役，截屏 1.403→**1.375**。② 用户实测"主菜单 Welcome, ooo 渲染不同"⇒ 定位到 `tools/gl_drawlist.py` 的 `PRIMS` 表从 0x0004 起错位一格：原版 `glBegin` 实参是 **0x0007 = GL_QUADS**，被标成 TRIANGLE_FAN；用户名是一个 `glBegin/glEnd` 里的 **12 顶点 = 三连字**，按 fan 回放把三块连成蝴蝶结（`o>>`）。修 `PRIMS` + 绘制包升 `GLDRW02`（带 prim 原样回放）后名字区域 mean|Δ| **4.46→1.22**。③ 顺带修两个仪器坑：`shot_window.py` 抓屏前把窗口挪到 (0,0) 并置前（否则底部会拍到前台终端，曾误判成"渲染回归"）；`verify.py` 的 window 门禁失败时把完整字段表写 `work/gate_window_last.log`，`winprobe.py` 采样前等子窗口尺寸稳定（一次偶发 `diffs=2`，随后 20+ 次不复现）。**新增工具**：`tools/shotdiff.py`（逐像素 A/B：mean/p99/>16/分区域/平移扫描）、`tools/host_tex_ab.py`（宿主上传 CRC vs 原版日志）、`tools/gen_texture_table.py`。
 
 - 2026-10-30 依据 F183/F184：**T3.2 里程碑 A 落地——宿主画出了主菜单，与原版逐像素基本一致**。新增 `src/host/gl_render.cpp`（WGL 上下文 + 两个二进制包加载器）与 `tools/gl_texpack.py`（37 张纹理 id ↔ pak 素材，CRC32 精确匹配，37/37）；`tools/gl_drawlist.py` 增加 `--pack` 与状态位。判据：原版两次截图差 **0.00**（菜单静止，A/A 地板），原版 vs 宿主 mean\|Δ\| **1.40/255**、p99 24、>16 像素 2.01%，九个平移里 (0,0) 最优 ⇒ 无整体偏移。两个坑：BLEND 在启动期常开（帧内没有 glEnable）⇒ caps 要从启动态继承，否则白屏；`GL_GENERATE_MIPMAP` 在本驱动兼容 profile 不生效 ⇒ 纹理不完整采样成白，改用 `gluBuild2DMipmaps`。**边界**：宿主吃预烘焙包，还没直接读 pak、也没自己算菜单布局 ⇒ 新增 T3.2c/T3.2d。
 

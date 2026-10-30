@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--wait", type=float, default=float(os.environ.get("SHOT_WAIT", "2.0")),
                     help="窗口出现后再等多少秒（菜单要 ~17 s）")
     ap.add_argument("--poll", type=float, default=15.0, help="等窗口出现的上限（秒）")
+    ap.add_argument("--pos", default="0,0",
+                    help="截图前把窗口左上角挪到屏幕这个物理坐标（默认 0,0，避免被别的窗口/任务栏盖住）")
     a = ap.parse_args()
 
     u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
@@ -72,6 +74,13 @@ def main():
             print("no window")
             return 1
         time.sleep(a.wait)
+        # 抓的是**屏幕**像素：先把窗口挪到确定的位置并置前，否则被别的窗口/任务栏盖住的
+        # 那几条边会把别人的像素拍进来（踩过：底部 108 px 拍到了前台终端）。
+        px, py = (int(v) for v in a.pos.split(","))
+        u.SetWindowPos(win, 0, px, py, 0, 0,
+                       0x0001 | 0x0004 | 0x0010)  # NOSIZE|NOZORDER|NOACTIVATE
+        u.SetForegroundWindow(win)
+        time.sleep(0.35)
         r = wt.RECT()
         u.GetClientRect(win, ctypes.byref(r))
         pt = wt.POINT(0, 0)
