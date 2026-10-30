@@ -66,6 +66,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F201：**T3.3 的规格提取开工——144 个绑定全部反编译，形态机械可生成**。新增 `tools/ida_lua_bindings.py`（在 ida MCP 的 `execute_python` 里跑）：按 `mapping/lua-bindings.csv` 的 `cfunc` 批量反编译，输出 `work/lua_bindings_decomp.json(.txt)`；判据 `rows=144 ok=144 fail=0`。结论：绑定 = `optnumber` 取参（`sub_596900`，返回 float）或 4 槽读取器（`sub_596C50`）→ 工厂（1..12 次）→ `lua_pushinteger`（67）/`lua_pushnumber`（30）；`return` 常量 1（65）/0（38）/变量（其余）⇒ **返回个数不能一律写 1**。**下一步**：逐函数参数表（索引在寄存器里，要读反汇编）→ 生成绑定注册表 + 144/144 自检；再按 b2 代理调用序做绑定语义的对拍。
+
 - 2026-10-30 依据 F192/F200：**T3.5 菜单路径落地——宿主自己排版（查表），不再回放抓包的字形 quad**。新增 `src/host/font_table.{h,cpp}`：32 B/条（`u32 ch; f32 u0,v0,u1,v1; u32 w,h,flag`）+ `MismatchCount` 自检；`menu_layout` 的 `kGlyphU0..V1` 常量删除，改为 `PushText`（逐字查表、`advance==w`、整串仍一个 `MenuDraw` = 原版一个 `glBegin`）。判据：`draw_ab` 可见 **13/13 dx=dy=duv=0**（含 12 顶点文本）；`gl_init.log` 的 `font=258 font_mismatch=0` 把"表真的读了"写进日志。同状态像素对（两侧 `--mouse 900,700`）：mean 1.452 / >16 1.404% / 16×16 最大 195（= 光标）；文本区剩余 2.327 是采样级（draw 与纹理上传都逐位相同）。**剩**：名字来源接存档（T3.6）、空格/换行/对齐、关卡字体 `pt_sans.dat`。
 
 - 2026-10-30 依据 F198/F199：**draw_ab 补覆盖 + 残差归因收敛（工具改动，无渲染代码改动）**。① `tools/draw_ab.py` 现在保留 alpha=0 的 draw 并逐 draw 比 caps/prim/blend/rgba：可见组判 PASS/FAIL，隐藏组默认只报（`--strict` 才判）。实测 `menu_draw.bin` vs `host_draws.bin`：可见 **13/13 全同（state-diffs=0）**、隐藏 **7/0** ⇒ 宿主**从不发 alpha=0 的 draw**（6 个悬停备用态 + 第二条用户名），像素上被 `SRC_ALPHA` 吞掉所以无差，但绘制列表不等价、旧门禁看不见；光标 caps 原版 29 / 宿主 31（多 `DEPTH_TEST`）。② 像素残差归因：F194② 报的"悬停 Play 区 205/256"实为**光标**（鼠标就停在按钮中心），掩掉后 maxwin 205→120、总面积只掉 0.04 个百分点；剩余紧凑块在设计 (827,645)/(658,530) 的**齿轮/常春藤贴花**，几何与状态全同 ⇒ 采样差异，与 F184 的过滤级结论一致 ⇒ T4.2 的像素判据必须单列光标区，不再把光标几何差异算进渲染残差。
