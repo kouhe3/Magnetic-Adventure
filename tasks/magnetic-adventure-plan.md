@@ -34,7 +34,7 @@
 
 ## M3 宿主复刻（L0 + L1）
 
-- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F01
+- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153、F154、F155、F156、F157、F158、F159（前置探测已完成：窗口类/样式/尺寸/DPI/子窗口/消息循环/输入面全部有实测值；剩余是"按这些参数实现宿主脚手架并与原版逐项对拍"）
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03
 - [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07
@@ -60,6 +60,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F153–F160：**T3.1 的前置探测做完了，依据从 F01（PE 解剖）换成实测值**。新增 8 条台账：宿主框架是 **Lazarus/LCL 而非 Delphi/VCL**（F153，勘误 F01）；窗口化主窗口 1024×768 外框 / 1018×739 客户区 / `style=0x96CA0000` / **DPI unaware** / 桌面居中（F154）；窗口类由 LCL 通用注册函数建：类名 `Window`、`CS_DBLCLKS`、`hbrBackground=0`、`IDC_ARROW`、`MAINICON`（F155）；主循环 PeekMessage + `MsgWaitForMultipleObjects`（导入无 `GetMessage`），空闲 CPU 0.0%（F156）；Form1 的 DFM 是 `bsNone`+`wsMaximized` 且无子组件，与运行时工具窗矛盾（F157，全屏分支待证）；窗体下只有一个填满客户区的 GL 子窗口（F158）；输入无 DirectInput，鼠标走消息 + 键盘轮询，Lua 只有 `Get_MousePosition`（F159）；`game.exe` 疑似单实例（F160 待证，自动化前提）。**由此新增 M3 的 Open Question：宿主用 C++ 仿写 LCL 语义，还是用 Free Pascal + LCL 直接继承**——T3.1 开工前需要拍板。另：自动化驱动脚本的点击时机按用户实测改为"启动期 CPU 降到 <5% 后再等 6 s"，早点点到的是 intro/splash 而非主菜单。
 
 - 2026-10-30 依据 F131–F152：**plan/todo 任务状态同步**。T2.4（含 a–d）标完成；T2.5 改为「实现与输出对拍已完成，只剩 PCM 逐位」；T4.3 改为「音频 diff 输出层」并标完成；T4.7（dist_probe 路线）标为作废并注明 F112/F122；新增 T4.8（Good Shot 残余 1 ULP）与 T4.9（PCM 逐位，阻塞）。todo 按里程碑重排，`[x]` 只增不减。
 
