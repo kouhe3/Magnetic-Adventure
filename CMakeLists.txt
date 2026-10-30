@@ -214,7 +214,7 @@ set_target_properties(luac PROPERTIES OUTPUT_NAME luac
 # 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。
 # 注意：**不要**给这个 exe 加 dpiAware 清单——原版就是 DPI-unaware（F154）。
 add_executable(host WIN32 src/host/main.cpp src/host/gl_render.cpp
-  src/host/game_files.cpp src/host/levels.cpp src/host/lua_scripts.cpp
+  src/host/font_table.cpp src/host/game_files.cpp src/host/levels.cpp src/host/lua_scripts.cpp
   src/host/menu_layout.cpp src/host/pak.cpp src/host/wic_decode.cpp)
 set_target_properties(host PROPERTIES OUTPUT_NAME magnethost
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

@@ -183,6 +183,8 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 - **PCM 逐位**与 **1 ULP** 是两条长期尾巴，别让它们阻塞主线。
 - 外部参考：`C:/tmp/bpsim`（群友的 Unity DOTS 复刻，2022.2.23f1c1 + Entities 1.0.0-pre.44）里有现成的**内容管线**（274 关 / 526 contraption XML / prefabs.json）和 **QA harness**（`Bpsim/QA` + `DshBridge invoke_static`），思路可借鉴，但与本仓库无代码依赖。
 
+- **T3.5 菜单路径已落地（F192/F200）**：宿主不再回放抓包的字形 quad，改为查 `gulim1.dat`（32 B/字：字符码 + UV 矩形 + w/h，`advance==w`）现算，整串仍是一个 `MenuDraw`（= 原版一个 `glBegin`）；`gl_init.log` 记 `font=258 font_mismatch=0`，`tools/draw_ab.py` 可见 13/13 零差。名字内容仍是抓包那串 `"ooo"`（来源=存档/配置，属 T3.6）；`pt_sans.dat`/`gulim2.dat`、换行与左右对齐还没做。
+
 ## 8. 踩过的坑（复用清单）
 
 - **KnownDLL 决定能不能文件代理**：`dsound` 拦不住（F147，`ole32` 在 KnownDLLs），`opengl32` 能拦（F175）。动手前先查 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs`。

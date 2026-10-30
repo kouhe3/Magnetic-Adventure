@@ -1,5 +1,7 @@
 #include "menu_layout.h"
 
+#include "font_table.h"
+
 namespace host {
 
 namespace {
@@ -21,6 +23,7 @@ float Ny(float y) { return 1.0f - 2.0f * y / kDesignH; }
 // 展开成两个三角形（GL_QUADS 的 4 顶点顺序与原版一致：主色在左下）
 void Quad(MenuDraw* d, float x, float y, float w, float h, float u0, float v0, float u1,
           float v1) {
+  if (d->n + 4 > MenuDraw::kMaxVerts) return;
   const float xs[4] = {x, x + w, x + w, x};
   const float ys[4] = {y + h, y + h, y, y};
   const float us[4] = {u0, u1, u1, u0};
@@ -53,12 +56,25 @@ void PushFull(std::vector<MenuDraw>* out, unsigned tex, float x, float y, float 
   out->push_back(d);
 }
 
-// 用户名 "ooo"：原版用 gulim1.png（512×512 字模图集）里的同一格重复 3 次。
-// 换字/换名要 T3.5 的字模表（格子里只有字形，没有字宽表）。
-const float kGlyphU0 = 0.943359375f;   // 483/512
-const float kGlyphV0 = 0.68359375f;    // 350/512
-const float kGlyphU1 = 0.9765625f;     // 500/512
-const float kGlyphV1 = 0.744140625f;   // 381/512
+// 用户名文本：原点与内容取自抓包那一帧（F192），字形/步进全部来自 gulim1.dat。
+// 名字的**来源**（存档/配置里的玩家名）属 T3.6，这里先用抓包时那串。
+const float kNickX = 509.0f;   // 首个字形左上（设计像素），F192 实测
+const float kNickY = 204.5f;
+const char kNickName[] = "ooo";
+
+// 文本：逐字查表出 quad，整串留在同一个 MenuDraw（= 原版一个 glBegin，F186）。
+// advance == w，没有额外字距（F192）；空格只推进不出 quad（空白记录 w=10）。
+void PushText(MenuDraw* d, float x, float y, const char* s, const FontTable& font) {
+  for (const char* p = s; p && *p; ++p) {
+    const Glyph* g = font.Find(static_cast<unsigned char>(*p));
+    if (!g) continue;
+    if (*p != ' ') {
+      Quad(d, x, y, static_cast<float>(g->w), static_cast<float>(g->h), g->u0, g->v0, g->u1,
+           g->v1);
+    }
+    x += static_cast<float>(g->w);
+  }
+}
 
 const MenuButton kButtons[] = {
     // 基础纹理 / 悬停纹理 / 设计像素矩形（都等于纹理原始尺寸）
@@ -77,7 +93,8 @@ const MenuButton* MenuButtons(int* count) {
   return kButtons;
 }
 
-void BuildMenuDraws(std::vector<MenuDraw>* out, float mx, float my, bool cursor) {
+void BuildMenuDraws(std::vector<MenuDraw>* out, float mx, float my, bool cursor,
+                    const FontTable* font) {
   out->clear();
   out->reserve(16);
   const float white[4] = {1, 1, 1, 1};
@@ -110,13 +127,12 @@ void BuildMenuDraws(std::vector<MenuDraw>* out, float mx, float my, bool cursor)
     }
   }
 
-  // 5) 用户名：一个字模格重复 3 次，一个 12 顶点的 GL_QUADS（F186）
-  {
+  // 5) 用户名：按 gulim1.dat 现算（T3.5/F192），整串仍是一个 GL_QUADS（F186）
+  if (font) {
     const float text_rgba[4] = {0.8984375f, 0.78515625f, 0.51953125f, 1.0f};
     MenuDraw d = MakeDraw(35, text_rgba, kCapsDepth);
-    for (int i = 0; i < 3; ++i) Quad(&d, 509.0f + 17.0f * i, 204.5f, 17.0f, 31.0f, kGlyphU0,
-                                     kGlyphV0, kGlyphU1, kGlyphV1);
-    out->push_back(d);
+    PushText(&d, kNickX, kNickY, kNickName, *font);
+    if (d.n) out->push_back(d);
   }
 
   // 6) 中央微光（mm_cent1 放大到 1205×602）+ 标题（gamename 512×128）

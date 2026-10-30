@@ -14,6 +14,8 @@
 
 namespace host {
 
+class FontTable;
+
 struct MenuDraw {
   unsigned tex = 0;
   unsigned caps = 0;       // 位：1=TEXTURE_2D 2=DEPTH_TEST 4=BLEND 8=ALPHA_TEST 16=CULL_FACE
@@ -21,7 +23,8 @@ struct MenuDraw {
   unsigned blend_dst = 0;
   float rgba[4] = {1, 1, 1, 1};
   int n = 0;               // 顶点数（每个顶点 5 float：x,y,z,u,v）
-  float v[5 * 16] = {};
+  static const int kMaxVerts = 256;   // 64 个字模；原版整串在一次 glBegin 里
+  float v[5 * kMaxVerts] = {};
 };
 
 // 设计空间（逻辑像素，左上原点）
@@ -40,6 +43,8 @@ const MenuButton* MenuButtons(int* count);
 // 生成一帧菜单的 draw 列表（按原版绘制顺序）。
 //   mx, my  鼠标 NDC（-1..1）；传 2,2 表示"不在窗口里"（全部按未悬停画）
 //   cursor  是否画 GL 光标（tex=1，鼠标未在窗口内时不画）
-void BuildMenuDraws(std::vector<MenuDraw>* out, float mx, float my, bool cursor);
+//   font    字模表（gulim1.dat，F192/F200）；nullptr 时不画文本
+void BuildMenuDraws(std::vector<MenuDraw>* out, float mx, float my, bool cursor,
+                    const FontTable* font);
 
 }  // namespace host

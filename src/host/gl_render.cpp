@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "game_files.h"
+#include "font_table.h"
 #include "menu_layout.h"
 #include "pak.h"
 #include "texture_table.h"
@@ -58,6 +59,7 @@ struct Menu {
 };
 
 Menu g_menu;
+FontTable g_font;
 HDC g_dc = nullptr;
 HGLRC g_rc = nullptr;
 HWND g_viewer = nullptr;
@@ -184,10 +186,16 @@ bool GlInit(HWND viewer) {
 
   if (!WicInit()) return false;
   g_menu.ok = LoadTexturesFromPak();
+  g_font.Load(GamePak(), "gulim1.dat");
+  float font_du = 0.0f, font_dv = 0.0f;
+  const int font_bad = g_font.size() ? g_font.MismatchCount(&font_du, &font_dv) : -1;
   if (FILE* f = std::fopen(std::string(ExeDir() + "gl_init.log").c_str(), "w")) {
-    std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu pak=%s err=%#x\n",
+    std::fprintf(f,
+                 "dc=%p rc=%p ok=%d tex=%zu pak=%s err=%#x font=%zu font_mismatch=%d "
+                 "maxdu=%g maxdv=%g\n",
                  static_cast<void*>(g_dc), static_cast<void*>(g_rc), g_menu.ok ? 1 : 0,
-                 g_menu.tex.size(), GamePakPath().c_str(), glGetError());
+                 g_menu.tex.size(), GamePakPath().c_str(), glGetError(), g_font.size(),
+                 font_bad, font_du, font_dv);
     std::fclose(f);
   }
   return g_menu.ok;
@@ -244,7 +252,7 @@ void GlRenderMenu() {
   float mx = 2.0f, my = 2.0f;
   const bool inside = MouseNdc(&mx, &my);
   std::vector<MenuDraw> draws;
-  BuildMenuDraws(&draws, mx, my, inside);
+  BuildMenuDraws(&draws, mx, my, inside, g_font.size() ? &g_font : nullptr);
   static bool dumped = false;
   if (!dumped) {
     dumped = true;
