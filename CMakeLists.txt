@@ -85,3 +85,50 @@ target_link_options(b2physics_proxy PRIVATE /MAP)
 set_target_properties(b2physics_proxy PROPERTIES OUTPUT_NAME b2Physics
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- vendored Ogg Vorbis 解码（Squall 的唯一外部依赖）----
+# 依据 docs/facts.md F133/F135：pak 内音频只有 35 个 .ogg，原 Squall.dll 把解码器静态链进去，
+# 且不依赖任何外部 DLL。上游 vcproj 的 external/libogg、external/libvorbis 缺失，故直接编源码。
+set(OGG_ROOT "${CMAKE_SOURCE_DIR}/vendor/libogg-1.3.5")
+set(VORBIS_ROOT "${CMAKE_SOURCE_DIR}/vendor/libvorbis-1.3.7")
+# 源列表照抄上游 lib/CMakeLists.txt（不含 vorbisenc.c 与 misc.c——后者是依赖 pthread 的调试分配器）
+set(VORBIS_LIB_SOURCES
+  mdct.c smallft.c block.c envelope.c window.c lsp.c lpc.c analysis.c synthesis.c
+  psy.c info.c floor1.c floor0.c res0.c mapping0.c registry.c codebook.c
+  sharedbook.c lookup.c bitrate.c vorbisfile.c)
+list(TRANSFORM VORBIS_LIB_SOURCES PREPEND "${VORBIS_ROOT}/lib/")
+add_library(squall_codec STATIC
+  ${OGG_ROOT}/src/bitwise.c
+  ${OGG_ROOT}/src/framing.c
+  ${VORBIS_LIB_SOURCES})
+set_target_properties(squall_codec PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_include_directories(squall_codec PUBLIC ${OGG_ROOT}/include ${VORBIS_ROOT}/include)
+
+# ---- Squall 音频 DLL（上游 v1.48 源码，导出契约见 mapping/squall-exports.csv）----
+# 依据 F131/F132：原 Squall.dll 与 xtreme3d/squall 的 99 个 DLL_API 名字逐一致；
+# 宿主只静态导入 17 个。WMA 与 track 解码器上游已注释掉（SoundFile.cpp:139-197），不参与构建。
+set(SQUALL_ROOT "${CMAKE_SOURCE_DIR}/vendor/squall/source")
+file(GLOB SQUALL_SOURCES
+  ${SQUALL_ROOT}/SoundEngine/*.cpp
+  ${SQUALL_ROOT}/SoundEngine/ext/*.cpp
+  ${SQUALL_ROOT}/SoundFile/*.cpp
+  ${SQUALL_ROOT}/SoundFile/WAV/*.cpp
+  ${SQUALL_ROOT}/SoundFile/MP3/*.cpp
+  ${SQUALL_ROOT}/SoundFile/Ogg/*.cpp)
+add_library(squall SHARED ${SQUALL_SOURCES})
+target_include_directories(squall PRIVATE
+  ${SQUALL_ROOT}
+  ${SQUALL_ROOT}/SoundEngine
+  ${SQUALL_ROOT}/SoundFile
+  ${SQUALL_ROOT}/SoundFile/WAV
+  ${SQUALL_ROOT}/SoundFile/MP3
+  ${SQUALL_ROOT}/SoundFile/Ogg
+  ${SQUALL_ROOT}/../external/dshow)
+target_compile_definitions(squall PRIVATE _WINDOWS _USRDLL SQUALL_EXPORTS WIN32
+  # 上游 SoundEngine/ext/dsound.h 是手写的精简头，缺 DSBUFFERDESC.guid3DAlgorithm；
+  # 让它不再遮蔽 SDK 头（2006 年的原构建用的就是 DX SDK 全量头）。
+  DIRECTSOUND_VERSION=0x0800)
+target_link_libraries(squall PRIVATE squall_codec dsound dxguid winmm ole32 user32
+  "${SQUALL_ROOT}/../external/dshow/amstrmid.lib")
+set_target_properties(squall PROPERTIES OUTPUT_NAME Squall
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

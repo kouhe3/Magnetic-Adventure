@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""比较 DLL 导出表（名字 + 序号）与 mapping/b2physics-exports.csv。
+"""比较 DLL 导出表（名字 + 序号）与 mapping/*-exports.csv。
 
 用法: python tools/check_exports.py <dll> [csv]
+      默认 csv = mapping/b2physics-exports.csv；Squall 用 mapping/squall-exports.csv。
+      表头需含 ordinal 与 name 列（其余列忽略）。
+      名字为 DllEntryPoint 的行不算导出，比对时跳过。
 """
 import struct
 import sys
@@ -47,11 +50,16 @@ def exports(path):
 
 def main(dll, csv_path='mapping/b2physics-exports.csv'):
     got = exports(dll)
+    lines = open(csv_path, encoding='utf-8').read().splitlines()
+    head = lines[0].split(',')
+    io, iname = head.index('ordinal'), head.index('name')
     want = {}
-    for line in open(csv_path, encoding='utf-8').read().splitlines()[1:]:
-        _, rva, name, size = line.split(',')
-        if name.startswith('b2_'):
-            want[name] = int(_)
+    for line in lines[1:]:
+        cols = line.split(',')
+        name = cols[iname]
+        if name == 'DllEntryPoint':
+            continue
+        want[name] = int(cols[io])
     missing = sorted(set(want) - set(got))
     extra = sorted(set(got) - set(want))
     ordinal_mismatch = sorted(n for n in set(want) & set(got) if want[n] != got[n])

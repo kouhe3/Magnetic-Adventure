@@ -47,6 +47,8 @@ game.exe + 代理 DLL ──B2PROXY_LOG──> work/rec_<ts>/ffi.bin (B2FFI02)
 | `src/b2physics/` | 兼容 DLL 实现（`b2physics.cpp` 933 行 + `.h` + `.def`） | ✓ |
 | `src/proxydll/` | 代理 DLL；`proxy_stubs.c` / `proxy.def` 是**生成物** | ✓ |
 | `vendor/box2d-2.0.2/` | **已按原版修正过的快照，不要当上游** | ✓ |
+| `vendor/squall/` | 上游 Squall v1.48（MIT，HEAD `20988426`）源码：原 `Squall.dll` 与它导出名 99/99 一致；与 2006 二进制**行为不等价**，改动处标 `// altered (Fxxx)` | ✓ |
+| `vendor/libogg-1.3.5/` `vendor/libvorbis-1.3.7/` | Ogg Vorbis 解码源码，直编进 `Squall.dll`（不生成独立 DLL） | ✓ |
 | `tools/` | 可复用仪器与工具（`instr/gate/sweep/replay_ffi/ffi/gen_proxy/...`） | ✓ |
 | `probe/` | 早期静态分析脚本（PE/Pak/资源差分），只读分析用 | ✓ |
 | `mapping/*.csv` | 单一事实源：导出表、参数形态、Lua 绑定、录制↔关卡、资源差分 | ✓ |
@@ -71,6 +73,10 @@ python tools/gen_proxy.py
 
 # 导出契约自检（期望 exports=87，missing/extra/ordinal_mismatch 全 0）
 python tools/check_exports.py build/Release/b2Physics.dll
+
+# Squall 音频 DLL（上游源码；ogg/vorbis 源码直编，无外部解码 DLL）
+cmake --build build --config Release --target squall            # → build/Release/Squall.dll
+python tools/check_exports.py build/Release/Squall.dll mapping/squall-exports.csv   # 99/99
 
 # 指纹（确认 build_info.json 与产物一致）
 python -c "import sys;sys.path.insert(0,'tools');import instr;print(instr.fingerprint('build/Release/b2Physics.dll')['match'])"
