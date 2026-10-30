@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30，`work` 分支，工作树干净（本文随附的那个提交）。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），`work` 分支。行文时工作树里只有本文这一处未提交改动；台账到 F208。
 
 ## 0. 一句话现状
 
@@ -9,12 +9,23 @@
 Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 111/111 编译通过**、`lvl_info.lvl` 解析出 **52 关**（F191）。
 卡点很明确：**关卡渲染**还没做（只有菜单 + 单帧画像）；Lua 的 **144 个绑定与执行语义**未接（T3.3 剩余）；文本仍是「同一字模格 ×3」的固定串，**宿主自己不会排版字符串**（T3.5）；Squall 的 **PCM 逐位**仍阻塞。
 
-台账 **190 条**（F01–F190，只增不减），计划 20/42 完成。
+**本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **trunk r4700** 且 `GLLCLViewer.o` **95.6%**（F208）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
+
+台账 **210 条**（F01–F210，只增不减），计划 20/43 完成。
+
+## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
+
+下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
+
+- `units` 已改为候选坐标系（`candidate_coverage()`）：LCL 单元 78–89%、GLScene 族 28–68%。
+- 新增 `code_match.py funcs`（capstone，操作数归一 → 指令序 `difflib`）才是"是不是同一份源码"的判据：自证 A/A = **100%**；**四个 LCL 单元 `win32int`/`stdctrls` 100%、`controls`/`forms` 99.9%**（⇒ "LCL 单元集差异"那条旧结论被否）；GLScene 族 **47–94%** ≥0.95，缺口聚集在 `GenerateSilhouette` 0.12 / `ApplyMappingMode` 0.24 / `RenderString` 0.66 / `CalcStringWidth` 0.19 这批函数（F210）。
+- 结论：工具链与开关已经"对"（LCL 99.9% 是硬证据），r4700 与目标**同代但不是同一修订**；逐字节路线剩下的活是**版本夹逼**，不是重写或找源。
+- `cover` 的 72.8% / 59.0% / 尾部 19.9% **不受影响**（全局量与目标侧窗口，口径本来就对）。
 
 ## 1. 先读这几份（按顺序）
 
 1. `AGENTS.md` —— 构建/工具/纪律（x86、32 位 CPython、pwsh、bin 只读）。
-2. `docs/requirements.md` —— 验收口径：**L2-A**（导出名/序号/调用约定 + 原版 exe 直接加载新 DLL），字节级复刻**明确不做**。
+2. `docs/requirements.md` —— 验收口径：**L2-A**（导出名/序号/调用约定 + 原版 exe 直接加载新 DLL）。⚠️ 其中「~~L2-B 整 exe 字节级~~ **明确不做**：跨语言不可达（F01）」**已过期**：F153 勘误了 F01 的框架判定，F202/F206/F208 又把可行性量了出来 ⇒ 该行状态应改成「未测量」，等 §11 的显式决定。
 3. `docs/facts.md` —— 事实台账。规则：**只增不减**；每条必须有可重放的出处（路径+行号/命令/观察步骤）；证伪要划掉改状态并另起勘误行。
 4. `tasks/magnetic-adventure-plan.md` —— 任务树 + **变更记录**（按日期倒序，改计划必须追加一条，依据写 `F##`）。
 5. 本文。
@@ -29,6 +40,11 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - `bin/`（`gametop`/`baseline`/`masque` + IDA i64）是**只读 oracle，永不写入**；`work/` 放一次性产物（已 gitignore）。
 - git：不提交 `main`；提交前 `git status`；不自行 push；不改写 author/committer 身份。提交前缀沿用 `feat(...)`/`docs(facts)`/`docs(plan)`/`fix(...)`。
 - 换行：仓库追踪文件统一 **CRLF**，`.gitattributes` 是 `* -text`（blob 字节 == 工作树字节，F130）。新文件写完转 CRLF。
+- **L2-B 工具链（本轮新增，都在 `work/` 与 `C:\tmp`，gitignore）**：
+  - FPC 2.2.4：`C:\lazarus\fpc\2.2.4\bin\i386-win32\fpc.exe`（用户装的 Lazarus 0.9.28.2 附带，构建日期 **2009/10/25**，与目标的 12/27 差两个月但**实测不阻碍逐位对应**，F206）。
+  - LCL 0.9.28.3（自编）：源码树 `C:\tmp\laz9283`（**必须无空格路径**），单元在 `lcl\units\i386-win32{,/win32}`。用 MSYS2 的 make（`pacman -S make` → `C:\msys64\usr\bin\make.exe`）。
+  - GLScene 候选树：`work\glscene_r4700`（最 fit）、`work\glscene_v11`（发布包）、`work\glscene_lcl` / `work\glscene_4493`（SVN 分支）、`work\glscene_trunk`（trunk@2011，编不了）。
+  - `svn.exe` 用 TortoiseSVN 自带的（`C:\Program Files\TortoiseSVN\bin\svn.exe`），直连 SourceForge 可用；Lazarus 走 `gitlab.com/freepascal.org/lazarus/lazarus`（`svn.freepascal.org` 服务端 down）。
 
 ## 3. 常用命令
 
@@ -127,6 +143,31 @@ python tools/uistate.py label   --frames work/states --state loading:0-4 intro:4
 python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 ```
 
+### 3.2 L2-B（逐字节）测量链
+
+```bash
+# 0) 一次性：编 LCL 0.9.28.3。源码来自 GitLab 镜像（svn.freepascal.org 已 down）
+#    https://gitlab.com/api/v4/projects/freepascal.org%2Flazarus%2Flazarus/repository/archive.tar.gz?sha=f2e1062e
+#    fixes_0_9_28 的 tip(2010-10-18) 里 lcl/lclversion.pas 就是 lcl_version = '0.9.28.3'
+#    ⚠️ 源码树必须放无空格路径（放仓库里会被 "Magnetic Adventure" 的空格炸）
+cp -r work/lazarus_09283 /c/tmp/laz9283
+PATH="/c/msys64/usr/bin:/c/lazarus/fpc/2.2.4/bin/i386-win32:$PATH" \
+  /c/msys64/usr/bin/make.exe -C /c/tmp/laz9283/lcl LCL_PLATFORM=win32
+#    ⚠️ 不要加 OPT=-O1：安装器的 LCL 是**无优化**编的，加 -O1 会让对应率从 72.8% 掉到 38.6%
+
+# 1) 编"同包骨架"（work/toolchain_probe/glskel5.pas：LCL 窗体 + TGLSceneViewer + 原版链接的 GLScene 单元）
+fpc -n -Mdelphi -O1 -g- -Xs- -Xm -dLCL -dLCLwin32 \
+    -Fu<LCL 0.9.28.3 单元> -Fu<glscene/Source 全树> -Fu<FPC units\i386-win32 的全部子目录> \
+    -Fi<同上> -FE<out> -FU<out> work/toolchain_probe/glskel5.pas
+#    -n 必须有（否则命中装机的 0.9.28.2 单元，数字立刻变差）
+
+# 2) 对拍
+python tools/code_match.py cover bin/gametop/game.exe <out>/glskel5.exe --tail 0x521000
+python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
+```
+
+判据读法：`cover` 看"归因 %"与"目标侧覆盖 %"（全局量，口径正确）；`units` 是**候选坐标系的字节覆盖**（要连续 ≥64 B 相同），只回答"这个单元的字节有多少在目标里出现过"，**不回答**"是不是同一份源码"——后者一律用 `funcs` 的 `sim`（≥0.95 同码 / <0.80 不同，见 §0.1）。当前基准（r4700 + 正确开关）：归因 72.8%、目标侧 59.0%、尾部 19.9%；`funcs`：`win32int`/`stdctrls` **100%**、`controls`/`forms` **99.9%**、`GLObjects` 76.7%、`GLBitmapFont` 47.4%、`GLTexture` 53.6%。
+
 ## 4. 当前状态（按里程碑）
 
 | 阶段 | 状态 |
@@ -136,6 +177,7 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 | M3 宿主 | 窗口层门禁 15/15 ✅（F166 子系统 5.01）；GL 上下文 + **主菜单渲染** ✅（F184）、**纹理直读 pak** ✅（F187）、**布局宿主现算 + 二态悬停** ✅（F190，draw A/B 零偏差、截屏 1.088）、**Lua 5.1.5 + 52 关清单/111 脚本编译** ✅（F191）；剩：144 个绑定与执行语义（T3.3）、场景/关卡接线（T3.4）、文本排版（T3.5）、配置（T3.6）、关卡渲染 |
 | M4 验收 | 音频 diff ✅（F150）、e2e 自动化 ✅（F172/F174）、GL 绘制列表 ✅（F181/F182）；剩输入回放（T4.1）、帧 diff（T4.2）、存档 diff（T4.4）、映射覆盖（T4.5）、exe A/B 四层（T4.10）、1 ULP（T4.8） |
 | M5 汉化 | 未开始（资源替换路线已定，F08） |
+| **L2-B 逐字节（新主线）** | 前置条件已全部成立：工具链钉死（F202）、LCL 可自编且局部 **98.9%** 逐位（F206）、分界在 `0x521000`（F204）、GLScene 夹到 **r4700** 且 `GLLCLViewer.o` **95.6%**（F208）、开关收敛（LCL 无优化 / GLScene+应用 `-O1` / 无 `-Cr -Co`）。**剩**：① GLScene 少数单元内部漂移（`GLObjects` 63.7%、`GLBitmapFont` 22.6%）② LCL 单元集差异（`win32int` 61.5%、`forms` 65.4%）③ **应用代码 0%**（本来就没有源，≤300 KB） |
 
 **本轮之前的硬数字**（写报告时直接引用）：
 - b2：`calls=118558` / `steps=2018` / `bodies_bad=0`（F130 验收录制）。
@@ -145,7 +187,23 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 - 主菜单绘制列表：宿主现算 vs 原版抓包 **13/13 零偏差**（`tools/draw_ab.py`，只忽略跟随鼠标的光标，F190）。
 - 纹理：37 张上传像素与原版 `glTexImage2D` 整块 CRC **37/37 逐字节相同**（F185/F187）；WIC 解码即可，不 vendor 任何图像库。
 
-## 5. 本轮（GL 侦察 + 渲染里程碑 A + T3.2c）做了什么
+## 5. 本轮（L2-B 工具链考古，2026-10-30 晚）做了什么
+
+一句话：**把「整 exe 字节级」从"文档否决"推到"有数字的测量"**，并且没动任何生产代码（`src/` 一行未改）。
+
+1. **工具链钉死（F202）**：`game.exe` 偏移 `0x24D120`（`.data` 尾部、紧邻 `.idata`）有 FPC 自带的版本串 `FPC 2.2.4 [2009/12/27] for i386 - Win32`，汉化版同串一字不差 ⇒ 两版同工具链。配套：LCL 0.9.28.3（DFM 的 `LCLVersion` 属性，两处）、GLScene 的 **LCL 分支**（`GLLCLViewer`/`GLFilePNG` 在，`GLFileJPG` 不在）。这直接推翻 `requirements.md` 里 L2-B 的否决理由（前提是 F01 的"Delphi/VCL"，而 F153 已勘误成 Lazarus/LCL）。
+2. **LCL 可复现（F206）**：GitLab 镜像的 `fixes_0_9_28` 就是 0.9.28.3（**没有同名标签**），用 MSYS2 的 make + FPC 2.2.4 编通。同包骨架 `.text` = 1,133,264 B，其中 **79.5%** 能按同一位移在原版里找回（精确 59.6%），**局部 32 KB 桶 98.9% 逐位相同** ⇒ "编译器构建日期差两个月"不阻碍对应。
+3. **尺寸分界（F204）**：`.text` 在 **`0x521000`** 处**断崖归零**（上方 584,928 B 一个字节都找不回）= GLScene + 应用代码。IDA 侧：全库 6,960 函数 / 1,184,338 B，边界上方 1,931 个 / 389,815 B；**144 个 Lua 绑定 23,378 B + 注册函数 2,603 B 是精确下界**；`lua_*` 调用者全落在 `0x581000–0x5A1000`。⇒ 宿主自有代码 **≤390 KB、约 400–700 个函数**（与 SM64 decomp 同量级）。
+4. **GLScene 世系（F205/F207/F208）**：
+   - `branches/GLSceneLCL`（`Source/Platform/GLLCLViewer.pas`，r4493/r5290/r5953 都有）**编不过**：缺 `LCLType`→`TCreateParams` 找不到；补上后 `tagPAINTSTRUCT` vs `PAINTSTRUCT`；绕开 viewer 则 `GLCadencer` 的 published 字段报错。
+   - **trunk@2011-09 排除**：`GLContext.pas:153` 用泛型 `GThreadList<T>`，FPC 2.2.4 直接语法错误 ⇒ 原版不可能来自 2011 年的 trunk。
+   - v1.1 发布包（2010-08）：Lazarus 树能编（修 `XCollection.pas` 一处 FPC 守卫；`GLFilePNG` 要摘掉，它拉进 FPC 编不了的 `LIBPNG.pas`），GLScene 贡献 325 KB，但尾部只对 19.7%。
+   - **r4700（2010-03-15）最 fit**：用 exe 里 1,043 个 `gl*` 串当尺子比 `OpenGL1x.pas` 的 loader 清单（829→860→**981**→1070→1103→1108→1226），r4700 的"树有 exe 无"只有 30（v1.1 是 122）。逐单元：`GLLCLViewer.o` **95.6%**、`GLSilhouette` 88.8、`GLMaterial` 86.5、`GLTexture` 86.1、`GLScene` 84.2、`GLObjects` 63.7、`GLBitmapFont` 22.6。
+5. **开关收敛（F208）**：LCL 必须**无优化**（改 `-O1` 重编 → 整体 72.8%→38.6%）；GLScene/应用必须 **`-O1`**（`-O2/-O3` 尾部掉到 0.5%）；**必须关 `-Cr/-Co`**（掉到 2.7–6.6%）。
+6. **新仪器 `tools/code_match.py`**：`cover`（精确串 + 同位空隙 + 目标侧覆盖）与 `units`（读 `fpc -Xm` 的 `.map`，逐 `.o` 给命中率）。已用已知结果自证（复现 75.0% 与逐单元数字）。
+7. **副作用**：`SourceForge` 的下载姿势也摸清了（目录页无 WAF，但 Edge 会拦下载；取浏览器 cookie + `postdownload` 页 meta-refresh 里的 `ts=` 令牌可直取）。
+
+## 5.1 上一轮（GL 侦察 + 渲染里程碑 A + T3.2c）做了什么
 
 1. **`src/glproxy/`**：`opengl32.dll` 转发 DLL（368 个 naked 桩，真身改名 `opengl32_orig.dll` 尾跳）。透明性已证：无代理锚点判 `menu` 于 16.7 s（无代理 16.5 s）、40 s 不崩（F176）。
    - 记录格式 `GLFFI02`：`id, tick, QPC, ret, ecx, edx, args[12], mem0/1/2 各 192 B`（`args[0]/[1]/[8]`；`glTexImage2D` 额外算整块 CRC32 写进 mem2 前 8 字节）。
@@ -162,6 +220,8 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 11. **T3.3 第一切片**：`vendor/lua-5.1.5`（官方，未改）编译成 `lua51` + `luac`，`tools/check_lua.py` 全量编译 pak 脚本 **111/111**；`src/host/levels.{h,cpp}` 解析 `lvl_info.lvl`（**pak 尾部记录**）得到 **52 关**；宿主启动写 `host_data.log`（`entries=707 levels=52 lua_ok=111`）。
 
 ## 6. 排队（建议顺序）
+
+> 主交付线仍是下面 1–7。**L2-B 的函数级归因已经做完**（F209/F210，见 §0.1）：`tools/code_match.py funcs` 逐指令比对——LCL 单元 **99.9–100%**（A/A=100%）、GLScene 族 **47–94%**（`OpenGL1x` 27.7%），缺口聚集在 `GenerateSilhouette`/`RayCastIntersect`/`Apply*`/`PrepareParams`/`RenderString`/`CalcStringWidth` 这批函数 ⇒ r4700 与目标**同代但不是同一修订**。**下一步是版本夹逼**：拿那 ~20 个 <0.80 的函数当指纹，r4680–r4740 逐修订只编 `GLObjects`/`GLTexture`/`GLBitmapFont` 三个单元比 `sim` 总和，并优先用 `OpenGL1x`（27.7%）当第一指纹；同时抽 3–5 个用 IDA 反编译人工确认"确实是另一份实现"。⚠️ 旧的逐单元百分比已作废（F209）。
 
 1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。先做一条竖切：加载 `basefs.lua` + 单关的 `lvl_o*.lua`，用桩打开世界并 dump 造出的对象清单。
 2. **T3.4 场景/关卡接线**。铁律：**初始化顺序是契约**——loading→intro→menu→关卡，纹理在启动期上传（F179），不能冷启动造场景（F169/F171/F177）。做关卡渲染前先把 `gl_drawlist` 的世界坐标归纳成宿主侧场景模型（±26.86 正交相机、逐 sprite `glMultMatrixf`）。
@@ -185,6 +245,13 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 
 - **T3.5 菜单路径已落地（F192/F200）**：宿主不再回放抓包的字形 quad，改为查 `gulim1.dat`（32 B/字：字符码 + UV 矩形 + w/h，`advance==w`）现算，整串仍是一个 `MenuDraw`（= 原版一个 `glBegin`）；`gl_init.log` 记 `font=258 font_mismatch=0`，`tools/draw_ab.py` 可见 13/13 零差。名字内容仍是抓包那串 `"ooo"`（来源=存档/配置，属 T3.6）；`pt_sans.dat`/`gulim2.dat`、换行与左右对齐还没做。
 
+- **L2-B 的剩余差距清单（F208，按重要性）**：
+  1. **应用代码 = 0%**：本来就没有源（144 个绑定之外，菜单/关卡/存档/输入这些逻辑都在宿主里）。量已定：≤299,696 B（尺寸残差）、≥25,981 B（绑定+注册精确值）。**形态未定**：是"按 F201 那种机械模板从反编译重写"还是"逐函数语义复原"——这是 §11 要定的事。
+  2. **GLScene 少数函数漂移（已归因，F210）**：逐指令 ≥0.95 的字节占比 `GLExtrusion` 93.8%、`GLMaterial` 82.7%、`GLObjects` 76.7%、`GLLCLViewer` 73.9%、`GLScene` 60.6%、`GLTexture` 53.6%、`GLBitmapFont` 47.4%、`OpenGL1x` 27.7%；缺口固定落在 `GenerateSilhouette`/`RayCastIntersect`/`Apply*`/`PrepareParams`/`RenderString`/`CalcStringWidth` 这些函数上（不是散点）⇒ **同代 + 局部函数属于另一个修订**。旧的 63.7%/22.6%/95.6% 是坐标系混用（F209）。
+  3. ~~**LCL 单元集差异**：`win32int` 61.5%、`forms` 65.4%、`stdctrls` 51.9%~~ **已否（F210）**：逐指令口径下 `win32int` **100%**、`stdctrls` **100%**、`controls`/`forms` **99.9%** ⇒ LCL 侧没有差距，之前那些低分全是 F209 的坐标 bug。
+  4. **`OpenGL1x` 逐指令只有 27.7% ≥0.95**（r4700；v1.1 那次的 15% 是旧坐标口径）：这个单元是扩展绑定表，对版本极敏感，是"原版到底哪一版 GLScene"的最强指纹 ⇒ 版本夹逼的第一指纹就是它。
+- **`requirements.md` 的 L2-B 行是过期文档**：它写着"明确不做：跨语言不可达（F01）"，而 F153 已把 F01 的框架判定勘误成 Lazarus/LCL、F202/F206/F208 又把可行性量了出来。**未擅自改定稿文档**，等 §11 的决定。
+
 ## 8. 踩过的坑（复用清单）
 
 - **KnownDLL 决定能不能文件代理**：`dsound` 拦不住（F147，`ole32` 在 KnownDLLs），`opengl32` 能拦（F175）。动手前先查 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs`。
@@ -200,6 +267,14 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 - **UI 自动化只能走真实输入**：`PostMessage` 合成鼠标消息不触发按钮（F162）；点击坐标按**抓图的物理像素**算（F172，踩过 1.5×）；`Play` 落点由存档 `LastCompleteLevel` 决定（F171）；游戏内正常退出会 `ShellExecuteA` 弹网页 → 默认杀进程（F173）。
 - **FPC/LCL 不适合逐函数 patch**：内部 `register` 约定（EAX/EDX/ECX，Self 在 EAX）+ LCL 对象布局，替换不复合；值得做的只有输入输出自包含的纯函数（in-process trampoline A/B）。
 - **双后端/双实现互相比不算验证**：判据必须对"原版"，容差写进语料。
+- **`svn cat` 必须带 peg 修订**：`svn cat -r 4700 URL@4700`。只给 `-r` 会按 HEAD 解析路径，文件移动过就报 `path not found`（GLScene 的 `Source/Base/OpenGL1x.pas` 后来搬过家，踩过一次）。
+- **Lazarus/GLScene 源码树不能放含空格路径**：放 `work/`（`C:\tmp\Magnetic Adventure`）会让 `make` 与 fpc 的 `-Fu` 全炸；统一放 `C:\tmp\laz9283`、`C:\tmp\...`。
+- **跨版本编骨架必须 `-n`**：不读 Lazarus 的 `fpc.cfg`，否则 `-Fu` 顺序里会先命中装机的 0.9.28.2 单元，数字立刻失真。同时要显式带上 FPC 全部 `units\i386-win32\*` 子目录（`-n` 后不会自动找 `fcl-process` 之类）。
+- **LCL 用 `-O1` 编会毁掉对应率**（72.8%→38.6%）：Lazarus 安装器发的 LCL 是**无优化**编的。这条反直觉，别"顺手优化"。
+- **GLScene 的 `.lpk` 里写着 `RangeChecks/OverflowChecks = True`，但原版没开**：照抄 lpk 会让尾部覆盖从 19.9% 掉到 2.7–6.6% ⇒ lpk 选项不能当"原版用的选项"。
+- **trunk 2011+ 用了泛型**（`GThreadList<T>`）：FPC 2.2.4 直接语法错误 ⇒ 原版不可能来自 2011 年的 trunk，别往那个方向找。
+- **老 GLScene 的 `GLFilePNG` 会拉进 `LIBPNG.pas`**，后者在 FPC 下 `FORWARD not allowed in interface section`；量体量时把该单元摘掉即可。
+- **FPC 2.2.4 下 `Pointer` → 过程变量赋值是硬错误**：编 GLScene 必须 `-Mdelphi`（objfpc 会在 `OpenGL1x.pas` 报几十条 "Incompatible types: got Pointer"）。
 
 ## 9. 关键文件索引
 
@@ -214,11 +289,24 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 | UI/自动化 | `tools/uistate.py`、`uitemplate.py`、`e2e_tutorial.py`、`e2e_record.py`、`driver.py`、`winprobe.py`、`wincompare.py`、`shot_window.py`（窗口客户区截图） |
 | GL | `tools/gl_ffi.py`、`gl_drawlist.py`、`gl_texpack.py`；抓包目录 `work/glprobe/` |
 | 数据 | `mapping/*.csv`（导出表、绑定、关卡映射、纹理 id↔素材 `textures.csv`）、`docs/levels.md`（只能由 `report_sweep.py --write` 生成） |
+| L2-B 侧 | `tools/code_match.py`（`cover`/`units`，本轮新增，已自证）；`work/toolchain_probe/`（`skel.pas` LCL-only / `glskel5.pas` 含 GLScene 的骨架）；`work/glscene_r4700`（最 fit 的候选树）、`work/glscene_v11`、`work/glscene_lcl`、`work/glscene_4493`、`work/glscene_trunk`（编不了）；`C:\tmp\laz9283`（自编 LCL 0.9.28.3 的构建树，不在仓库） |
 | 文档 | `docs/requirements.md`、`docs/facts.md`、`docs/b2physics-abi.md`、`tasks/magnetic-adventure-plan.md`、`tasks/magnetic-adventure-todo.md`、本文 |
 
 ## 10. 接手第一小时
 
 1. `python tools/verify.py` → 期望 `gates=6 fail=0`（~25 s）。挂了先修门禁，别看别的。
 2. `cmake --build build --config Release --target host` + `HOST_DATA=bin/gametop/data python tools/shot_window.py build/Release/magnethost.exe work/host_menu.png --wait 2` → 应看到主菜单（若红底：`gl_init.log` 里 `ok=0`，查 `bin/gametop/data` 路径；若白屏，查 `GL_GENERATE_MIPMAP` 那条坑）。悬停/光标对拍记得两边都带 `--mouse 同一设计像素`。
-3. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误），再读计划 §变更记录 最近三条。
-4. 按 §6 第 1 条（T3.3 pak+Lua）开工；改计划记得追加变更记录并写 `依据：F##`。
+3. `python tools/code_match.py cover bin/gametop/game.exe work/toolchain_probe/o_r4700final/glskel5.exe --tail 0x521000` → 应复现 **归因 72.8% / 目标侧 59.0% / 尾部 19.9%**；再跑 `funcs --unit controls.o` 应得 **99.9% ≥0.95**（`--unit GLObjects.o` 应得 76.7%）。数字对不上说明工具链被换过（多半是 LCL 被加了 `-O1` 或用错了 `-Fu`）。
+4. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误）与 **F202–F208**（L2-B 工具链考古），再读计划 §变更记录 最近三条。
+5. 按 §6 第 1 条（T3.3 pak+Lua）开工；改计划记得追加变更记录并写 `依据：F##`。
+
+## 11. 需要人拍板的一件事（L2-B 要不要转正）
+
+现状：**前置条件全部成立，函数级归因也做完了**（F209/F210）⇒ 库层（LCL + GLScene）确已"同代"：LCL 逐指令 **99.9–100%**、GLScene 族 **47–94%**（`OpenGL1x` 只 27.7%），缺口是 GLScene 的若干**函数**属于另一个修订。唯一剩下的未知是**能不能夹到那个修订**（决定 B 的形态是"换个修订号"还是"一组补丁"）。
+
+| 选项 | 含义 | 代价 |
+|---|---|---|
+| A 维持现状（默认） | L2-B 只作"研究线"，主线继续 T3.3/T3.4 的语义等价 | 天花板停在 ~99%（像素采样级残差、1 ULP、PCM 逐位） |
+| B 把 L2-B 转正 | 改 `requirements.md` 的 L2-B 行为"未测量/进行中"，主线切成"库层收敛 + 应用代码复原" | 主机工作量从"写 C++ 宿主"变成"复原 Pascal 源码"，前期还要先把 GLScene/LCL 的残余漂移收敛到 >99% |
+
+**建议**：先做 §6 那条"函数级归因"的单单元竖切（半个到一个会话），拿到"是几个函数还是另一代"的答案再决定。那个答案直接决定 B 的工程量，也避免在没有数据的情况下改定稿文档。
