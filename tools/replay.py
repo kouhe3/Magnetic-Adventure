@@ -23,7 +23,6 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import record as rc  # noqa: E402
-from PIL import Image  # noqa: E402
 
 u = ctypes.windll.user32
 u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
@@ -167,6 +166,7 @@ def locate_shift(shot_path, rect, nx, ny, patch=48, radius=140):
     except Exception:  # noqa: BLE001
         return 0, 0, 0.0
     try:
+        from PIL import Image  # 延迟导入：纯数值重放不需要 Pillow
         ref = Image.open(shot_path).convert("RGB")
     except Exception:  # noqa: BLE001
         return 0, 0, 0.0
@@ -179,6 +179,7 @@ def locate_shift(shot_path, rect, nx, ny, patch=48, radius=140):
     live_path = os.path.join(ROOT, "work", "_anchor_live.png")
     if not rc.grab_screen(rect, live_path):
         return 0, 0, 0.0
+    from PIL import Image
     live = Image.open(live_path).convert("RGB")
     lw, lh = live.size
     x0, y0 = int(nx * lw), int(ny * lh)

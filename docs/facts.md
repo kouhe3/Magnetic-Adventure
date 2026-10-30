@@ -216,6 +216,8 @@
 
 | F173 | **游戏内正常退出（Exit → Yes）会让原版 `ShellExecuteA` 打开一个网页（"广告弹窗"）；直接杀进程不会**。证据：退出链点完后进程快照新增 2 个 `chrome.exe` 渲染进程（挂在已有浏览器实例上，所以只表现为新标签页），而 `taskkill` 路径没有任何新增进程。对自动化的含义：**默认用杀进程**（零副作用），只有需要覆盖 `SQUALL_Free`/`UnloadAll` 收尾路径时才走菜单退出并接受这个弹窗。`tools/e2e_tutorial.py` 因此默认 `--exit-mode kill`，`--exit-mode menu` 时才报告 `ad_popup_pids` | L3 | 进程快照 diff：起游戏 → 等 menu → 点齿轮/主菜单/退出/Yes → 比对 tokhelp32 的 PID 集合（新增 `chrome.exe` ×2；`taskkill` 版本无新增） | 已证 | 自动化驱动默认策略；F143 的退出链测试需知情 |
 
+| F174 | **自走录制链路打通：`tools/e2e_record.py` 40.75 s 产出一份可用录像并直接通过门禁**。链路＝默认杀进程退出 → 挂 b2 代理（`work/e2e_game`：`b2Physics.dll`=代理、`b2Physics_orig.dll`=原版）→ 无人值守跑 Introduction（F172 的流程）→ 日志 8,388,564 B / 11,503 次调用 / 1,263 步 → `tools/gate.py` 判 `ok=true, bodies_bad=0, mismatches=0`。**两次独立运行日志字节数完全相同**（都是 8,388,564）⇒ 同一脚本跑同一关的调用序列可重复。顺带修掉两处 `Pillow` 硬依赖（`tools/replay.py`、`tools/record.py` 改成延迟导入）：headless 的重放/门禁路径不该因为缺 PIL 就跑不起来——32 位解释器上这曾让 `gate.py` 直接 ImportError | L4 | `python tools/e2e_record.py --dir work/e2e_game --name auto` → `gate_rc=0 verdict=PASS`；`"C:/Users/K/.local/bin/python3.12.exe" tools/gate.py work/rec_auto_20261030_132356` → `calls=11503 steps=1263 bodies_bad=0` | 已证 | T4.1、迭代速度 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Lazarus/LCL（Object Pascal，LCL 0.9.28.3 时代）编译产物**（F153 勘误：此前写作 "Delphi/VCL"；RTTI 字符串是 LCL 的 VCL 兼容类名）。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。**LCL 语义（窗口类名 `Window`、DPI unaware、PeekMessage+MsgWait 主循环）可以靠 C++ 仿写或用 Free Pascal/LCL 直接继承，两条路线的取舍是 M3 的 Open Question**（F154/F155/F156）。

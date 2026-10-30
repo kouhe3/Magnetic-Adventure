@@ -14,7 +14,6 @@ import os
 import sys
 import time
 
-from PIL import Image
 
 u = ctypes.windll.user32
 # 显式声明参数宽度：不声明时 ctypes 按 c_int 传参，64 位 LPARAM 会 OverflowError，
@@ -74,6 +73,7 @@ def grab_window(hwnd, path):
     gdi.DeleteObject(bmp)
     gdi.DeleteDC(mem)
     u.ReleaseDC(hwnd, hdc)
+    from PIL import Image  # 延迟导入：headless 的门禁/重放路径不该依赖 Pillow
     img = Image.frombuffer("RGBA", (w, h), buf, "raw", "BGRA", 0, 1).convert("RGB")
     img.save(path)
     return path
@@ -101,6 +101,7 @@ def grab_screen(rect, path):
     gdi.DeleteObject(bmp)
     gdi.DeleteDC(mem)
     u.ReleaseDC(0, hdc)
+    from PIL import Image  # 延迟导入：headless 的门禁/重放路径不该依赖 Pillow
     img = Image.frombuffer("RGBA", (w, h), buf, "raw", "BGRA", 0, 1).convert("RGB")
     img.save(path)
     return path
