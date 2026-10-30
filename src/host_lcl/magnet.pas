@@ -31,6 +31,18 @@ type
       var viewPortRadius: Single);
   end;
 
+const
+  // mapping/textures.csv 的 37 条启动纹理（重复项保留，按原版上传次数）。
+  kTextureAssets: array[0..36] of string = (
+    'mcur_1.png', 'logo_1.JPG', 'logo_2.JPG', 'logo_3.jpg', 'logo_3.png',
+    'hint_atl.png', 'dot_1.png', 'dot_1.png', 'dot_1.png', 'dot_1.png',
+    'dot_1.png', 'dot_1.png', 'dot_1.png', 'dot_1.png', 'dot_1.png',
+    'dot_1.png', 'mbtn_1.png', 'mbtn_2.png', 'menubk_1.jpg', 'menubk_2.jpg',
+    'mm_cent2.png', 'm_label1.png', 'play_1.png', 'play_2.png', 'exit_1.png',
+    'exit_2.png', 'help_1.png', 'help_2.png', 'levels_1.png', 'levels_2.png',
+    'option_1.png', 'option_2.png', 'profil_1.png', 'profil_2.png',
+    'gulim1.png', 'mm_cent1.png', 'gamename.png');
+
 procedure TCameraEvents.Ortho(const viewport: TRectangle; width, height,
   DPI: Integer; var viewPortRadius: Single);
 begin
@@ -53,7 +65,7 @@ begin
     Result := IncludeTrailingPathDelimiter(Result) + 'data';
 end;
 
-function TempFileName: string;
+function TempFileName(const Ext: string): string;
 var
   dir, name: array[0..MAX_PATH - 1] of Char;
   tmp: string;
@@ -61,8 +73,60 @@ begin
   GetTempPath(MAX_PATH, @dir[0]);
   GetTempFileName(@dir[0], 'mag', 0, @name[0]);
   tmp := name;
-  Result := ChangeFileExt(tmp, '.png');
+  Result := ChangeFileExt(tmp, Ext);
   DeleteFile(PChar(tmp));
+end;
+
+function SelfTestTextures(Pak: TPakFile; out Log: string): Integer;
+var
+  i: Integer;
+  Stream: TMemoryStream;
+  Pic: TPicture;
+  Path, Ext: string;
+begin
+  Result := 0;
+  Log := '';
+  for i := 0 to High(kTextureAssets) do
+  begin
+    Stream := nil;
+    if not Pak.Read(kTextureAssets[i], Stream) then
+    begin
+      Log := Log + 'missing ' + kTextureAssets[i] + #13#10;
+      Continue;
+    end;
+    Ext := ExtractFileExt(kTextureAssets[i]);
+    if Ext = '' then Ext := '.png';
+    Path := TempFileName(Ext);
+    try
+      try
+        Stream.SaveToFile(Path);
+        Pic := TPicture.Create;
+        try
+          Pic.LoadFromFile(Path);
+          if (Pic.Width > 0) and (Pic.Height > 0) then
+            Inc(Result)
+          else
+            Log := Log + 'empty ' + kTextureAssets[i] + #13#10;
+        finally
+          Pic.Free;
+        end;
+      except
+        on E: Exception do
+          Log := Log + 'fail ' + kTextureAssets[i] + ': ' + E.Message + #13#10;
+      end;
+    finally
+      DeleteFile(PChar(Path));
+      Stream.Free;
+    end;
+  end;
+end;
+
+function EnvFlag(const Name: string): Boolean;
+var
+  buf: array[0..7] of Char;
+begin
+  Result := (GetEnvironmentVariable(PChar(Name), @buf[0], 8) > 0) and
+    (buf[0] = '1');
 end;
 
 var
@@ -75,6 +139,9 @@ var
   PicImage: TGLPersistentImage;
   PakStream: TMemoryStream;
   TmpPath: string;
+  n: Integer;
+  log: string;
+  tf: TextFile;
   V: TGLSceneViewer;
   r: TRect;
 begin
@@ -95,20 +162,32 @@ begin
   Cube.Material.FrontProperties.Diffuse.SetColor(1, 0, 0, 1);
   Cube.Material.FrontProperties.Emission.SetColor(1, 0, 0, 1);
   Pak := TPakFile.Create;
-  if Pak.Open(DataPath) and Pak.Read('mm_cent2.png', PakStream) then
+  if Pak.Open(DataPath) then
   begin
-    TmpPath := TempFileName;
-    try
-      PakStream.SaveToFile(TmpPath);
-      // TPicture.LoadFromFile 走 LCL 的 PNG 解码；owner 必须是 TGLTexture，
-      // 否则 TGLTextureImage.Create 的 AOwner as TGLTexture 会抛 Invalid type cast。
-      PicImage := TGLPersistentImage.Create(Cube.Material.Texture);
-      PicImage.LoadFromFile(TmpPath);
-      Cube.Material.Texture.Image := PicImage;
-      Cube.Material.Texture.Disabled := False;
-    finally
-      DeleteFile(PChar(TmpPath));
-      PakStream.Free;
+    if EnvFlag('HOST_TEX_SELFTEST') then
+    begin
+      n := SelfTestTextures(Pak, log);
+      AssignFile(tf, 'host_tex_selftest.log');
+      Rewrite(tf);
+      WriteLn(tf, 'loaded=', n, '/', Length(kTextureAssets));
+      Write(tf, log);
+      CloseFile(tf);
+    end;
+    if Pak.Read('mm_cent2.png', PakStream) then
+    begin
+      TmpPath := TempFileName('.png');
+      try
+        PakStream.SaveToFile(TmpPath);
+        // TPicture.LoadFromFile 走 LCL 的 PNG 解码；owner 必须是 TGLTexture，
+        // 否则 TGLTextureImage.Create 的 AOwner as TGLTexture 会抛 Invalid type cast。
+        PicImage := TGLPersistentImage.Create(Cube.Material.Texture);
+        PicImage.LoadFromFile(TmpPath);
+        Cube.Material.Texture.Image := PicImage;
+        Cube.Material.Texture.Disabled := False;
+      finally
+        DeleteFile(PChar(TmpPath));
+        PakStream.Free;
+      end;
     end;
   end;
   S.Objects.AddChild(Cube);

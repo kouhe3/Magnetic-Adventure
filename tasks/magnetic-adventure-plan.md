@@ -87,6 +87,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F221（**37 条启动纹理全部可解码**）：`magnet.pas` 增加 `kTextureAssets`（`mapping/textures.csv` 37 条）+ `HOST_TEX_SELFTEST=1` 自检；`PakFile` 逐条读出、按扩展名临时落盘、LCL `TPicture` 解码，日志 `loaded=37/37`（PNG+JPG 两条路径）。这只覆盖 pak→像素，不含 GL 上传格式（F183/F187）。
+
 - 2026-10-30 依据 F220（**T6.2 纹理直读 pak 打通**）：① 新增 `src/host_lcl/pakfile.pas`（Pascal 版 v0.2 解析，按名字大小写不敏感读取，支持尾部记录）；`magnet.pas` 用 `HOST_DATA` 打开 pak，把 `mm_cent2.png` 解出为 `TGLPersistentImage` 上到立方体，抓屏中心出现木纹 (146,125,101)。② 实测坑：`TGLTextureImage.Create` 的 owner 必须是 `TGLTexture`（传 `TGLScene` 抛 Invalid type cast）；`TGLPictureImage.Assign` 会落到 inherited 再抛；改用 `TGLPersistentImage` + owner=`Cube.Material.Texture`。③ 临时文件必须 `.png` 后缀，否则 `TPicture.LoadFromFile` 报 Unknown picture extension。④ 判据见 F220；下一步把 37 张纹理表与场景模型接上。
 
 - 2026-10-30 依据 F219（**T6.2 正交相机接通**）：`src/host_lcl/magnet.pas` 用 `Cam.CameraStyle := csCustom` + `OnCustomPerspective` 调 `glOrtho(-26.862,26.862,-19.5,19.5,-100,100)`；1 单位红色立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI），与 F179 一致。判据用像素几何（代理仍看不到 `glOrtho`，F215）。下一步：纹理直读 pak（37 张表）/场景模型。

@@ -303,6 +303,8 @@
 
 | F220 | **T6.2 纹理直读 pak 打通：Pascal `src/host_lcl/pakfile.pas` 解析 `bin/gametop/data`，`mm_cent2.png` 从 pak 读出 → LCL PNG 解码 → GLScene `TGLPersistentImage` 上到立方体，抓屏出现木纹（中心 (146,125,101)）**。① `PakFile` 按 F05 的 v0.2 格式（29 B 头 + 24 B 记录 + 尾部记录），`Read` 按名字大小写不敏感取条目；`HOST_DATA` 指向 pak 文件或目录。② 三个实测坑：`TGLTextureImage.Create` 的 `AOwner` 必须是 **TGLTexture**（传 `TGLScene` 直接抛 `Invalid type cast`）；`TGLPictureImage.Assign` 落到 `inherited` 也会抛；改用 `TGLPersistentImage` + `owner = Cube.Material.Texture`。③ 临时文件必须是 **`.png`** 后缀（`TPicture.LoadFromFile` 按扩展名选解码器，`.tmp` 报 `Unknown picture extension`）；`GetTempFileName` 的 `.tmp` 先删、改 `.png`。④ 判据：`HOST_DATA=bin/gametop/data python tools/shot_window.py ...`，客户区中心从纯黑变成木纹色 (146,125,101)，且无错误框。 | L4 | `python tools/shot_window.py work/glprobe_host/magnet.exe work/host_tex5.png --wait 2`（带 `HOST_DATA`）；`work/host_tex5.png` 中心 (146,125,101) | 已证 | T6.2 |
 
+| F221 | **pak 的 37 条启动纹理全部可读可解码：`PakFile` + LCL `TPicture` 37/37**。① `HOST_TEX_SELFTEST=1` 启动新宿主，`kTextureAssets`（`mapping/textures.csv` 的 37 条，含重复项）逐条 `Pak.Read` → 临时文件（保留 `.png/.jpg` 扩展）→ `TPicture.LoadFromFile`，日志 `loaded=37/37`、无 `missing/fail/empty`。② 覆盖 PNG 与 JPG 两种解码路径；这只证明"pak→像素"链，不证明 GL 上传格式/纹理 id（原版 37 次 `glTexImage2D` 的格式见 F183/F187）。 | L3 | `HOST_DATA=bin/gametop/data HOST_TEX_SELFTEST=1` 启动 `build/host_lcl/magnet.exe`；`work/glprobe_host/host_tex_selftest.log` 首行 `loaded=37/37` | 已证 | T6.2 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Lazarus/LCL（Object Pascal，LCL 0.9.28.3 时代）编译产物**（F153 勘误：此前写作 "Delphi/VCL"；RTTI 字符串是 LCL 的 VCL 兼容类名）。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。**LCL 语义（窗口类名 `Window`、DPI unaware、PeekMessage+MsgWait 主循环）可以靠 C++ 仿写或用 Free Pascal/LCL 直接继承，两条路线的取舍是 M3 的 Open Question**（F154/F155/F156）。
