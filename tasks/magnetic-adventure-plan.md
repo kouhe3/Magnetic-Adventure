@@ -35,7 +35,9 @@
 ## M3 宿主复刻（L0 + L1）
 
 - [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166、F167（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；全屏分支参数已实测（F167：`bsNone`+`wsMaximized`+`WS_EX_TOPMOST`，整屏无边框，实现留给 T3.6 接配置）；剩余：输入分发只做了消息日志，接场景属 T3.4）
-- [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F168（**渲染节奏已定**：按需重绘、不是固定帧率循环——菜单 ~17 次/秒画面变化、静止关卡 0 次/秒；宿主必须"有失效才画"。运动中的重绘率待 drag 时用 `tools/frame_probe.py` 或 GL 代理的 `SwapBuffers` 时间戳补测）
+- [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178（**渲染循环已实测**：加载/intro 是 2,100–3,100 swap/s 的忙循环，主菜单与关卡内恒 61–65 swap/s ≈ **15.6 ms/帧**（F177，勘误 F168 的"按需重绘"）；一帧 ≈ 870–900 次调用、逐 sprite 立即模式（25 个 quad、100 顶点、61 次 `glMultMatrixf`、24 次 `glBindTexture`，F178）⇒ 宿主实现成固定 ~15.6 ms 循环，不是"有失效才画"）
+- [x] T3.2a GL 调用面侦察：`opengl32.dll` 代理（368 导出全转发）记录名称/QPC 时间戳/栈上 6 个实参 依据：F03、F158、F175、F176（**已落地**：`src/glproxy/`（368/368 导出）+ `tools/gl_ffi.py`（`stats`/`frames`/`frame`/`init`/`names`）；透明性已证：无代理锚点判 `menu` 于 16.7 s（F169 无代理 16.5 s）、40 s 无崩溃、截图菜单/关卡正常（F176）；产出 F177/F178）
+- [ ] T3.2b GL payload 解码 + 帧语料：按函数白名单 dump 指针内容（`glMultMatrixf` 64 B、`glColor4fv`/`glNormal3fv`/`glTexCoord2fv`、`glOrtho` 的 6 个 double、`glTexImage2D` 的像素），把一帧还原成可重放的绘制列表 依据：F178（当前每调用只存 6 dword：`glOrtho` 只覆盖 3/6 个 double，矩阵/纹素全不可见）、F176（覆盖边界）
 - [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07
 - [ ] T3.5 文本渲染路径 依据：F11
@@ -61,6 +63,10 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F175–F178：**T3.2a（GL 调用面侦察）落地，并顺手推翻了一条既定结论**。仪器：`src/glproxy/`（`opengl32.dll` 代理，368 个 naked 桩全转发给改名的 `opengl32_orig.dll`，生成器 `tools/gen_proxy.py --library opengl32 --prefix ""`）+ `tools/gl_ffi.py`（`stats`/`frames`/`frame`/`init`/`names`）。透明性（F176）：用**无代理**画面建的状态锚点判 `menu` 于 16.7 s（F169 无代理 16.5 s），菜单/关卡截图正常，40 s 无崩溃。三条结论：① **渲染节奏**（F177）——加载/intro 是 2,100–3,100 swap/s 的忙循环，主菜单与关卡内恒 61–65 swap/s ≈ 15.6 ms/帧；静止画面只是像素不变，循环一直在跑 ⇒ **F168 的"按需重绘、有失效才画"作废**，T3.2 改成固定 ~15.6 ms 循环；② **调用面**（F178）——368 个导出只用 65–67 个，逐 sprite 立即模式（一帧 896 次调用：25 个 `glBegin`、100 顶点、61 次 `glMultMatrixf`、24 次 `glBindTexture`），纹理只在启动期上传 37 张；③ **覆盖边界**——每调用只存 6 个 dword（`glOrtho` 的 6 个 double 只覆盖 3 个），矩阵/纹素指针内容看不到，经 `wglGetProcAddress` 拿到的 ARB 指针直连驱动（`.names` 256 个名字只证明被请求过）。新增 T3.2b 补 payload 解码；`docs/facts.md` 的 F168 行按规则划掉改状态，勘误写进 F177。
+
+- 2026-10-30 依据 F175：**M3 的下一步是 T3.2a（GL 调用面侦察），不是先写渲染器**。理由：T3.2/T3.4/T3.5 都要先知道原版"画一帧到底调了什么"，而现在只有 F03 的静态导入项列表（53+33），没有频率、顺序、参数与是否用扩展。前置探测已做完：`opengl32` 不在 KnownDLLs（与 F147 的 dsound 情形相反），所以文件代理这条路可用；`SwapBuffers`/`ChoosePixelFormat`/`SetPixelFormat` 在 `gdi32`（KnownDLL），帧边界只能由 `gl*` 的 QPC 时间戳聚簇或 `glClear` 推断。新增 F176（待证：代理透明度与可记录性），探针一次给出可证伪的结论：游戏能否照常到 menu、日志是否成帧、`wglGetProcAddress` 请求了哪些名字。
 
 - 2026-10-30 依据 F169–F174：**"测试速度"这条线落地了一整套无人值守能力**。新增仪器与驱动：`tools/uistate.py`（界面状态机，loading/intro/menu 三个锚点，过渡帧返回 unknown，16.5 s 判出 menu）、`tools/uitemplate.py`（无 OpenCV 的 NCC 模板定位，`--selftest` 自证）、`tools/e2e_tutorial.py`（等 menu → 真实输入点 Play → 循环点气泡 X 直到**存档推进** → 默认杀进程退出）、`tools/e2e_record.py`（自走跑关同时挂 b2 代理录制，40.75 s 出 8.39 MB 日志并 `gate.py` PASS）。`tools/verify.py` 增加 `--e2e` 门禁（自动备份/还原存档）。三条硬结论：① `Play` 落点由存档 `LastCompleteLevel` 决定（=51 直接进结局页，F171）；② 点击坐标必须按**抓图的物理像素**算，游戏是 DPI-unaware 逻辑像素（F172，踩过一次）；③ 游戏内正常退出会 `ShellExecuteA` 弹网页，**默认改杀进程**（F173）。次要修复：`replay.py`/`record.py` 的 Pillow 改延迟导入，headless 门禁不再因缺 PIL 起不来（F174）。
 
