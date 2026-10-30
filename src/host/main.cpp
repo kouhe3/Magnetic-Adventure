@@ -1,0 +1,176 @@
+// 宿主脚手架（T3.1）：把原版 game.exe 的窗口/消息参数按实测值复刻出来，
+// 供 tools/winprobe.py 与原版逐字段对拍。
+//
+// 依据（docs/facts.md）：
+//   F153 宿主是 Lazarus/LCL；F154 窗口化主窗口 1024×768 / 客户区 1018×739 /
+//        style 0x96CA0000 / exstyle 0x100 / 桌面居中 / DPI unaware；
+//   F155 窗口类：CS_DBLCLKS、hbrBackground=NULL、IDC_ARROW、MAINICON、类名 "Window"；
+//   F156 主循环 PeekMessage + MsgWaitForMultipleObjects（无消息时真阻塞）；
+//   F158 唯一的子窗口 = 填满客户区的 GL 视口（style 0x56000000）。
+//
+// 本阶段刻意不渲染、不建 GL 上下文（那是 T3.2）；目的是让窗口参数可对拍。
+#include <windows.h>
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+
+const wchar_t kClassName[] = L"Window";
+const wchar_t kHintClassName[] = L"HintWindow";
+const wchar_t kTitle[] = L"A Magnetic Adventure";
+
+// 原版窗口化尺寸：外框 1024×768、客户区 1018×739（F154）。
+// 我们的非客户区比原版厚 10px（原版 3/26 边框=3+23 标题，我们 8/31），
+// 所以按**客户区**对齐：客户区尺寸与屏幕位置逐像素相同，外框会比原版大 10px。
+// 未解问题记在 docs/facts.md F154 的"待证"里（原版客户区为何是未加 DWM padding 的度量）。
+const int kClientW = 1018;
+const int kClientH = 739;
+const int kRefOuterW = 1024;  // 原版外框，用于算出原版客户区原点
+const int kRefOuterH = 768;
+const int kRefFrameX = 3;   // 原版每边边框
+const int kRefFrameTop = 26;  // 原版标题栏 + 上边框
+
+HWND g_viewer = nullptr;
+FILE* g_log = nullptr;
+
+void Log(const char* fmt, ...) {
+  if (!g_log) return;
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(g_log, fmt, ap);
+  va_end(ap);
+  fputc('\n', g_log);
+  fflush(g_log);
+}
+
+// 子窗口就是 GL 视口的位置：原版 style = WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN
+const DWORD kViewerStyle = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+
+LRESULT CALLBACK ViewerProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+  switch (msg) {
+    case WM_ERASEBKGND:
+      return 1;  // 原版 hbrBackground = NULL，且 GL 会覆盖整幅
+    default:
+      break;
+  }
+  return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+LRESULT CALLBACK FormProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+  switch (msg) {
+    case WM_CREATE: {
+      // 窗体与视口共用同一个窗口类（原版两层的类名都是 "Window"，F155/F158），
+      // 所以只能靠 parent 区分：只有顶层窗（hWndParent == NULL）才建视口，
+      // 否则子窗口的 WM_CREATE 会再建一个子窗口，无限递归。
+      auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+      if (!cs || cs->hwndParent != nullptr) return 0;
+      g_viewer = CreateWindowExW(0, kClassName, L"", kViewerStyle, 0, 0, 1, 1,
+                                 hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+      Log("WM_CREATE viewer=%p", static_cast<void*>(g_viewer));
+      return 0;
+    }
+    case WM_SIZE:
+      if (g_viewer) {
+        MoveWindow(g_viewer, 0, 0, LOWORD(lp), HIWORD(lp), TRUE);
+        Log("WM_SIZE %dx%d", LOWORD(lp), HIWORD(lp));
+      }
+      return 0;
+    case WM_ERASEBKGND:
+      return 1;
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_MOUSEMOVE:
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+      // T3.1 只验证消息能到：有 HOST_LOG 时落盘，后续 T3.4 才接场景
+      Log("msg=0x%04X wp=0x%08X lp=0x%08X", msg, static_cast<unsigned>(wp),
+          static_cast<unsigned>(lp));
+      break;
+    case WM_CLOSE:
+      DestroyWindow(hwnd);
+      return 0;
+    case WM_DESTROY:
+      PostQuitMessage(0);
+      return 0;
+    default:
+      break;
+  }
+  return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+// 复刻 F155：类名 "Window"，style=CS_DBLCLKS，hIcon=MAINICON（失败退 IDI_APPLICATION），
+// hCursor=IDC_ARROW，hbrBackground=NULL，无菜单。
+bool RegisterClasses(HINSTANCE inst) {
+  const char* log_path = std::getenv("HOST_LOG");
+  if (log_path) g_log = std::fopen(log_path, "w");
+
+  WNDCLASSEXW wc = {};
+  wc.cbSize = sizeof(wc);
+  wc.style = CS_DBLCLKS;
+  wc.lpfnWndProc = FormProc;
+  wc.hInstance = inst;
+  wc.hIcon = LoadIconW(inst, L"MAINICON");
+  if (!wc.hIcon) wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+  wc.hIconSm = wc.hIcon;
+  wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+  wc.hbrBackground = nullptr;
+  wc.lpszMenuName = nullptr;
+  wc.lpszClassName = kClassName;
+  if (!RegisterClassExW(&wc)) return false;
+
+  // LCL 同时注册提示窗类：CS_DBLCLKS|CS_SAVEBITS，Vista+ 再加 CS_DROPSHADOW，hIcon=0
+  wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_DROPSHADOW;
+  wc.lpfnWndProc = DefWindowProcW;
+  wc.hIcon = nullptr;
+  wc.hIconSm = nullptr;
+  wc.lpszClassName = kHintClassName;
+  RegisterClassExW(&wc);  // 失败不影响主窗体
+  return true;
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
+  if (!RegisterClasses(inst)) {
+    MessageBoxW(nullptr, L"RegisterClass failed", kTitle, MB_ICONERROR);
+    return 1;
+  }
+
+  // F154：WS_POPUP|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX，
+  // exstyle WS_EX_WINDOWEDGE；外框 1024×768，屏幕居中（LCL poScreenCenter）
+  const DWORD style = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU |
+                      WS_MINIMIZEBOX;
+  // 先按客户区反推外框，再把窗口摆到「客户区原点 = 原版客户区原点」的位置
+  RECT rc = {0, 0, kClientW, kClientH};
+  AdjustWindowRectEx(&rc, style, FALSE, WS_EX_WINDOWEDGE);
+  const int outer_w = rc.right - rc.left;
+  const int outer_h = rc.bottom - rc.top;
+  const int client_x = (GetSystemMetrics(SM_CXSCREEN) - kRefOuterW) / 2 + kRefFrameX;
+  const int client_y = (GetSystemMetrics(SM_CYSCREEN) - kRefOuterH) / 2 + kRefFrameTop;
+  // AdjustWindowRectEx 返回的 rc.left/rc.top 是负数（边框向外扩），客户区原点 = 窗口原点 - 它们
+  const int win_x = client_x + rc.left;
+  const int win_y = client_y + rc.top;
+  HWND hwnd = CreateWindowExW(WS_EX_WINDOWEDGE, kClassName, kTitle, style, win_x, win_y,
+                              outer_w, outer_h, nullptr, nullptr, inst, nullptr);
+  if (!hwnd) {
+    MessageBoxW(nullptr, L"CreateWindowEx failed", kTitle, MB_ICONERROR);
+    return 1;
+  }
+  ShowWindow(hwnd, SW_SHOW);
+  UpdateWindow(hwnd);
+  Log("form=%p at %d,%d %dx%d (client at %d,%d %dx%d)", static_cast<void*>(hwnd), win_x, win_y,
+      outer_w, outer_h, client_x, client_y, kClientW, kClientH);
+
+  // F156：PeekMessage 抽干 + MsgWaitForMultipleObjects 阻塞等待（不 Sleep 轮询）
+  MSG msg;
+  for (;;) {
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      if (msg.message == WM_QUIT) return static_cast<int>(msg.wParam);
+      TranslateMessage(&msg);
+      DispatchMessageW(&msg);
+    }
+    MsgWaitForMultipleObjects(0, nullptr, FALSE, INFINITE, QS_ALLINPUT);
+  }
+}

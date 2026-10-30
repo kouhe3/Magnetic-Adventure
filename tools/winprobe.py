@@ -40,6 +40,14 @@ class WINDOWPLACEMENT(ctypes.Structure):
                 ("rcNormalPosition", wt.RECT), ("rcDevice", wt.RECT)]
 
 
+class WINDOWINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("rcWindow", wt.RECT), ("rcClient", wt.RECT),
+                ("dwStyle", wt.DWORD), ("dwExStyle", wt.DWORD),
+                ("dwWindowStatus", wt.UINT), ("cxWindowBorders", wt.UINT),
+                ("cyWindowBorders", wt.UINT), ("atomWindowType", wt.ATOM),
+                ("wCreatorVersion", wt.WORD)]
+
+
 class PROCESS_TIMES(ctypes.Structure):
     _fields_ = [("creation", wt.FILETIME), ("exit", wt.FILETIME),
                 ("kernel", wt.FILETIME), ("user", wt.FILETIME)]
@@ -66,17 +74,17 @@ def decode(v, table):
     return "|".join(n for bit, n in table if v & bit) or "none"
 
 
-def fit64(fn):
-    return fn.restype is not None
-
-
 def main():
-    game_dir = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else \
+    argv = sys.argv[1:]
+    game_dir = next((a for a in argv if not a.startswith("--")), None) or \
         os.path.join(ROOT, "bin", "gametop")
-    p = subprocess.Popen([os.path.join(game_dir, "game.exe")], cwd=game_dir)
+    exe = "game.exe"
+    if "--exe" in argv:
+        exe = argv[argv.index("--exe") + 1]
+    p = subprocess.Popen([os.path.join(game_dir, exe)], cwd=game_dir)
     os.makedirs(os.path.join(ROOT, "work"), exist_ok=True)
     open(os.path.join(ROOT, "work", "winprobe_pid.txt"), "w").write(str(p.pid))
-    print("pid=%d dir=%s" % (p.pid, game_dir))
+    print("pid=%d exe=%s dir=%s" % (p.pid, exe, game_dir))
     try:
         return _probe(p, game_dir)
     finally:
@@ -141,6 +149,11 @@ def _probe(p, game_dir):
     print("client_size=%dx%d" % (cr.right - cr.left, cr.bottom - cr.top))
     print("border_x=%d border_y=%d" % ((wr.right - wr.left) - cr.right,
                                        (wr.bottom - wr.top) - cr.bottom))
+    wi = WINDOWINFO()
+    wi.cbSize = ctypes.sizeof(wi)
+    if u.GetWindowInfo(hwnd_main, ctypes.byref(wi)):
+        print("wininfo_borders=%d/%d (OS 认为的每边边框/标题栏总高)" %
+              (wi.cxWindowBorders, wi.cyWindowBorders))
 
     # 类属性
     for name, idx in (("hbrBackground", -10), ("hCursor", -12), ("hIcon", -14),
@@ -159,10 +172,16 @@ def _probe(p, game_dir):
     try:
         u.GetDpiForWindow.restype = wt.UINT
         print("dpi=%d" % u.GetDpiForWindow(hwnd_main))
+        # 必须声明 restype：上下文是 64 位句柄，默认 c_int 会截断成无效值，
+        # GetAwarenessFromDpiAwarenessContext 于是恒返回 0（假"unaware"）
+        u.GetWindowDpiAwarenessContext.restype = ctypes.c_void_p
+        u.GetWindowDpiAwarenessContext.argtypes = (wt.HWND,)
         ctx = u.GetWindowDpiAwarenessContext(hwnd_main)
         u.GetAwarenessFromDpiAwarenessContext.restype = ctypes.c_int
-        print("dpi_awareness=%d (0=unaware 1=system 2=permonitor)" %
-              u.GetAwarenessFromDpiAwarenessContext(ctx))
+        u.GetAwarenessFromDpiAwarenessContext.argtypes = (ctypes.c_void_p,)
+        aware = u.GetAwarenessFromDpiAwarenessContext(ctypes.c_void_p(ctx))
+        print("dpi_awareness=%d (0=unaware 1=system 2=permonitor, -1=invalid ctx=0x%x)" %
+              (aware, ctx or 0))
     except Exception as e:  # noqa
         print("dpi=err(%s)" % e)
 

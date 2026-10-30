@@ -168,3 +168,17 @@ if(SQUALL_DEBUG_LOG)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/dbg_squall"
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
+
+# ---- 宿主脚手架（T3.1）----
+# 只复刻窗口/消息参数（F154/F155/F156/F158），暂不含 GL 与 pak 加载。
+# 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。
+# 注意：**不要**给这个 exe 加 dpiAware 清单——原版就是 DPI-unaware（F154）。
+add_executable(host WIN32 src/host/main.cpp)
+set_target_properties(host PROPERTIES OUTPUT_NAME magnethost
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_compile_definitions(host PRIVATE UNICODE _UNICODE)
+target_link_libraries(host PRIVATE user32)
+
+# 不嵌清单：原版 game.exe 完全没有 manifest（F154）。实测这条**不改变**非客户区边框
+# （加不加清单都是 8/31，原版是 3/26），保留只是为了与原版一致。
+target_link_options(host PRIVATE "/MANIFEST:NO")
