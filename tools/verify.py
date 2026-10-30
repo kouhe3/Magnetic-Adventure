@@ -12,6 +12,7 @@
     exports:b2      build/Release/b2Physics.dll 导出 87/87，missing/extra/ordinal_mismatch 全 0
     exports:squall  build/Release/Squall.dll 导出 99/99
     window          tools/wincompare.py：原版 vs 自建宿主 15 个窗口字段 diffs=0
+                    （宿主实现可换：`HOST_DIR`/`HOST_EXE` 覆盖，判据不变）
     squall:contract 17 个宿主导入的 20 步契约探针，两侧逐项相同
     squall:decode   35 个 pak 内 OGG 的解码元数据两侧相同
     physics:sample  抽样录制的 FFI 重放 bounded=PASS 且 bodies_bad 不超过该录制的 A/A 地板
@@ -54,8 +55,13 @@ def check_exports(dll, csv=None):
 
 
 def check_window():
+    # 宿主实现可替换：C++ 仿写（build/Release/magnethost.exe）或 FPC/LCL 重建（F213 之后可行）。
+    # 换实现时只设 HOST_DIR / HOST_EXE，判据（15 个窗口字段）不变。
+    host_dir = os.environ.get("HOST_DIR", "build/Release")
+    host_exe = os.environ.get("HOST_EXE", "magnethost.exe")
     rc, out, dt = run([sys.executable, "tools/wincompare.py",
-                       "--orig", "work/winprobe_game", "--ours", "build/Release"])
+                       "--orig", "work/winprobe_game", "--ours", host_dir,
+                       "--ours-exe", host_exe])
     # 偶发失败要能事后归因：完整字段表落盘（2026-10-30 出现过一次 diffs=2，随后 20 次不复现）
     with open(os.path.join(ROOT, "work", "gate_window_last.log"), "w", encoding="utf-8") as f:
         f.write(out)

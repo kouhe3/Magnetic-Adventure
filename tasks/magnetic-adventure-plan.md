@@ -45,6 +45,7 @@
 - [ ] T3.5 文本渲染路径 依据：F11、F192（**路线已定**：文字 = pak 内 `*.dat` 32 B/字记录表（`u32 字符码; f32 u0,v0,u1,v1; u32 w,h,flag`，UV 以 512 归一化），抓包 'o' quad 与表内字符 111 记录**逐位相同**、`advance==w`、行高 `==h` ⇒ 解析 `.dat` 即可，不需要反推字宽；剩：行距/换行/左右对齐、关卡字体 `pt_sans*.dat`（3176 B，非 32 B 对齐，格式未解）与 `gulim2.dat`（32 条））
 - [ ] T3.6 配置/存档写入（`cfg.ini` 等） 依据：F01
 - [x] T3.8 复原原版对 GLScene 的本地补丁（库层收口） 依据：F211、F212、F213（**完成：12 个残差函数 → 0**。补丁入库 `patches/glscene-v11-game.patch`（5 文件 / 6.4 KB）：`SetHSpace`/`SetVSpace` 钳位到 ≥1、文本 API 改 `WideString`、`CalcStringWidth`/`RenderString` 声明 `virtual`、`TGLHUDText.FText: WideString`、`DestroyRC` 去掉 `RemoveBuffer`、`Assign` 加 `TGLPNGImage` 分支（+`uses GLFilePNG`）、`LMEraseBkgnd` 恒 1、`LMPaint` 去掉 `WM_SIZE` workaround。判据：pristine v1.1 + `patch -p1` + `tools/glskel_build.py` → `code_match funcs` 扫 12 个单元 = **1,054 个函数 / 0 个 sim<0.95**（构建两次复现）。副产品：原版**链接了 `GLFilePNG`**（推翻 F208 的"编不了"）。边界：只覆盖骨架链接的 12 个单元）
+- [ ] T3.9 宿主实现路线拍板：C++ 仿写 vs FPC/LCL + GLScene 重建 依据：F202、F211、F213（**待拍板**。C++ 路线现状：`src/host` 已过窗口 15/15、菜单 mean|Δ| **1.088/255**（F190）——那是**仿写的残差**，且 `verify.py` 里没有像素门禁。FPC 路线现状：库层已 100% 复原（F213），宿主可以就是"LCL 窗体 + GLScene 视口 + 144 个 Lua 绑定"，渲染/文本/视口行为由同一份库产出，判据从"像素 diff"换成"逐调用 + 逐指令 + 像素验收"。**决策点 = HANDOFF §11**；两边的差别不是"能不能"，是"要不要把已有 C++ 代码扔掉"）
 - [x] T3.7 用同版工具链测出宿主的"库/应用"分界 + 库层版本（L2-B 度量前置） 依据：F202–F211（**已完成**：① 尺寸分界 `.text` `0x521000`，应用 ≤389,815 B（F204）；② 工具链开关全对——LCL 逐指令 99.9–100%（F210）；③ **版本夹逼（F211）**：`tools/ver_bisect.py` 扫 r4700→r5025，跳变点 r4850/r4900/r4980/r5002 ⇒ GLScene = **v1.1 / trunk r5000 一带**（v1.1 发布包与 r5002–r5025 数字完全相同：100/100/98.8/84.9/84.6/99.7）；④ 残余：11 个单元 1,043 个函数里 **只有 12 个（2,448 B）sim<0.95**，全在文本/HUD/视口（`RenderTextAtPosition`、`RenderString` 助手、`DoRender`、`CalcStringWidth`、`SetHSpace/SetVSpace`、`LMPaint`、`LMEraseBkgnd`、`TGLPictureImage.Assign`、`DestroyRC`）；`SetHSpace` 的下限钳位在 trunk r4600–r6150 **不存在** ⇒ 这 12 个是**原版本地补丁**；⑤ F208 的"r4700 最 fit"被 F211 取代（glX 名字在 Win32 下被编掉，指纹假差异）。**下一步**：把 12 个补丁函数从反汇编复原（2.4 KB），再评估应用代码的复原形态）
 
 ## M4 行为对齐验收
@@ -67,6 +68,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F213/F190（澄清，不改判据）：**把"宿主像素 1%"标清归属，并解开宿主实现的硬编码**。① `tools/verify.py` 的 6 项门禁里**没有像素判据**（docstring 明写"不含人眼看画面"），所以"像素差 1%"不是门禁在卡，而是 `src/host`（C++ 仿写路线）的历史测量（F190）。② 唯一耦合是 `window` 门禁把 `--ours` 写死成 `build/Release/magnethost.exe`——已改成 `HOST_DIR`/`HOST_EXE` 可覆盖，换实现零改脚本，判据（15 个窗口字段）不变。③ README/HANDOFF 给该数字加了"属于 C++ 仿写路线"的限定：若转 FPC/LCL + GLScene 重建，渲染由同一份库产出，判据应换成逐调用/逐指令，像素只作验收。④ 新增 T3.9 记录这个岔路（待拍板，决策点 HANDOFF §11）。
 
 - 2026-10-30 依据 F213：**T3.8 收口——GLScene 库层 100% 复原，12 个单元 1,054 个函数残差归零**。① 剩余 6 个逐个攻掉：`LMPaint` 去掉 `WM_SIZE` 黑边 workaround、`LMEraseBkgnd` 恒 `Result:=1`、`DestroyRC` 去掉 `RemoveBuffer`、`CalcStringWidth`/`RenderString` 需声明 **`virtual`**（原版经 vtable 调用；改成直接调用会让 `AlignmentAdjustement` 与 `TGLFlatText.DoRender` 对不上）、`TGLPictureImage.Assign` 的第 4 个分支是 **`TGLPNGImage`**。② 认出那个分支的办法：直接读目标端的 VMT（类名在 VMT+12 的 ShortString，父类在 VMT+8）⇒ `TGLPNGImage = class(TGLBaseImage)`，与 v1.1 的 `GLFilePNG.pas` 一致。③ 因此原版**链接了 GLFilePNG**：把它加进骨架 `uses` 后它在本工具链下编得过（`GLFilePNG.o` 存活 98.9%），F208「GLFilePNG 编不了」作废。④ 交付物：`patches/glscene-v11-game.patch` + 骨架 `tools/glskel6.pas`（`glskel_build.py` 默认值）；判据 `patch -p1` → 重编 → `code_match funcs` 全绿。⑤ 至此 §11 的 B 选项只剩**应用层**（≤390 KB）。
 

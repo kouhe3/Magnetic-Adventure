@@ -23,6 +23,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **版本夹逼已完成（F211）**：`tools/ver_bisect.py` 扫 r4700→r5025，跳变点 r4850/r4900/r4980/r5002 ⇒ 原版 GLScene = **v1.1 / trunk r5000 一带**（v1.1 发布包与 r5002–r5025 的逐单元数字完全相同）。**11 个单元 1,043 个函数里只剩 12 个（2,448 B）sim<0.95**，全在文本/HUD/视口（`RenderTextAtPosition`/`RenderString` 助手/`DoRender`/`CalcStringWidth`/`SetHSpace`/`SetVSpace`/`LMPaint`/`LMEraseBkgnd`/`TGLPictureImage.Assign`/`DestroyRC`）。`SetHSpace` 的下限钳位在 trunk r4600–r6150 **一版都没有** ⇒ 这 12 个是**原版本地补丁**（与 F192 的 `gulim1.dat` 自绘字模吻合）。**库层到此算复原完成**。
 - **补丁复原已完成（T3.8，F212/F213）**：残差 **12 → 0**。补丁入库 `patches/glscene-v11-game.patch`（5 个文件 / 6.4 KB），骨架 `tools/glskel6.pas`（`glskel_build.py` 默认）。内容：`SetHSpace`/`SetVSpace` 钳位到 ≥1、文本 API 改 `WideString`、`CalcStringWidth`/`RenderString` 声明 **`virtual`**、`TGLHUDText.FText: WideString`、`DestroyRC` 去掉 `RemoveBuffer`、`Assign` 加 `TGLPNGImage` 分支（`uses GLFilePNG`）、`LMEraseBkgnd` 恒 1、`LMPaint` 去掉 `WM_SIZE` workaround。判据：pristine v1.1 → `patch -p1` → `glskel_build.py` → `code_match.py funcs` 扫 12 单元 = **1,054 个函数 / 0 个 sim<0.95**。**反例**：`TGLFlatText.FText` 必须保持 `string`。副产品：原版链接了 `GLFilePNG`（F208 的"编不了"作废）。
 - `cover` 的 72.8% / 59.0% / 尾部 19.9% **不受影响**（全局量与目标侧窗口，口径本来就对）。
+- **像素数字属于 C++ 仿写宿主（`src/host`），不是最终判据**：主菜单 mean|Δ| **1.088/255**（F190）是 `src/host` 与原版的差。`tools/verify.py` 里**没有像素门禁**（docstring 明写"不含人眼看画面"，6 项门禁一张表在跑）；`window` 门禁只比 15 个窗口字段，且宿主目录/可执行名可用 `HOST_DIR`/`HOST_EXE` 覆盖（换实现不改判据）。若改走 FPC/LCL + GLScene 重建（F213 之后可行），渲染由同一份库产出，判据应换成逐调用/逐指令，像素只作验收。
 
 ## 1. 先读这几份（按顺序）
 
