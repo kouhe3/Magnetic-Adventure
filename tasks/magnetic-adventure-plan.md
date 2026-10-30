@@ -34,7 +34,7 @@
 
 ## M3 宿主复刻（L0 + L1）
 
-- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153、F154、F155、F156、F157、F158、F159（前置探测已完成：窗口类/样式/尺寸/DPI/子窗口/消息循环/输入面全部有实测值；剩余是"按这些参数实现宿主脚手架并与原版逐项对拍"）
+- [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F163（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=14 diffs=0`；剩余：① 输入分发只做了消息日志，尚未接场景；② 全屏分支参数未测（F157 待证）；③ 外框比原版厚 10px 的偏差只量化未消除）
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03
 - [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07
@@ -60,6 +60,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F162/F163：**T3.1 宿主脚手架落地**。`src/host/main.cpp` 按 F154/F155/F156/F158 复刻窗口：类名 `Window`（CS_DBLCLKS、hbrBackground=NULL、IDC_ARROW、MAINICON）、`style=0x96CA0000`、`exstyle=0x100`、DPI unaware、同一类名建视口子窗口（靠 `CREATESTRUCTW.hwndParent` 区分窗体/视口，否则 WM_CREATE 递归建子窗）、主循环 `PeekMessage` + `MsgWaitForMultipleObjects`。**验收 14/14 字段一致**（`tools/wincompare.py`：title/class/style/exstyle/client/viewer 全部相同）。两处已知偏差与结论：① 外框比原版厚 10px（原版边框 3/26，我们 8/31，OS 给我们加了 DWM padding），按**客户区**对齐后视口逐像素相同（F163）；② 菜单/按钮只能靠真实输入驱动，`PostMessage` 合成消息无效（F162）。新增仪器：`tools/winprobe.py`（窗口参数探针）、`tools/wincompare.py`（原版 vs 自建对拍门禁）。
 
 - 2026-10-30 依据 F153–F160：**T3.1 的前置探测做完了，依据从 F01（PE 解剖）换成实测值**。新增 8 条台账：宿主框架是 **Lazarus/LCL 而非 Delphi/VCL**（F153，勘误 F01）；窗口化主窗口 1024×768 外框 / 1018×739 客户区 / `style=0x96CA0000` / **DPI unaware** / 桌面居中（F154）；窗口类由 LCL 通用注册函数建：类名 `Window`、`CS_DBLCLKS`、`hbrBackground=0`、`IDC_ARROW`、`MAINICON`（F155）；主循环 PeekMessage + `MsgWaitForMultipleObjects`（导入无 `GetMessage`），空闲 CPU 0.0%（F156）；Form1 的 DFM 是 `bsNone`+`wsMaximized` 且无子组件，与运行时工具窗矛盾（F157，全屏分支待证）；窗体下只有一个填满客户区的 GL 子窗口（F158）；输入无 DirectInput，鼠标走消息 + 键盘轮询，Lua 只有 `Get_MousePosition`（F159）；`game.exe` 疑似单实例（F160 待证，自动化前提）。**由此新增 M3 的 Open Question：宿主用 C++ 仿写 LCL 语义，还是用 Free Pascal + LCL 直接继承**——T3.1 开工前需要拍板。另：自动化驱动脚本的点击时机按用户实测改为"启动期 CPU 降到 <5% 后再等 6 s"，早点点到的是 intro/splash 而非主菜单。
 
