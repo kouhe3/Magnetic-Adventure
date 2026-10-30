@@ -43,7 +43,7 @@
 
 ## M4 行为对齐验收
 
-- [ ] T4.1 确定性输入回放 harness 依据：F03
+- [ ] T4.1 确定性输入回放 harness 依据：F03、F169、F172、F174（**自动化驱动已可用**：`uistate` 状态机 + `uitemplate` 模板定位 + `e2e_tutorial` 无人值守跑关（38 s）+ `e2e_record` 自走录制并直接过门禁（40 s）。剩余：输入**回放**（按键/鼠标事件逐帧记录再重放）尚未做——现在是脚本化操作，同一脚本两次运行日志字节数相同（F174），但还没到「录一次输入、任意次重放」）
 - [ ] T4.2 GL 调用序列 diff + 像素 diff 依据：F03
 - [x] T4.3 音频 diff（输出层）：环回 A/B 已跑通，逐秒 corr 0.9998–0.9999；PCM 逐位不可达见 T4.9 依据：F06、F149、F150
 - [ ] T4.4 存档字节 diff 依据：F01
@@ -60,6 +60,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F169–F174：**"测试速度"这条线落地了一整套无人值守能力**。新增仪器与驱动：`tools/uistate.py`（界面状态机，loading/intro/menu 三个锚点，过渡帧返回 unknown，16.5 s 判出 menu）、`tools/uitemplate.py`（无 OpenCV 的 NCC 模板定位，`--selftest` 自证）、`tools/e2e_tutorial.py`（等 menu → 真实输入点 Play → 循环点气泡 X 直到**存档推进** → 默认杀进程退出）、`tools/e2e_record.py`（自走跑关同时挂 b2 代理录制，40.75 s 出 8.39 MB 日志并 `gate.py` PASS）。`tools/verify.py` 增加 `--e2e` 门禁（自动备份/还原存档）。三条硬结论：① `Play` 落点由存档 `LastCompleteLevel` 决定（=51 直接进结局页，F171）；② 点击坐标必须按**抓图的物理像素**算，游戏是 DPI-unaware 逻辑像素（F172，踩过一次）；③ 游戏内正常退出会 `ShellExecuteA` 弹网页，**默认改杀进程**（F173）。次要修复：`replay.py`/`record.py` 的 Pillow 改延迟导入，headless 门禁不再因缺 PIL 起不来（F174）。
 
 - 2026-10-30 依据 F168：**"tick 间隔"这个问题有了结论，且结论是"没有固定 tick"**。新仪器 `tools/frame_probe.py`（屏幕小块 100 Hz 采样 + 逐帧字节比对）实测：主菜单 17 次/秒画面变化（间隔成簇 ⇒ 局部失效重绘）、静止关卡 0 次/秒，与 F156 的空闲 CPU 0.0% 一致 ⇒ **渲染是按需重绘**，宿主不能实现成固定 60 fps 循环。x32dbg 路线放弃：`SetTimer` 断点被 Sogou/Intel 驱动的 DLL 入口事件反复打断（每次新模块加载都停一次），成本高于收益。剩下未测的只有"运动中（拖拽/物理未静止）的重绘率"，交给 T3.2 的 GL 代理或人工拖拽时采样。
 
