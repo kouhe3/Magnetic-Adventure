@@ -54,24 +54,30 @@ static const char* ErrorTable[] = {
 // → SQUALL_Sample_PlayEx 返回 -13。扩到 101 并把 100 映射为满音量。
 int volume_table[101];
 
+// altered (F148): 2006 版 Squall.dll 的音量曲线是「每点 1 dB」的线性映射，不是上游 v1.48
+// （andrewp 改过的 log10 曲线）。实测原版相对满音量的衰减：Volume 99 → -0.9 dB、
+// 80 → -19.9 dB、60 → -39.9 dB（每 20 点正好 -20 dB），而上游公式给出 -4.5 / -10.9 dB。
+// 道具：DirectSound 音量单位是 1/100 dB，故 dxvolume = (Volume-100)*100。
 int naturalvolume_to_dxvolume( float volume )
 {
-	if( volume == 0 ) // andrewp: log10(0) is undefined
+	int v = (int)(volume + 0.5f);
+	if (v <= 0)
 		return -10000;
-
-	return (int)floorf(10000.0f * .5f * log10f(volume));
+	if (v >= 100)
+		return 0;
+	return (v - 100) * 100;
 }
 
 int dxvolume_to_squallvolume( int dxvolume )
 {
-	int result = (int)floorf(100 * expf(dxvolume * (2.303f / (10000.0f * .5f)))); // andrewp: this must correlate with 'volume_table'
+	int result = dxvolume / 100 + 100;   // altered (F148): 线性曲线的逆
 
 	if( result < 0 )
 		result = 0;
 	else
 	if( result > 100 )
 		result = 100;
-	
+
 	return result;
 }
 
@@ -245,8 +251,8 @@ DLL_API int SQUALL_Init(squall_parameters_t* SystemParam)
 
 	// создание таблицы громкостей
 	for (i = 0; i < 100; ++i)
-		volume_table[i] = naturalvolume_to_dxvolume(i * (1 / 99.0f));
-	volume_table[100] = volume_table[99];   // altered (F138): Volume=100 → 满音量（0 dB）
+		volume_table[i] = naturalvolume_to_dxvolume((float)i);   // altered (F148): 传整数音量，不是归一化值
+	volume_table[100] = naturalvolume_to_dxvolume(100.0f);   // altered (F138): Volume=100 → 0 dB
 
 	// проверка входных параметров
 	InitParameters(SystemParam, & sys);
