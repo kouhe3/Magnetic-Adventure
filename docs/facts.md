@@ -182,6 +182,8 @@
 
 | F151 | **多关实录（Steam Engine / Gramophone / Hold Your Breath / Fill 'Er Up，同一进程）906 次调用，接口集合仍是那 17 个导入的子集，没有新 API 面**。分布：`Sample_PlayEx` 274、`Channel_SetVolume`/`Channel_Start` 各 227、`Sample_Stop` 37、`ChannelGroup_Pause` 34、`Sample_LoadFromMemory`/`Sample_Unload` 各 35、`ChannelGroup_Stop` 22、`ChannelGroup_SetVolume` 4、`Channel_SetPriority` 4、**`Channel_Pause` 4（本会话首次出现）**、`Init`/`UnloadAll`/`Free` 各 1。音乐（`loop=1, group=1`）只起 4 次，sample id 依次 `0x10001 / 0x10003 / 0x10001 / 0x10002`，与 4 个关卡一一对上；`group 2` 是音效（252 次），`group 3/4` 各 9 次（UI/环境）。**游戏内累计覆盖 14/17**：`Channel_Status`、`Sample_LoadFile`、`Sample_Pause` 从未被宿主调用，由 20 步契约探针覆盖（F144） | L4 | `work/sq_levels_multi.bin`（558,116 B，pre=post=906）；`python tools/squall_ffi.py … --show 0` | 已证 | T2.4d/T2.5 |
 
+| F152 | **第二批九关实录（Teleport / Pendulum / Magnetic Field / The Stones / Rotate It / Hammer / Is It Safe? / A Missing Gear / Old Clock）1951 次调用，把游戏内覆盖推到 16/17**。新出现的两个接口：`Sample_Pause` **1032 次**（几乎全落在同一个 sample `0x10019`：flag=1 共 751 次、flag=0 共 281 次，属"暂停/恢复"反复切换）与 `Channel_Status` 8 次（通道 `0x1902/0x1400/0x1f01/0x3000/0x2e02/0x2c01/0x3e00/0x3e00`）。其余分布：`Sample_PlayEx` 263、`ChannelGroup_Pause` 160、`Channel_SetVolume`/`Channel_Start` 各 132、`ChannelGroup_Stop` 80、`Sample_LoadFromMemory`/`Stop`/`Unload` 各 35、`Channel_SetPriority`/`Channel_Pause` 各 16、`ChannelGroup_SetVolume` 4、`Init`/`UnloadAll`/`Free` 各 1；音乐（`loop=1, group=1`）16 次，sample id 只在 `0x10000–0x10003` 之间轮换（含回菜单重进）。**仍未在游戏内出现的只剩 `Sample_LoadFile`**（宿主永远从 pak 内存加载），它由 20 步探针覆盖 | L4 | `work/sq_levels_multi2.bin`（1,201,836 B，pre=post=1951） | 已证 | T2.4d/T2.5 |
+
 ## 影响对齐方案的硬约束
 
 - 原程序是 **Delphi/VCL 编译产物**。C++ 编译器（MSVC/Clang）无法产出与原 PE 同字节流，因此"C++ 编译输出与原 exe 字节级一致"不可达；字节级一致只在**同语言同版本重编译**或**DLL 导出表/ABI** 两个尺度上有意义。
