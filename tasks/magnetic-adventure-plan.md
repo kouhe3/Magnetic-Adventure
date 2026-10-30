@@ -34,6 +34,10 @@
 
 ## M3 宿主复刻（L0 + L1）
 
+> **2026-10-30 起本里程碑降为对照物**：宿主主线走 M6（FPC/LCL + GLScene 重建，F213/F214）。
+> 下面任务里的像素差值（如 T3.2 的 1.088/255）是 **C++ 宿主**的实测，不是最终口径；
+> 换成 M6 后渲染由同一份 GLScene 库产出，判据改为逐调用（GL 序列）+ 逐指令（库层 sim）。
+
 - [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166、F167（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；全屏分支参数已实测（F167：`bsNone`+`wsMaximized`+`WS_EX_TOPMOST`，整屏无边框，实现留给 T3.6 接配置）；剩余：输入分发只做了消息日志，接场景属 T3.4）
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178、F184、F187、F190（**里程碑 A + 纹理 + 布局全部落地**：WGL 上下文（F183）、纹理直读 pak（F187）、菜单布局宿主现算 + 二态悬停（F190）；原版 vs 宿主截屏 mean\|Δ\| **1.088/255**、p99 20、>16 1.346%（鼠标停同一设计像素，A/A 地板 0.00）。**剩**：关卡渲染（26–27 draw/帧的场景模型））
 - [x] T3.2c 纹理直接读 pak（PNG/JPG 解码进宿主，替掉预烘焙的 `menu_tex.bin`） 依据：F183、F185、F187（**已落地**：`src/host/pak.{h,cpp}` + `src/host/wic_decode.{h,cpp}`（WIC，系统自带，不必 vendor）+ 生成物 `src/host/texture_table.h`（源 `mapping/textures.csv`）。判据：`HOST_TEX_CRC` 的 37 条 vs 原版上传 CRC **diffs=0/37**（含 5 张 JPG，F185），截图 mean|Δ| **1.375/255**、>16 2.105%（删掉 `menu_tex.bin` 仍能画）。边界：level 0 一致 ≠ mipmap 一致；800×600 的 `logo_1.JPG` 被 glu 扩到 1024×512）
