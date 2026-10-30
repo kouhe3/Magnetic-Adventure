@@ -54,6 +54,9 @@ def main():
     ap.add_argument("--wait", type=float, default=float(os.environ.get("SHOT_WAIT", "2.0")),
                     help="窗口出现后再等多少秒（菜单要 ~17 s）")
     ap.add_argument("--poll", type=float, default=15.0, help="等窗口出现的上限（秒）")
+    ap.add_argument("--mouse", default="",
+                    help="截图前把鼠标放到窗口客户区的这个**设计像素**位置（如 900,700）；"
+                         "空=不动。菜单悬停/光标对拍必须让两边落在同一点")
     ap.add_argument("--pos", default="0,0",
                     help="截图前把窗口左上角挪到屏幕这个物理坐标（默认 0,0，避免被别的窗口/任务栏盖住）")
     a = ap.parse_args()
@@ -73,14 +76,21 @@ def main():
         if not win:
             print("no window")
             return 1
-        time.sleep(a.wait)
         # 抓的是**屏幕**像素：先把窗口挪到确定的位置并置前，否则被别的窗口/任务栏盖住的
         # 那几条边会把别人的像素拍进来（踩过：底部 108 px 拍到了前台终端）。
         px, py = (int(v) for v in a.pos.split(","))
         u.SetWindowPos(win, 0, px, py, 0, 0,
                        0x0001 | 0x0004 | 0x0010)  # NOSIZE|NOZORDER|NOACTIVATE
         u.SetForegroundWindow(win)
-        time.sleep(0.35)
+        # 鼠标必须在窗口摆好之后再放（窗口一挪，原来的悬停位置就失效了），并且要留出
+        # 稳定时间：原版磁铁光标有旋转/缩放过渡。
+        if a.mouse:
+            mx, my = (float(v) for v in a.mouse.split(","))
+            pt0 = wt.POINT(0, 0)
+            u.ClientToScreen(win, ctypes.byref(pt0))
+            scale = max(1.0, u.GetSystemMetrics(0) / 1707.0)  # 逻辑→物理（原版 DPI-unaware，1.5x）
+            u.SetCursorPos(pt0.x + int(mx * scale), pt0.y + int(my * scale))
+        time.sleep(a.wait)
         r = wt.RECT()
         u.GetClientRect(win, ctypes.byref(r))
         pt = wt.POINT(0, 0)

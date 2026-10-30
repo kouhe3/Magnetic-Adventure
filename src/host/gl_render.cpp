@@ -3,10 +3,9 @@
 // 纹理：**直接读游戏 pak**（`data`）里的 37 张素材，WIC 解码后按原版顺序/格式上传
 // （F183 的 id↔素材映射、F185 的逐字节解码一致性）。pak 路径：HOST_DATA 指向 pak 文件
 // 或含 `data` 的目录，否则用 exe 同级的 `data`。
-// 绘制列表：menu_draw.bin "GLDRW02\0" + u32 count + 每个 draw{u32 tex,n,caps,prim,src,dst;
-// f32 rgba[4]; n × f32 (x,y,z,u,v)}，由 tools/gl_drawlist.py --pack 生成（F181/F182）。
-// prim 必须原样回放：原版文本串是 12 顶点的 GL_QUADS（三连字），当 TRIANGLE_FAN 画会把
-// 三块连成蝴蝶结（F186）。T3.2d 会用宿主侧布局替掉这份绘制列表。
+// 菜单布局：`src/host/menu_layout.cpp` 按「设计空间 1018×739 逻辑像素」现算（F188），
+// 不再是抓包回放；二态按钮按鼠标命中切换（F189）。需要逐 draw 对拍时设
+// HOST_DRAW_DUMP=<path> 落 GLDRW02，再用 tools/draw_ab.py 与原版抓包比。
 //
 // 状态复刻（F184）：PFD 24 色 / 24 深度 / 双缓冲 / 无 alpha；纹理用
 // WRAP=REPEAT、MIN=LINEAR_MIPMAP_LINEAR、MAG=LINEAR、GL_GENERATE_MIPMAP=1（与启动期实测一致），
@@ -25,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "menu_layout.h"
 #include "pak.h"
 #include "texture_table.h"
 #include "wic_decode.h"
@@ -51,21 +51,15 @@ struct Tex {
   GLuint gl;
 };
 
-struct Draw {
-  unsigned tex, n, caps, prim, src, dst;
-  float rgba[4];
-  std::vector<float> v;  // n × (x,y,z,u,v)
-};
-
 struct Menu {
   std::vector<Tex> tex;
-  std::vector<Draw> draws;
   bool ok = false;
 };
 
 Menu g_menu;
 HDC g_dc = nullptr;
 HGLRC g_rc = nullptr;
+HWND g_viewer = nullptr;
 int g_w = 0, g_h = 0;
 
 std::string ExeDir() {
@@ -74,26 +68,6 @@ std::string ExeDir() {
   std::string s(buf, n);
   size_t p = s.find_last_of("\\/");
   return p == std::string::npos ? std::string(".") : s.substr(0, p + 1);
-}
-
-bool ReadFileBytes(const std::string& path, std::vector<unsigned char>* out) {
-  FILE* f = std::fopen(path.c_str(), "rb");
-  if (!f) return false;
-  std::fseek(f, 0, SEEK_END);
-  long n = std::ftell(f);
-  std::fseek(f, 0, SEEK_SET);
-  out->resize(n > 0 ? static_cast<size_t>(n) : 0);
-  size_t got = n > 0 ? std::fread(out->data(), 1, out->size(), f) : 0;
-  std::fclose(f);
-  return got == out->size();
-}
-
-// 从目录读，可用环境变量覆盖（目前只有绘制列表还走这条路，T3.2d 之后会一并去掉）
-std::string DataPath(const char* env, const char* leaf) {
-  char buf[MAX_PATH];
-  DWORD n = GetEnvironmentVariableA(env, buf, MAX_PATH);
-  if (n > 0 && n < MAX_PATH) return std::string(buf);
-  return ExeDir() + leaf;
 }
 
 // HOST_DATA 可以是 pak 文件本身，也可以是含 `data` 的目录；默认 exe 同级 data
@@ -191,33 +165,6 @@ bool LoadTexturesFromPak() {
   return ok;
 }
 
-bool LoadDraw(const std::string& path) {
-  std::vector<unsigned char> b;
-  if (!ReadFileBytes(path, &b)) return false;
-  if (b.size() < 12 || std::memcmp(b.data(), "GLDRW02", 7) != 0) return false;
-  unsigned count = 0;
-  std::memcpy(&count, b.data() + 8, 4);
-  size_t off = 12;
-  for (unsigned i = 0; i < count; ++i) {
-    Draw d = {};
-    if (off + 32 > b.size()) return false;
-    std::memcpy(&d.tex, b.data() + off, 4);
-    std::memcpy(&d.n, b.data() + off + 4, 4);
-    std::memcpy(&d.caps, b.data() + off + 8, 4);
-    std::memcpy(&d.prim, b.data() + off + 12, 4);
-    std::memcpy(&d.src, b.data() + off + 16, 4);
-    std::memcpy(&d.dst, b.data() + off + 20, 4);
-    std::memcpy(d.rgba, b.data() + off + 24, 16);
-    off += 40;
-    d.v.resize(static_cast<size_t>(d.n) * 5);
-    if (off + d.v.size() * 4 > b.size()) return false;
-    std::memcpy(d.v.data(), b.data() + off, d.v.size() * 4);
-    off += d.v.size() * 4;
-    g_menu.draws.push_back(std::move(d));
-  }
-  return true;
-}
-
 GLuint FindTex(unsigned id) {
   for (auto& t : g_menu.tex)
     if (t.id == id) return t.gl;
@@ -227,6 +174,7 @@ GLuint FindTex(unsigned id) {
 }  // namespace
 
 bool GlInit(HWND viewer) {
+  g_viewer = viewer;
   g_dc = GetDC(viewer);
   if (!g_dc) return false;
 
@@ -246,11 +194,11 @@ bool GlInit(HWND viewer) {
 
   if (!WicInit()) return false;
   const std::string pak_path = PakPath();
-  g_menu.ok = LoadTexturesFromPak() && LoadDraw(DataPath("MENU_DRAW", "menu_draw.bin"));
+  g_menu.ok = LoadTexturesFromPak();
   if (FILE* f = std::fopen(std::string(ExeDir() + "gl_init.log").c_str(), "w")) {
-    std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu draws=%zu pak=%s err=%#x\n",
+    std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu pak=%s err=%#x\n",
                  static_cast<void*>(g_dc), static_cast<void*>(g_rc), g_menu.ok ? 1 : 0,
-                 g_menu.tex.size(), g_menu.draws.size(), pak_path.c_str(), glGetError());
+                 g_menu.tex.size(), pak_path.c_str(), glGetError());
     std::fclose(f);
   }
   return g_menu.ok;
@@ -262,6 +210,41 @@ void GlResize(int w, int h) {
   if (g_rc) glViewport(0, 0, w, h);
 }
 
+namespace {
+
+// 鼠标在视口客户区里的 NDC；不在窗口内返回 false
+bool MouseNdc(float* mx, float* my) {
+  if (!g_viewer || g_w <= 1 || g_h <= 1) return false;
+  POINT p = {0, 0};
+  if (!GetCursorPos(&p)) return false;
+  if (!ScreenToClient(g_viewer, &p)) return false;
+  if (p.x < 0 || p.y < 0 || p.x >= g_w || p.y >= g_h) return false;
+  *mx = 2.0f * static_cast<float>(p.x) / g_w - 1.0f;
+  *my = 1.0f - 2.0f * static_cast<float>(p.y) / g_h;
+  return true;
+}
+
+// HOST_DRAW_DUMP=<path>：把宿主现算的 draw 列表按 GLDRW02 落盘，供 tools/draw_ab.py 与原版抓包逐 draw 比
+void DumpDraws(const std::vector<MenuDraw>& draws) {
+  const char* path = std::getenv("HOST_DRAW_DUMP");
+  if (!path) return;
+  FILE* f = std::fopen(path, "wb");
+  if (!f) return;
+  std::fwrite("GLDRW02\0", 1, 8, f);
+  unsigned count = static_cast<unsigned>(draws.size());
+  std::fwrite(&count, 4, 1, f);
+  for (const auto& d : draws) {
+    unsigned head[6] = {d.tex, static_cast<unsigned>(d.n), d.caps, 7u /*GL_QUADS*/,
+                        d.blend_src, d.blend_dst};
+    std::fwrite(head, 4, 6, f);
+    std::fwrite(d.rgba, 4, 4, f);
+    std::fwrite(d.v, 4, static_cast<size_t>(d.n) * 5, f);
+  }
+  std::fclose(f);
+}
+
+}  // namespace
+
 void GlRenderMenu() {
   if (!g_rc || !g_menu.ok) {
     glClearColor(0.15f, 0.0f, 0.0f, 1.0f);  // 数据缺失时给个明显的底色
@@ -269,6 +252,16 @@ void GlRenderMenu() {
     SwapBuffers(g_dc);
     return;
   }
+  float mx = 2.0f, my = 2.0f;
+  const bool inside = MouseNdc(&mx, &my);
+  std::vector<MenuDraw> draws;
+  BuildMenuDraws(&draws, mx, my, inside);
+  static bool dumped = false;
+  if (!dumped) {
+    dumped = true;
+    DumpDraws(draws);
+  }
+
   glViewport(0, 0, g_w, g_h);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -286,8 +279,8 @@ void GlRenderMenu() {
   glDisable(GL_TEXTURE_2D);
   glColor4f(1, 1, 1, 1);
 
-  for (auto& d : g_menu.draws) {
-    glBlendFunc(d.src, d.dst);
+  for (const auto& d : draws) {
+    glBlendFunc(d.blend_src, d.blend_dst);
     if (d.caps & CAP_BLEND) glEnable(GL_BLEND); else glDisable(GL_BLEND);
     if (d.caps & CAP_DEPTH_TEST) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (d.caps & CAP_CULL_FACE) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
@@ -295,7 +288,7 @@ void GlRenderMenu() {
     GLuint tex = FindTex(d.tex);
     if (tex) glBindTexture(GL_TEXTURE_2D, tex);
     glColor4fv(d.rgba);
-    glBegin(d.prim);  // 原样回放：QUADS 的 12 顶点是三连字，按 fan 画会连成蝴蝶结（F186）
+    glBegin(GL_QUADS);  // 原版就是 GL_QUADS；文本串的 12 顶点是三个连字（F186）
     for (unsigned i = 0; i < d.n; ++i) {
       const float* p = &d.v[i * 5];
       glTexCoord2f(p[3], p[4]);
@@ -316,7 +309,7 @@ void GlRenderMenu() {
       std::fprintf(f, "size=%dx%d center=%02x%02x%02x%02x tl=%02x%02x%02x%02x bl=%02x%02x%02x%02x err=%#x draws=%zu\n",
                    g_w, g_h, px[0][0], px[0][1], px[0][2], px[0][3],
                    px[1][0], px[1][1], px[1][2], px[1][3],
-                   px[2][0], px[2][1], px[2][2], px[2][3], glGetError(), g_menu.draws.size());
+                   px[2][0], px[2][1], px[2][2], px[2][3], glGetError(), draws.size());
       std::fclose(f);
     }
   }

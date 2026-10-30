@@ -189,8 +189,8 @@ endif()
 # 只复刻窗口/消息参数（F154/F155/F156/F158），暂不含 GL 与 pak 加载。
 # 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。
 # 注意：**不要**给这个 exe 加 dpiAware 清单——原版就是 DPI-unaware（F154）。
-add_executable(host WIN32 src/host/main.cpp src/host/gl_render.cpp src/host/pak.cpp
-  src/host/wic_decode.cpp)
+add_executable(host WIN32 src/host/main.cpp src/host/gl_render.cpp
+  src/host/menu_layout.cpp src/host/pak.cpp src/host/wic_decode.cpp)
 set_target_properties(host PROPERTIES OUTPUT_NAME magnethost
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_compile_definitions(host PRIVATE UNICODE _UNICODE)
