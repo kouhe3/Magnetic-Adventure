@@ -5,6 +5,8 @@
 
 ## 0. 一句话现状
 
+**2026-10-30 决策：宿主改走 FPC/LCL + GLScene 重建（计划 M6），C++ 宿主保留作对照物。** 当天 T6.1 窗口层就完成：`src/host_lcl/magnet.pas`（40 行）让 `tools/wincompare.py` 的 15 个窗口字段 `diffs=0`（F214）。下面几段描述的是 **C++ 路线**（F184–F200）的成果，仍可作对照基准，但不再是交付主线。
+
 两个 DLL 已复刻并验证完毕（**b2Physics 87/87 + 52 关全 PASS**；**Squall 99/99 + 17 个宿主导入 0 分歧**）；宿主 exe 过了窗口门禁，**主菜单由宿主代码现算**：纹理直读 pak（上传像素 37/37 与原版逐字节相同，F187）、布局按固定设计空间 1018×739 与二态悬停（F190），与原版逐像素 mean|Δ| **1.088/255**、A/A 地板 0.00。
 Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 111/111 编译通过**、`lvl_info.lvl` 解析出 **52 关**（F191）。
 卡点很明确：**关卡渲染**还没做（只有菜单 + 单帧画像）；Lua 的 **144 个绑定与执行语义**未接（T3.3 剩余）；文本仍是「同一字模格 ×3」的固定串，**宿主自己不会排版字符串**（T3.5）；Squall 的 **PCM 逐位**仍阻塞。
@@ -58,6 +60,11 @@ cmake --build build --config Release                 # b2Physics + box2d
 cmake --build build --config Release --target squall # Squall.dll（ogg/vorbis 直编）
 cmake --build build --config Release --target host   # magnethost.exe（窗口 + 菜单渲染）
 cmake --build build --config Release --target gl_proxy   # build/proxy_gl/Release/opengl32.dll
+
+# 新宿主（FPC/LCL 路线，M6）：先建打过补丁的 GLScene 树，再编 magnet.exe
+python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas
+cp bin/gametop/libpng13.dll bin/gametop/zlib1.dll build/host_lcl/   # GLFilePNG 运行时依赖
+python tools/wincompare.py --orig work/winprobe_game --ours build/host_lcl --ours-exe magnet.exe
 
 # 门禁（快集 6 项，~25 s；--full 追加 52 关全量重放并重生成 docs/levels.md）
 python tools/verify.py
@@ -175,12 +182,13 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 | 阶段 | 状态 |
 |---|---|
+| **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 场景/渲染、T6.3 Lua 绑定、T6.4 应用层、T6.5 整机 A/B 排队 |
 | M0/M1 资源与规格 | pak 格式闭环、Lua 导出、资产索引 ✅；T0.3（IDA 全量导出）/T0.4（oracle 采集）仍是历史遗留项，按需再补 |
 | M2 两个 DLL | b2：87/87、52 关全量 PASS、A/A 地板内；Squall：99/99、17 个宿主导入调用序 0 分歧（含优雅退出）、环回音频逐秒 corr 0.9998；**剩 PCM 逐位（F134，三条路线均否，F147）** 与长时回归（T2.6b） |
 | M3 宿主 | 窗口层门禁 15/15 ✅（F166 子系统 5.01）；GL 上下文 + **主菜单渲染** ✅（F184）、**纹理直读 pak** ✅（F187）、**布局宿主现算 + 二态悬停** ✅（F190，draw A/B 零偏差、截屏 1.088）、**Lua 5.1.5 + 52 关清单/111 脚本编译** ✅（F191）；剩：144 个绑定与执行语义（T3.3）、场景/关卡接线（T3.4）、文本排版（T3.5）、配置（T3.6）、关卡渲染 |
 | M4 验收 | 音频 diff ✅（F150）、e2e 自动化 ✅（F172/F174）、GL 绘制列表 ✅（F181/F182）；剩输入回放（T4.1）、帧 diff（T4.2）、存档 diff（T4.4）、映射覆盖（T4.5）、exe A/B 四层（T4.10）、1 ULP（T4.8） |
 | M5 汉化 | 未开始（资源替换路线已定，F08） |
-| **L2-B 逐字节（新主线）** | 前置条件已全部成立：工具链钉死（F202）、LCL 可自编且局部 **98.9%** 逐位（F206）、分界在 `0x521000`（F204）、GLScene 夹到 **r4700** 且 `GLLCLViewer.o` **95.6%**（F208）、开关收敛（LCL 无优化 / GLScene+应用 `-O1` / 无 `-Cr -Co`）。**剩**：① GLScene 少数单元内部漂移（`GLObjects` 63.7%、`GLBitmapFont` 22.6%）② LCL 单元集差异（`win32int` 61.5%、`forms` 65.4%）③ **应用代码 0%**（本来就没有源，≤300 KB） |
+| **L2-B 库层** | **已复原（F213）**：GLScene = v1.1 + `patches/glscene-v11-game.patch`（5 文件 / 6.4 KB），12 个单元 **1,054 个函数 sim<0.95 的 0 个**；LCL 单元逐指令 99.9–100%（F210）；尺寸分界 `0x521000`、应用 ≤389,815 B（F204）。**剩**：应用层（≤390 KB，本没有源）—— 这正是 M6 的 T6.4 |
 
 **本轮之前的硬数字**（写报告时直接引用）：
 - b2：`calls=118558` / `steps=2018` / `bodies_bad=0`（F130 验收录制）。
@@ -223,6 +231,8 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 11. **T3.3 第一切片**：`vendor/lua-5.1.5`（官方，未改）编译成 `lua51` + `luac`，`tools/check_lua.py` 全量编译 pak 脚本 **111/111**；`src/host/levels.{h,cpp}` 解析 `lvl_info.lvl`（**pak 尾部记录**）得到 **52 关**；宿主启动写 `host_data.log`（`entries=707 levels=52 lua_ok=111`）。
 
 ## 6. 排队（建议顺序）
+
+**当前主线是 M6（宿主重建）**：T6.2 场景/渲染接入 → T6.3 Lua 144 绑定 → T6.4 应用层复原 → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
 
 > 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
@@ -301,7 +311,8 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 2. `cmake --build build --config Release --target host` + `HOST_DATA=bin/gametop/data python tools/shot_window.py build/Release/magnethost.exe work/host_menu.png --wait 2` → 应看到主菜单（若红底：`gl_init.log` 里 `ok=0`，查 `bin/gametop/data` 路径；若白屏，查 `GL_GENERATE_MIPMAP` 那条坑）。悬停/光标对拍记得两边都带 `--mouse 同一设计像素`。
 3. `python tools/code_match.py cover bin/gametop/game.exe work/toolchain_probe/o_r4700final/glskel5.exe --tail 0x521000` → 应复现 **归因 72.8% / 目标侧 59.0% / 尾部 19.9%**；再跑 `funcs --unit controls.o` 应得 **99.9% ≥0.95**（`--unit GLObjects.o` 应得 76.7%）。数字对不上说明工具链被换过（多半是 LCL 被加了 `-O1` 或用错了 `-Fu`）。
 4. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误）与 **F202–F208**（L2-B 工具链考古），再读计划 §变更记录 最近三条。
-5. 按 §6 第 1 条（T3.3 pak+Lua）开工；改计划记得追加变更记录并写 `依据：F##`。
+5. **新宿主先跑一遍**：`python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas` → `wincompare --ours build/host_lcl --ours-exe magnet.exe` 应得 `fields=15 diffs=0`（F214）。
+6. 按 §6 的 **M6** 队列开工（T6.2 场景/渲染）；改计划记得追加变更记录并写 `依据：F##`。
 
 ## 11. 已拍板：宿主走 FPC/LCL + GLScene 重建（原"要不要转正"）
 
