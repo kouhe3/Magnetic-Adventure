@@ -36,7 +36,7 @@ python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 
 python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --float-tol 1e-3
 ```
 
-**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**但 `work/host_gl_final.bin` 只有 3,273 条初始化记录、无 `wglSwapBuffers`/`glClear`，抓屏主体是 LCL 灰** ⇒ 视口/呈现未打通（F217）。原因候选：改 style 后 Viewer 的 DC/上下文失效、或 GLScene 画到不可见 buffer；下一步先修 paint/DC，再谈场景。
+**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 无 swap/glClear 仍是 F215 的代理覆盖问题，不影响像素判据。下一步：相机改 ±26.862 正交、接纹理直读 pak 与场景模型。
 
 **关键覆盖边界（F215）**：GL 代理只看得见**直接 import 的 GL**；GLScene 经 `OpenGLAdapter.GetAddress`（`wglGetProcAddress`/`GLLibGetProcAddress`）拿到的函数指针直连驱动，**内部渲染调用不进 GLFFI02**。因此 T6.2 验收按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`，13 帧 A/A 口径）；像素只作验收。代理侧试过把 `wglGetProcAddress` 返回值换成代理桩，未取得可见调用，改动已回滚、未入库。
 

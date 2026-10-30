@@ -2,8 +2,8 @@ program magnet;
 {$mode objfpc}{$H+}
 // Magnetic Adventure 宿主（FPC/LCL + GLScene 重建路线）—— 种子实现。
 //
-// 现状：窗口层（F214）+ T6.2 种子（相机 + 一次 V.Render；F217）。
-// 视口/呈现还没打通：代理日志无 swap/glClear，抓屏仍是 LCL 灰（F215/F217）。
+// 现状：窗口层（F214）+ T6.2 场景种子（相机 + 红色测试立方体；F217/F218）。
+// 视口/呈现已证通（黑底 + 3306 个红像素）；GLScene 内部调用不进 GL 代理（F215）。
 // 构建（需要 FPC 2.2.4 + 自编 LCL 0.9.28.3，见 HANDOFF §3.2）：
 //   python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas
 // 运行前置：与 exe 同目录需要 libpng13.dll + zlib1.dll（GLFilePNG 的运行时依赖，
@@ -22,12 +22,13 @@ program magnet;
 //   4. GL 视口用 GetClientRect 的真实客户区重排：原生改 style 后 LCL 缓存的 ClientWidth
 //      还是旧值，直接 alClient 会得到 1024x768。
 uses
-  Interfaces, Forms, Controls, GLScene, GLLCLViewer, Windows;
+  Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer, Windows;
 
 var
   F: TForm;
   S: TGLScene;
   Cam: TGLCamera;
+  Cube: TGLCube;
   V: TGLSceneViewer;
   r: TRect;
 begin
@@ -39,11 +40,18 @@ begin
 
   S := TGLScene.Create(F);
   Cam := TGLCamera.Create(S);
+  Cam.Position.SetPoint(0, 0, 10);
   S.Objects.AddChild(Cam);
+  Cube := TGLCube.Create(S);
+  Cube.Material.FrontProperties.Diffuse.SetColor(1, 0, 0, 1);
+  Cube.Material.FrontProperties.Emission.SetColor(1, 0, 0, 1);
+  S.Objects.AddChild(Cube);
   V := TGLSceneViewer.Create(F);
   V.Parent := F;
   V.Align := alClient;
   V.Camera := Cam;
+  V.Buffer.BackgroundColor := clBlack;
+  V.Buffer.Lighting := False;
 
   F.Show;
 
@@ -60,6 +68,8 @@ begin
   GetClientRect(F.Handle, r);
   V.Align := alNone;
   V.SetBounds(0, 0, r.Right, r.Bottom);
+  V.Show;
+  V.BringToFront;
 
   V.Invalidate;
   Application.ProcessMessages;
