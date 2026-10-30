@@ -38,7 +38,7 @@
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178（**渲染循环已实测**：加载/intro 是 2,100–3,100 swap/s 的忙循环，主菜单与关卡内恒 61–65 swap/s ≈ **15.6 ms/帧**（F177，勘误 F168 的"按需重绘"）；一帧 ≈ 870–900 次调用、逐 sprite 立即模式（25 个 quad、100 顶点、61 次 `glMultMatrixf`、24 次 `glBindTexture`，F178）⇒ 宿主实现成固定 ~15.6 ms 循环，不是"有失效才画"）
 - [x] T3.2a GL 调用面侦察：`opengl32.dll` 代理（368 导出全转发）记录名称/QPC 时间戳/栈上 6 个实参 依据：F03、F158、F175、F176（**已落地**：`src/glproxy/`（368/368 导出）+ `tools/gl_ffi.py`（`stats`/`frames`/`frame`/`init`/`names`）；透明性已证：无代理锚点判 `menu` 于 16.7 s（F169 无代理 16.5 s）、40 s 无崩溃、截图菜单/关卡正常（F176）；产出 F177/F178）
 - [ ] T3.2b GL payload 解码 + 绘制列表：**payload 已落地**（`GLFFI02`：args[12] + `args[0]/args[1]/args[8]` 三块 192 B + 时间窗 `GLPROXY_T0/T1`；已解出 `glOrtho(-26.862,26.862,-19.5,19.5,0.371,100.371)`、相机 `glTranslated(3,-3,-5)`、逐 sprite 的 `glMultMatrixf`，F179）；**剩**：把 `glBegin..glEnd` 序列 + 矩阵栈 + 绑定纹理还原成「sprite 列表」（位置/尺寸/UV/颜色/纹理 id），作为渲染器的对拍基准 依据：F178、F179、F176（覆盖边界：纹理只存 192 B 前缀）
-- [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04
+- [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04、F180（**关卡数据面已摊开**：`lvl_info.lvl` 是 UTF-16LE 文本清单（`Caption`/`LevelFiles`/`LevelGroup`），零件与行为全在 Lua——116 个 `Add*` 工厂、144 个绑定、事件走 `Attach_ScriptToObject`（`OnMove`/`OnAddContact`/`OnPersistContact`/`OnRotate`）。⇒ **关卡编辑器的可行形态 = 产出「清单 + Lua」**，不改引擎；判据用原版加载（能过门禁/推进存档）；缺 pak 回写（`tools/pak.py` 只读））
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07、F169、F171、F177、F179（**初始化顺序是契约**：loading/intro/menu 三段的内容与循环节奏都不同（F169、F177），37 张纹理在启动期一次性上传（F179），`Play` 落点还依赖存档 `LastCompleteLevel`（F171）⇒ 宿主不能"直接构造关卡场景"冷启动，必须按原顺序跑；状态判定用 `uistate` 像素锚点，不用定时点击（F172 的教训：intro 占 12.5 s，定时点击必落空））
 - [ ] T3.5 文本渲染路径 依据：F11
 - [ ] T3.6 配置/存档写入（`cfg.ini` 等） 依据：F01
@@ -63,6 +63,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F180：**关卡数据面摊开了，顺带回答"能不能做关卡编辑器"**。关卡 = `lvl_info.lvl`（UTF-16LE 文本，`Caption`/`LevelFiles`/`LevelGroup`）+ 一组 Lua；零件是 Lua 工厂（116 个 `Add*`，内部只用 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*` 这些宿主原语，绑定共 144 个），行为是 `Attach_ScriptToObject` 注册的 Lua 事件回调（`OnMove`/`OnAddContact`/`OnPersistContact`/`OnRotate`）。⇒ 编辑器只需产出「清单 + Lua」，不动引擎；判据是原版能加载并推进存档；唯一缺口是 pak 回写（`tools/pak.py` 现在只有 parse/verify/extract）。这同时收敛了 T3.3 的范围：宿主必须提供的不是"零件逻辑"，而是那 144 个绑定 + 每步物理。
 
 - 2026-10-30 依据 F179：**GL 代理升到 `GLFFI02`（payload + 时间窗），相机与变换读出来了**。每调用多记 12 个 dword + `args[0]/args[1]/args[8]` 三块 192 B，`GLPROXY_T0/T1` 只记 27–28 s 那一段（58,600 条 / 38.2 MB，比全量 8 MB/s 便宜两个数量级）。实测：`glOrtho(-26.862,26.862,-19.5,19.5,0.371,100.371)`（视野 53.72×39.0，比例 = 客户区 1018/739）、相机 `glTranslated(3,-3,-5)`、逐 sprite 的变换走 `glMultMatrixf`（含 (510,185,0) 这类局部平移）、纹理 id 1..37。`tools/gl_ffi.py` 兼容 v01/v02 并新增 `window` 子命令（按时间窗看调用序、解矩阵/颜色/UV/`glTexImage2D`）。T3.2b 只剩「sprite 列表抽取」。
 
