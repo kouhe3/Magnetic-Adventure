@@ -87,6 +87,8 @@
 
 ## 变更记录
 
+- 2026-10-30 依据 F220（**T6.2 纹理直读 pak 打通**）：① 新增 `src/host_lcl/pakfile.pas`（Pascal 版 v0.2 解析，按名字大小写不敏感读取，支持尾部记录）；`magnet.pas` 用 `HOST_DATA` 打开 pak，把 `mm_cent2.png` 解出为 `TGLPersistentImage` 上到立方体，抓屏中心出现木纹 (146,125,101)。② 实测坑：`TGLTextureImage.Create` 的 owner 必须是 `TGLTexture`（传 `TGLScene` 抛 Invalid type cast）；`TGLPictureImage.Assign` 会落到 inherited 再抛；改用 `TGLPersistentImage` + owner=`Cube.Material.Texture`。③ 临时文件必须 `.png` 后缀，否则 `TPicture.LoadFromFile` 报 Unknown picture extension。④ 判据见 F220；下一步把 37 张纹理表与场景模型接上。
+
 - 2026-10-30 依据 F219（**T6.2 正交相机接通**）：`src/host_lcl/magnet.pas` 用 `Cam.CameraStyle := csCustom` + `OnCustomPerspective` 调 `glOrtho(-26.862,26.862,-19.5,19.5,-100,100)`；1 单位红色立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI），与 F179 一致。判据用像素几何（代理仍看不到 `glOrtho`，F215）。下一步：纹理直读 pak（37 张表）/场景模型。
 
 - 2026-10-30 依据 F218（**勘误 F217：视口/呈现已证通**）：① `src/host_lcl/magnet.pas` 设 `V.Buffer.BackgroundColor := clBlack`、`V.Buffer.Lighting := False`，并加一个 `TGLCube`（Diffuse/Emission 红色）；`tools/shot_window.py --wait 2` 抓屏得到 **3,306 个纯红 (255,0,0)** 像素、其余 (0,0,0) ⇒ GLScene 的 clear + draw + present 都工作。② 之前的 240 灰是 `TGLSceneBuffer.FBackgroundColor` 默认 `clBtnFace`（`GLScene.pas:7986`），不是 DC/上下文失效；上一条变更记录里"视口/呈现未打通"作废。③ 代理无 swap/glClear 仍是 F215 的覆盖边界，不影响像素判据。T6.2 下一步：相机改 ±26.862 正交、接纹理直读 pak 与场景模型。

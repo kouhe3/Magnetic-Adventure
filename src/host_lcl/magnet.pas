@@ -2,8 +2,8 @@ program magnet;
 {$mode objfpc}{$H+}
 // Magnetic Adventure 宿主（FPC/LCL + GLScene 重建路线）—— 种子实现。
 //
-// 现状：窗口层（F214）+ T6.2 场景种子（相机 + 红色测试立方体；F217/F218）。
-// 视口/呈现已证通（黑底 + 3306 个红像素）；GLScene 内部调用不进 GL 代理（F215）。
+// 现状：窗口层（F214）+ T6.2 场景种子（正交相机 + 测试立方体 + pak 纹理；
+// F217–F220）。视口/呈现/纹理直读 pak 已证通；GLScene 内部调用不进 GL 代理（F215）。
 // 构建（需要 FPC 2.2.4 + 自编 LCL 0.9.28.3，见 HANDOFF §3.2）：
 //   python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas
 // 运行前置：与 exe 同目录需要 libpng13.dll + zlib1.dll（GLFilePNG 的运行时依赖，
@@ -22,8 +22,8 @@ program magnet;
 //   4. GL 视口用 GetClientRect 的真实客户区重排：原生改 style 后 LCL 缓存的 ClientWidth
 //      还是旧值，直接 alClient 会得到 1024x768。
 uses
-  Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
-  OpenGL1x, VectorGeometry, Windows;
+  Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
+  GLFilePNG, GLTexture, OpenGL1x, PakFile, SysUtils, VectorGeometry, Windows;
 
 type
   TCameraEvents = class
@@ -39,12 +39,42 @@ begin
   viewPortRadius := 33.2;
 end;
 
+function DataPath: string;
+var
+  n: DWORD;
+  buf: array[0..MAX_PATH - 1] of Char;
+begin
+  n := GetEnvironmentVariable('HOST_DATA', @buf[0], MAX_PATH);
+  if n > 0 then
+    Result := buf
+  else
+    Result := 'data';
+  if DirectoryExists(Result) then
+    Result := IncludeTrailingPathDelimiter(Result) + 'data';
+end;
+
+function TempFileName: string;
+var
+  dir, name: array[0..MAX_PATH - 1] of Char;
+  tmp: string;
+begin
+  GetTempPath(MAX_PATH, @dir[0]);
+  GetTempFileName(@dir[0], 'mag', 0, @name[0]);
+  tmp := name;
+  Result := ChangeFileExt(tmp, '.png');
+  DeleteFile(PChar(tmp));
+end;
+
 var
   F: TForm;
   S: TGLScene;
   Cam: TGLCamera;
   Cube: TGLCube;
   CamEvents: TCameraEvents;
+  Pak: TPakFile;
+  PicImage: TGLPersistentImage;
+  PakStream: TMemoryStream;
+  TmpPath: string;
   V: TGLSceneViewer;
   r: TRect;
 begin
@@ -64,6 +94,23 @@ begin
   Cube := TGLCube.Create(S);
   Cube.Material.FrontProperties.Diffuse.SetColor(1, 0, 0, 1);
   Cube.Material.FrontProperties.Emission.SetColor(1, 0, 0, 1);
+  Pak := TPakFile.Create;
+  if Pak.Open(DataPath) and Pak.Read('mm_cent2.png', PakStream) then
+  begin
+    TmpPath := TempFileName;
+    try
+      PakStream.SaveToFile(TmpPath);
+      // TPicture.LoadFromFile 走 LCL 的 PNG 解码；owner 必须是 TGLTexture，
+      // 否则 TGLTextureImage.Create 的 AOwner as TGLTexture 会抛 Invalid type cast。
+      PicImage := TGLPersistentImage.Create(Cube.Material.Texture);
+      PicImage.LoadFromFile(TmpPath);
+      Cube.Material.Texture.Image := PicImage;
+      Cube.Material.Texture.Disabled := False;
+    finally
+      DeleteFile(PChar(TmpPath));
+      PakStream.Free;
+    end;
+  end;
   S.Objects.AddChild(Cube);
   V := TGLSceneViewer.Create(F);
   V.Parent := F;
