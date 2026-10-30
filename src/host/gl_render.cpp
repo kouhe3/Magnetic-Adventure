@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "game_files.h"
 #include "menu_layout.h"
 #include "pak.h"
 #include "texture_table.h"
@@ -68,16 +69,6 @@ std::string ExeDir() {
   std::string s(buf, n);
   size_t p = s.find_last_of("\\/");
   return p == std::string::npos ? std::string(".") : s.substr(0, p + 1);
-}
-
-// HOST_DATA 可以是 pak 文件本身，也可以是含 `data` 的目录；默认 exe 同级 data
-std::string PakPath() {
-  char buf[MAX_PATH];
-  DWORD n = GetEnvironmentVariableA("HOST_DATA", buf, MAX_PATH);
-  std::string s = (n > 0 && n < MAX_PATH) ? std::string(buf) : ExeDir() + "data";
-  DWORD attr = GetFileAttributesA(s.c_str());
-  if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) s += "\\data";
-  return s;
 }
 
 unsigned Crc32(const unsigned char* p, size_t n) {
@@ -137,9 +128,8 @@ GLuint UploadTexture(const unsigned char* px, int w, int h, bool rgb) {
 // 直接读 pak：按 mapping/textures.csv（F183）的 id→素材映射逐张解码上传。
 // HOST_TEX_CRC=<path> 时把每张上传像素的 CRC32 落盘，供 tools 与原版日志对拍（F185）。
 bool LoadTexturesFromPak() {
-  Pak pak;
-  const std::string pak_path = PakPath();
-  if (!pak.Open(pak_path)) return false;
+  if (!OpenGamePak()) return false;
+  const Pak& pak = GamePak();
   const char* crc_env = std::getenv("HOST_TEX_CRC");
   FILE* crc = crc_env ? std::fopen(crc_env, "w") : nullptr;
   bool ok = true;
@@ -193,12 +183,11 @@ bool GlInit(HWND viewer) {
   if (!g_rc || !wglMakeCurrent(g_dc, g_rc)) return false;
 
   if (!WicInit()) return false;
-  const std::string pak_path = PakPath();
   g_menu.ok = LoadTexturesFromPak();
   if (FILE* f = std::fopen(std::string(ExeDir() + "gl_init.log").c_str(), "w")) {
     std::fprintf(f, "dc=%p rc=%p ok=%d tex=%zu pak=%s err=%#x\n",
                  static_cast<void*>(g_dc), static_cast<void*>(g_rc), g_menu.ok ? 1 : 0,
-                 g_menu.tex.size(), pak_path.c_str(), glGetError());
+                 g_menu.tex.size(), GamePakPath().c_str(), glGetError());
     std::fclose(f);
   }
   return g_menu.ok;
@@ -289,7 +278,7 @@ void GlRenderMenu() {
     if (tex) glBindTexture(GL_TEXTURE_2D, tex);
     glColor4fv(d.rgba);
     glBegin(GL_QUADS);  // 原版就是 GL_QUADS；文本串的 12 顶点是三个连字（F186）
-    for (unsigned i = 0; i < d.n; ++i) {
+    for (int i = 0; i < d.n; ++i) {
       const float* p = &d.v[i * 5];
       glTexCoord2f(p[3], p[4]);
       glVertex3f(p[0], p[1], p[2]);

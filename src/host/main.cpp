@@ -13,8 +13,13 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
+#include <vector>
 
+#include "game_files.h"
 #include "gl_render.h"
+#include "levels.h"
+#include "lua_scripts.h"
 
 namespace {
 
@@ -146,6 +151,36 @@ bool RegisterClasses(HINSTANCE inst) {
   return true;
 }
 
+// T3.3 第一切片：pak 的资源面 —— 关卡清单（F180）+ 用宿主自带 Lua 5.1.5 编译全部脚本
+// （只编译不执行：执行要 144 个绑定）。结果写 host_data.log，判据是「52 关 / 111 编译通过」。
+void InitGameData() {
+  char buf[MAX_PATH];
+  DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+  std::string dir(buf, n);
+  const size_t slash = dir.find_last_of("\\/");
+  dir = slash == std::string::npos ? std::string(".") : dir.substr(0, slash + 1);
+
+  std::vector<host::LevelDef> levels;
+  const bool pak_ok = host::OpenGamePak();
+  const bool levels_ok = pak_ok && host::LoadLevelList(&levels);
+  const host::LuaCompileStat lua = pak_ok ? host::CompilePakLua() : host::LuaCompileStat();
+
+  FILE* f = std::fopen((dir + "host_data.log").c_str(), "w");
+  if (!f) return;
+  std::fprintf(f, "pak=%s ok=%d entries=%zu\n", host::GamePakPath().c_str(), pak_ok ? 1 : 0,
+               pak_ok ? host::GamePak().entries().size() : 0);
+  std::fprintf(f, "levels_ok=%d levels=%zu\n", levels_ok ? 1 : 0, levels.size());
+  if (!levels.empty()) {
+    std::fprintf(f, "first=%s files=%s group=%s\n", levels.front().caption.c_str(),
+                 levels.front().files.c_str(), levels.front().group.c_str());
+    std::fprintf(f, "last=%s files=%s group=%s\n", levels.back().caption.c_str(),
+                 levels.back().files.c_str(), levels.back().group.c_str());
+  }
+  std::fprintf(f, "lua_ok=%d lua_failed=%d\n", lua.ok, lua.failed);
+  if (!lua.first_error.empty()) std::fprintf(f, "lua_error=%s\n", lua.first_error.c_str());
+  std::fclose(f);
+}
+
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
@@ -173,6 +208,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
   }
   ShowWindow(hwnd, SW_SHOW);
   UpdateWindow(hwnd);
+  InitGameData();
   Log("form=%p at %d,%d %dx%d (client %dx%d)", static_cast<void*>(hwnd), win_x, win_y,
       outer_w, outer_h, kClientW, kClientH);
 

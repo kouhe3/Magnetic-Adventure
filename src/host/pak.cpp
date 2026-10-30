@@ -66,6 +66,17 @@ bool Pak::Open(const std::string& path) {
     if (static_cast<size_t>(e.off) + e.size > blob_.size() - (kHead + toc)) return false;
     entries_.push_back(std::move(e));
   }
+  // 尾部附加文件（lvl_info.lvl）
+  trailer_ = PakEntry();
+  if (pos + kRec <= kHead + toc) {
+    unsigned namelen = d[pos];
+    if (namelen == 0) return false;
+    trailer_.name.assign(reinterpret_cast<const char*>(d + pos + 1), namelen);
+    trailer_.off = le32(d + pos + 16);
+    trailer_.size = le32(d + pos + 20);
+    if (static_cast<size_t>(trailer_.off) + trailer_.size > blob_.size() - (kHead + toc))
+      return false;
+  }
   base_ = d + kHead + toc;
   return true;
 }
@@ -73,6 +84,7 @@ bool Pak::Open(const std::string& path) {
 const PakEntry* Pak::Find(const char* name) const {
   for (const auto& e : entries_)
     if (NameEq(e.name, name)) return &e;
+  if (!trailer_.name.empty() && NameEq(trailer_.name, name)) return &trailer_;
   return nullptr;
 }
 

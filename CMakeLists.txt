@@ -185,16 +185,41 @@ if(SQUALL_DEBUG_LOG)
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# ---- Lua 5.1.5（vendor，未改动）----
+# 依据 docs/facts.md F04：游戏逻辑是 pak 内明文 Lua 5.1 源码。宿主用自己的 Lua 跑，
+# 不依赖游戏目录里的 lua51.dll（两版发行的该 DLL md5 不同，见 F12）。
+set(LUA_ROOT "${CMAKE_SOURCE_DIR}/vendor/lua-5.1.5/src")
+add_library(lua51 STATIC
+  ${LUA_ROOT}/lapi.c ${LUA_ROOT}/lcode.c ${LUA_ROOT}/ldebug.c ${LUA_ROOT}/ldo.c
+  ${LUA_ROOT}/ldump.c ${LUA_ROOT}/lfunc.c ${LUA_ROOT}/lgc.c ${LUA_ROOT}/llex.c
+  ${LUA_ROOT}/lmem.c ${LUA_ROOT}/lobject.c ${LUA_ROOT}/lopcodes.c ${LUA_ROOT}/lparser.c
+  ${LUA_ROOT}/lstate.c ${LUA_ROOT}/lstring.c ${LUA_ROOT}/ltable.c ${LUA_ROOT}/ltm.c
+  ${LUA_ROOT}/lundump.c ${LUA_ROOT}/lvm.c ${LUA_ROOT}/lzio.c
+  ${LUA_ROOT}/lauxlib.c ${LUA_ROOT}/lbaselib.c ${LUA_ROOT}/ldblib.c ${LUA_ROOT}/liolib.c
+  ${LUA_ROOT}/lmathlib.c ${LUA_ROOT}/loslib.c ${LUA_ROOT}/ltablib.c ${LUA_ROOT}/lstrlib.c
+  ${LUA_ROOT}/loadlib.c ${LUA_ROOT}/linit.c)
+set_target_properties(lua51 PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_include_directories(lua51 PUBLIC ${LUA_ROOT})
+
+# luac：Lua 5.1 的语法检查器/编译器；tools/check_lua.py 用它把 pak 里的脚本全量编译一遍
+add_executable(luac ${LUA_ROOT}/luac.c ${LUA_ROOT}/print.c)
+target_link_libraries(luac PRIVATE lua51)
+set_target_properties(luac PROPERTIES OUTPUT_NAME luac
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # ---- 宿主脚手架（T3.1）----
 # 只复刻窗口/消息参数（F154/F155/F156/F158），暂不含 GL 与 pak 加载。
 # 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。
 # 注意：**不要**给这个 exe 加 dpiAware 清单——原版就是 DPI-unaware（F154）。
 add_executable(host WIN32 src/host/main.cpp src/host/gl_render.cpp
+  src/host/game_files.cpp src/host/levels.cpp src/host/lua_scripts.cpp
   src/host/menu_layout.cpp src/host/pak.cpp src/host/wic_decode.cpp)
 set_target_properties(host PROPERTIES OUTPUT_NAME magnethost
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_compile_definitions(host PRIVATE UNICODE _UNICODE)
-target_link_libraries(host PRIVATE user32 opengl32 glu32 windowscodecs ole32)
+target_link_libraries(host PRIVATE user32 opengl32 glu32 windowscodecs ole32 lua51)
 # 子系统版本必须写成 4.0：原版 game.exe 的 MajorSubsystemVersion=4.0（Lazarus 0.9.28 时代），
 # 而 Windows 对 subsystem<6 的映像用**旧式非客户区度量**（对话框边框 3/侧、无 DWM padding），
 # 这正是原版外框 1024×768 / 客户区 1018×739 的来源；用默认 6.0 会得到 8/31（F166）。

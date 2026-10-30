@@ -40,7 +40,7 @@
 - [x] T3.2d 菜单布局参数化：把 21 个 draw 的 bbox/UV 反推成宿主侧布局，替掉预烘焙的 `menu_draw.bin` 依据：F161、F182、F184、F188、F189、F190（**已落地**：`src/host/menu_layout.{h,cpp}` 按「设计空间 1018×739 逻辑像素」写死矩形/UV/纹理（F188：原版把固定设计空间缩放出去，不随客户区重排），鼠标命中切换二态按钮（F189）。判据：`tools/draw_ab.py` 比宿主现算列表 vs 原版抓包 → 13 个可见 draw **dx=dy=duv=0**；截图对拍（`shot_window.py --mouse` 两侧停同一设计像素）空闲 **1.088/255**、悬停 Play **1.085/255**；`menu_draw.bin` 已删）
 - [x] T3.2a GL 调用面侦察：`opengl32.dll` 代理（368 导出全转发）记录名称/QPC 时间戳/栈上 6 个实参 依据：F03、F158、F175、F176（**已落地**：`src/glproxy/`（368/368 导出）+ `tools/gl_ffi.py`（`stats`/`frames`/`frame`/`init`/`names`）；透明性已证：无代理锚点判 `menu` 于 16.7 s（F169 无代理 16.5 s）、40 s 无崩溃、截图菜单/关卡正常（F176）；产出 F177/F178）
 - [x] T3.2b GL payload 解码 + 绘制列表 依据：F178、F179、F181（**全部落地**：`GLFFI02` payload + 时间窗（F179）；`tools/gl_drawlist.py` 把一帧还原成 26–27 个 draw（纹理 id + 世界坐标 + UV + 颜色），JSON 可导出。坑：顶点永远乘 MODELVIEW（P·M·v），GLScene 的 HUD 会在帧中途把投影换成单位阵用像素空间画横幅，乘错"当前 mode"会让 bbox 飞到 ±509。**这就是渲染器的对拍基准**：逐 draw 比 bbox/UV/纹理 id）
-- [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04、F180（**关卡数据面已摊开**：`lvl_info.lvl` 是 UTF-16LE 文本清单（`Caption`/`LevelFiles`/`LevelGroup`），零件与行为全在 Lua——116 个 `Add*` 工厂、144 个绑定、事件走 `Attach_ScriptToObject`（`OnMove`/`OnAddContact`/`OnPersistContact`/`OnRotate`）。⇒ **关卡编辑器的可行形态 = 产出「清单 + Lua」**，不改引擎；判据用原版加载（能过门禁/推进存档）；缺 pak 回写（`tools/pak.py` 只读））
+- [ ] T3.3 pak 加载 + Lua 状态机 + 绑定 API 依据：F04、F180（**关卡数据面已摊开**：`lvl_info.lvl` 是 UTF-16LE 文本清单（`Caption`/`LevelFiles`/`LevelGroup`），零件与行为全在 Lua——116 个 `Add*` 工厂、144 个绑定、事件走 `Attach_ScriptToObject`（`OnMove`/`OnAddContact`/`OnPersistContact`/`OnRotate`）。⇒ **关卡编辑器的可行形态 = 产出「清单 + Lua」**，不改引擎；判据用原版加载（能过门禁/推进存档）；缺 pak 回写（`tools/pak.py` 只读）；**第一切片已落地（F191）**：vendor Lua 5.1.5（未改动）→ `lua51` 静态库 + `luac`，pak 里 111 个脚本 `luac -p` **111/111 通过**；`lvl_info.lvl`（pak 尾部记录）解析出 **52 关**，宿主 `host_data.log` 记录 `levels=52 / lua_ok=111`。**剩**：144 个绑定（`mapping/lua-bindings.csv`）+ 执行语义（状态机、事件回调））
 - [ ] T3.4 场景/实体/物理/音频接线 依据：F03、F06、F07、F169、F171、F177、F179（**初始化顺序是契约**：loading/intro/menu 三段的内容与循环节奏都不同（F169、F177），37 张纹理在启动期一次性上传（F179），`Play` 落点还依赖存档 `LastCompleteLevel`（F171）⇒ 宿主不能"直接构造关卡场景"冷启动，必须按原顺序跑；状态判定用 `uistate` 像素锚点，不用定时点击（F172 的教训：intro 占 12.5 s，定时点击必落空））
 - [ ] T3.5 文本渲染路径 依据：F11
 - [ ] T3.6 配置/存档写入（`cfg.ini` 等） 依据：F01
@@ -65,6 +65,8 @@
 - [ ] T5.3 交付包形态（`cfg.ini`、`images/`、`Uninstall/`） 依据：F09
 
 ## 变更记录
+
+- 2026-10-30 依据 F191：**T3.3 第一切片落地——Lua 跑得起来、关卡清单读得出来**。vendor 官方 Lua 5.1.5（tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，未改动）→ `lua51` 静态库 + `luac`；`luac -p` 全量编译 pak 里的 **111 个脚本：111/111 通过**（证明方言就是 5.1，且宿主可自给自足，不依赖游戏目录 `lua51.dll`——两版该 DLL md5 不同，F12）。顺带修正 pak 解析：`lvl_info.lvl` 是**尾部附加记录**，`Pak::Find` 现在同查条目与尾部；宿主解析出 **52 关**（首关 Introduction、末关 The End），启动写 `host_data.log`（`entries=707 levels=52 lua_ok=111`）。**剩**：144 个绑定与执行语义（状态机/事件），另加 `tools/check_lua.py` 作为可重跑判据。
 
 - 2026-10-30 依据 F188/F189/F190：**T3.2d 收口——菜单不再是抓包回放，是宿主代码现算**。① 先做了一条判据探测：带 GL 代理跑原版、intro 期间把客户区从 1018×739 改成 800×600，18–19 s 的菜单帧里 **21 个 draw 的 NDC bbox/UV 与基线逐字段相同**（只有跟随鼠标的光标变了）⇒ 布局是「固定设计空间 1018×739 逻辑像素」缩放出去，**不是**按客户区比例重排；元素在空间里还是纹理原始尺寸 1:1。这条直接决定实现形态（写设计像素常量即可，不用比例推导）。② `src/host/menu_layout.{h,cpp}`：矩形/UV/纹理 id/caps 表 + 鼠标 NDC 命中测试；悬停实测是**互斥**（基础项 alpha→0、hover→1，F189），按此实现；光标 32×32 居中（原版磁铁还会转，未归因）。③ 判据：新增 `tools/draw_ab.py` 比「宿主现算列表 vs 原版抓包」→ 13 个可见 draw **dx=dy=duv=0.000000**；`shot_window.py --mouse` 让两侧鼠标停同一设计像素后截屏对拍：空闲 **1.088/255**（>16 1.346%）、悬停 Play **1.085/255**，Play 区「悬停 vs 空闲」宿主差 6.66、原版 vs 宿主差 0.958 ⇒ 状态确实切了。`menu_draw.bin` 退役。**坑**：`--mouse` 必须在窗口摆位**之后**设置（窗口一挪，悬停位置就失效，第一版就因此测出「hover 没生效」的假阴性）。
 

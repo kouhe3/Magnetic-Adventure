@@ -6,7 +6,8 @@
 ## 0. 一句话现状
 
 两个 DLL 已复刻并验证完毕（**b2Physics 87/87 + 52 关全 PASS**；**Squall 99/99 + 17 个宿主导入 0 分歧**）；宿主 exe 过了窗口门禁，**主菜单由宿主代码现算**：纹理直读 pak（上传像素 37/37 与原版逐字节相同，F187）、布局按固定设计空间 1018×739 与二态悬停（F190），与原版逐像素 mean|Δ| **1.088/255**、A/A 地板 0.00。
-卡点很明确：**关卡渲染**还没做（只有菜单 + 单帧画像）；文本仍是「同一字模格 ×3」的固定串，**宿主自己不会排版字符串**（T3.5）；Squall 的 **PCM 逐位**仍阻塞。
+Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 111/111 编译通过**、`lvl_info.lvl` 解析出 **52 关**（F191）。
+卡点很明确：**关卡渲染**还没做（只有菜单 + 单帧画像）；Lua 的 **144 个绑定与执行语义**未接（T3.3 剩余）；文本仍是「同一字模格 ×3」的固定串，**宿主自己不会排版字符串**（T3.5）；Squall 的 **PCM 逐位**仍阻塞。
 
 台账 **190 条**（F01–F190，只增不减），计划 20/42 完成。
 
@@ -47,6 +48,10 @@ python tools/verify.py --full
 python tools/check_exports.py build/Release/b2Physics.dll                     # 87/87
 python tools/check_exports.py build/Release/Squall.dll mapping/squall-exports.csv   # 99/99
 python tools/check_exports.py build/proxy_gl/Release/opengl32.dll mapping/opengl32-exports.csv  # 368/368
+
+# Lua：vendor 5.1.5 的 luac 全量编译 pak 脚本（期望 111/111）
+cmake --build build --config Release --target luac
+python tools/check_lua.py
 
 # 窗口门禁（原版 vs 宿主，15 字段）
 python tools/wincompare.py --orig work/winprobe_game --ours build/Release
@@ -128,7 +133,7 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 |---|---|
 | M0/M1 资源与规格 | pak 格式闭环、Lua 导出、资产索引 ✅；T0.3（IDA 全量导出）/T0.4（oracle 采集）仍是历史遗留项，按需再补 |
 | M2 两个 DLL | b2：87/87、52 关全量 PASS、A/A 地板内；Squall：99/99、17 个宿主导入调用序 0 分歧（含优雅退出）、环回音频逐秒 corr 0.9998；**剩 PCM 逐位（F134，三条路线均否，F147）** 与长时回归（T2.6b） |
-| M3 宿主 | 窗口层门禁 15/15 ✅（F166 子系统 5.01）；GL 上下文 + **主菜单渲染** ✅（F184）、**纹理直读 pak** ✅（F187）、**布局宿主现算 + 二态悬停** ✅（F190，draw A/B 零偏差、截屏 1.088）；剩：pak+Lua（T3.3）、场景/关卡接线（T3.4）、文本排版（T3.5）、配置（T3.6）、关卡渲染 |
+| M3 宿主 | 窗口层门禁 15/15 ✅（F166 子系统 5.01）；GL 上下文 + **主菜单渲染** ✅（F184）、**纹理直读 pak** ✅（F187）、**布局宿主现算 + 二态悬停** ✅（F190，draw A/B 零偏差、截屏 1.088）、**Lua 5.1.5 + 52 关清单/111 脚本编译** ✅（F191）；剩：144 个绑定与执行语义（T3.3）、场景/关卡接线（T3.4）、文本排版（T3.5）、配置（T3.6）、关卡渲染 |
 | M4 验收 | 音频 diff ✅（F150）、e2e 自动化 ✅（F172/F174）、GL 绘制列表 ✅（F181/F182）；剩输入回放（T4.1）、帧 diff（T4.2）、存档 diff（T4.4）、映射覆盖（T4.5）、exe A/B 四层（T4.10）、1 ULP（T4.8） |
 | M5 汉化 | 未开始（资源替换路线已定，F08） |
 
@@ -154,10 +159,11 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 8. **仪器**：`tools/shotdiff.py`（逐像素 A/B）、`tools/host_tex_ab.py`（上传 CRC 对拍）、`tools/gen_texture_table.py`；`shot_window.py` 抓屏前把窗口挪到 (0,0) 并置前（否则底部拍到前台终端，曾误判成渲染回归）。
 9. **T3.2d 菜单布局参数化**：`src/host/menu_layout.{h,cpp}`（设计空间 1018×739 的矩形/UV/纹理表 + 鼠标命中切换二态按钮 + 32×32 光标）；`menu_draw.bin` 退役。先做了判据探测（改客户区尺寸后 NDC 不变 ⇒ 固定设计空间，F188），悬停互斥规则由 `work/hover_probe.py` 实测（F189）。
 10. **仪器**：`tools/draw_ab.py`（两个 GLDRW02 逐 draw 比 tex/bbox/UV）、`shot_window.py --mouse`（两侧鼠标停同一设计像素，悬停对拍必需）。
+11. **T3.3 第一切片**：`vendor/lua-5.1.5`（官方，未改）编译成 `lua51` + `luac`，`tools/check_lua.py` 全量编译 pak 脚本 **111/111**；`src/host/levels.{h,cpp}` 解析 `lvl_info.lvl`（**pak 尾部记录**）得到 **52 关**；宿主启动写 `host_data.log`（`entries=707 levels=52 lua_ok=111`）。
 
 ## 6. 排队（建议顺序）
 
-1. **T3.3 pak 加载 + Lua 状态机 + 144 个绑定**（F180 已把数据面摊开：`lvl_info.lvl` 文本清单、116 个 `Add*` 工厂、事件 `Attach_ScriptToObject`）。
+1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。先做一条竖切：加载 `basefs.lua` + 单关的 `lvl_o*.lua`，用桩打开世界并 dump 造出的对象清单。
 2. **T3.4 场景/关卡接线**。铁律：**初始化顺序是契约**——loading→intro→menu→关卡，纹理在启动期上传（F179），不能冷启动造场景（F169/F171/F177）。做关卡渲染前先把 `gl_drawlist` 的世界坐标归纳成宿主侧场景模型（±26.86 正交相机、逐 sprite `glMultMatrixf`）。
 3. **T3.5 文本排版**（字模表 + 步进；见 §7）。菜单以外还有关卡 HUD/提示框。
 4. **T4.1 输入回放**（现在是脚本化操作，还不是"录一次任意次重放"）。
@@ -197,6 +203,7 @@ python tools/uistate.py build   --frames work/states --out work/uianchors.npz
 |---|---|
 | 物理 DLL | `src/b2physics/b2physics.cpp`（87 导出）、`b2physics.def`、`vendor/box2d-2.0.2`（带 `altered (F###)` 注释） |
 | 音频 DLL | `vendor/squall`（上游 1.48，3 处 `altered (F136/F138/F148)`）、`vendor/libogg-1.3.5`、`vendor/libvorbis-1.3.7` |
+| Lua | `vendor/lua-5.1.5`（官方 tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，**未改动**）→ CMake target `lua51` + `luac` |
 | 宿主 | `src/host/main.cpp`（窗口/消息）、`src/host/gl_render.cpp`（WGL + 菜单渲染）、`src/host/pak.{h,cpp}`（pak 只读）、`src/host/wic_decode.{h,cpp}`（WIC 解码）、`src/host/texture_table.h`（生成物） |
 | 代理 | `src/proxydll/`（b2，`B2FFI02`）、`src/squallproxy/`（`SQFFI01`）、`src/glproxy/`（`GLFFI02`）；桩由 `tools/gen_proxy.py` 生成 |
 | 仪器 | `tools/instr.py`、`gate.py`、`sweep.py`、`report_sweep.py`、`replay_ffi.py`、`ffi.py`、`verify.py`、`shotdiff.py`（截图像素 A/B）、`host_tex_ab.py`（上传纹理 CRC 对拍）、`draw_ab.py`（绘制列表逐 draw 比）、`gen_texture_table.py` |
