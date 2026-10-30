@@ -38,7 +38,8 @@ def main():
     print("\n".join(tail))
     if r.returncode != 0:
         print("STDERR:", (r.stderr or "")[-2000:])
-    print("rc=%d exe=%s" % (r.returncode, os.path.exists(out + "/glskel5.exe")))
+    exe = os.path.splitext(os.path.basename(pas))[0] + ".exe"
+    print("rc=%d exe=%s" % (r.returncode, os.path.exists(out + "/" + exe)))
     return r.returncode
 
 

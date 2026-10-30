@@ -27,6 +27,19 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - `cover` 的 72.8% / 59.0% / 尾部 19.9% **不受影响**（全局量与目标侧窗口，口径本来就对）。
 - **像素数字属于 C++ 仿写宿主（`src/host`），不是最终判据**：主菜单 mean|Δ| **1.088/255**（F190）是 `src/host` 与原版的差。`tools/verify.py` 里**没有像素门禁**（docstring 明写"不含人眼看画面"，6 项门禁一张表在跑）；`window` 门禁只比 15 个窗口字段，且宿主目录/可执行名可用 `HOST_DIR`/`HOST_EXE` 覆盖（换实现不改判据）。若改走 FPC/LCL + GLScene 重建（F213 之后可行），渲染由同一份库产出，判据应换成逐调用/逐指令，像素只作验收。
 
+## 0.2 T6.2 种子与判据（2026-10-30 晚，优先于 §6 的旧队列）
+
+**已完成**：`tools/gl_seq_ab.py`（GLFFI02 双日志逐帧对拍；名字 + 已知签名参数；首个分歧；`--names-only` 只看结构；默认忽略 wgl 上下文函数/`glGetError`）。A/A 地板（原版菜单 17–19 s，两份 62 帧/110,559 条）：结构 1–13 帧 **0 bad_frames**、1–60 帧 **2**（frame14 上下文事件）；参数 `--float-tol 1e-3` 1–13 帧 **0**。逐位时 `glRotatef` 有 1e-4 差、`glColorMask` 的 GLboolean 高字节是栈残渣（工具已按低字节比）。命令：
+
+```bash
+python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --names-only
+python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --float-tol 1e-3
+```
+
+**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**但 `work/host_gl_final.bin` 只有 3,273 条初始化记录、无 `wglSwapBuffers`/`glClear`，抓屏主体是 LCL 灰** ⇒ 视口/呈现未打通（F217）。原因候选：改 style 后 Viewer 的 DC/上下文失效、或 GLScene 画到不可见 buffer；下一步先修 paint/DC，再谈场景。
+
+**关键覆盖边界（F215）**：GL 代理只看得见**直接 import 的 GL**；GLScene 经 `OpenGLAdapter.GetAddress`（`wglGetProcAddress`/`GLLibGetProcAddress`）拿到的函数指针直连驱动，**内部渲染调用不进 GLFFI02**。因此 T6.2 验收按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`，13 帧 A/A 口径）；像素只作验收。代理侧试过把 `wglGetProcAddress` 返回值换成代理桩，未取得可见调用，改动已回滚、未入库。
+
 ## 1. 先读这几份（按顺序）
 
 1. `AGENTS.md` —— 构建/工具/纪律（x86、32 位 CPython、pwsh、bin 只读）。
@@ -298,7 +311,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 | Lua | `vendor/lua-5.1.5`（官方 tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，**未改动**）→ CMake target `lua51` + `luac` |
 | 宿主 | `src/host/main.cpp`（窗口/消息）、`src/host/gl_render.cpp`（WGL + 菜单渲染）、`src/host/pak.{h,cpp}`（pak 只读）、`src/host/wic_decode.{h,cpp}`（WIC 解码）、`src/host/texture_table.h`（生成物） |
 | 代理 | `src/proxydll/`（b2，`B2FFI02`）、`src/squallproxy/`（`SQFFI01`）、`src/glproxy/`（`GLFFI02`）；桩由 `tools/gen_proxy.py` 生成 |
-| 仪器 | `tools/instr.py`、`gate.py`、`sweep.py`、`report_sweep.py`、`replay_ffi.py`、`ffi.py`、`verify.py`、`shotdiff.py`（截图像素 A/B）、`host_tex_ab.py`（上传纹理 CRC 对拍）、`draw_ab.py`（绘制列表逐 draw 比）、`gen_texture_table.py` |
+| 仪器 | `tools/instr.py`、`gate.py`、`sweep.py`、`report_sweep.py`、`replay_ffi.py`、`ffi.py`、`verify.py`、`shotdiff.py`（截图像素 A/B）、`host_tex_ab.py`（上传纹理 CRC 对拍）、`draw_ab.py`（绘制列表逐 draw 比）、`gl_seq_ab.py`（GL 调用序逐帧 A/B，F216）、`gen_texture_table.py` |
 | UI/自动化 | `tools/uistate.py`、`uitemplate.py`、`e2e_tutorial.py`、`e2e_record.py`、`driver.py`、`winprobe.py`、`wincompare.py`、`shot_window.py`（窗口客户区截图） |
 | GL | `tools/gl_ffi.py`、`gl_drawlist.py`、`gl_texpack.py`；抓包目录 `work/glprobe/` |
 | 数据 | `mapping/*.csv`（导出表、绑定、关卡映射、纹理 id↔素材 `textures.csv`）、`docs/levels.md`（只能由 `report_sweep.py --write` 生成） |

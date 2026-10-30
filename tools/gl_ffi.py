@@ -93,6 +93,28 @@ def load(path):
             "size_ok": (size - HDR_SIZE) % rec.size == 0}
 
 
+def iter_records(path):
+    """逐条产出 (ver, unpack 后的 tuple)，布局同 VERSIONS[ver].unpack。
+
+    给需要逐条比对的仪器复用（如 tools/gl_seq_ab.py）：读文件与校验 magic
+    只在这里定义一次，避免第二个解析器与日志格式分叉。
+    """
+    with open(path, "rb") as f:
+        head = f.read(HDR_SIZE)
+        if len(head) < HDR_SIZE:
+            raise SystemExit("日志短于头部：%s" % path)
+        magic, _pid, _game, _orig = HDR.unpack(head)
+        ver = magic[5:7]
+        if not magic.startswith(b"GLFFI0") or ver not in VERSIONS:
+            raise SystemExit("magic/版本不符：%r" % magic)
+        rec = VERSIONS[ver]
+        while True:
+            chunk = f.read(rec.size)
+            if len(chunk) < rec.size:
+                break
+            yield ver, rec.unpack(chunk)
+
+
 def swap_ids(nm):
     return {k for k, v in nm.items() if v == "wglSwapBuffers"}
 

@@ -2,7 +2,8 @@ program magnet;
 {$mode objfpc}{$H+}
 // Magnetic Adventure 宿主（FPC/LCL + GLScene 重建路线）—— 种子实现。
 //
-// 现状：只做窗口层（F214）。渲染/场景/Lua 尚未接入。
+// 现状：窗口层（F214）+ T6.2 种子（相机 + 一次 V.Render；F217）。
+// 视口/呈现还没打通：代理日志无 swap/glClear，抓屏仍是 LCL 灰（F215/F217）。
 // 构建（需要 FPC 2.2.4 + 自编 LCL 0.9.28.3，见 HANDOFF §3.2）：
 //   python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas
 // 运行前置：与 exe 同目录需要 libpng13.dll + zlib1.dll（GLFilePNG 的运行时依赖，
@@ -26,6 +27,7 @@ uses
 var
   F: TForm;
   S: TGLScene;
+  Cam: TGLCamera;
   V: TGLSceneViewer;
   r: TRect;
 begin
@@ -36,9 +38,12 @@ begin
   F.BorderStyle := bsNone;
 
   S := TGLScene.Create(F);
+  Cam := TGLCamera.Create(S);
+  S.Objects.AddChild(Cam);
   V := TGLSceneViewer.Create(F);
   V.Parent := F;
   V.Align := alClient;
+  V.Camera := Cam;
 
   F.Show;
 
@@ -55,6 +60,10 @@ begin
   GetClientRect(F.Handle, r);
   V.Align := alNone;
   V.SetBounds(0, 0, r.Right, r.Bottom);
+
+  V.Invalidate;
+  Application.ProcessMessages;
+  V.Render;
 
   Application.Run;
 end.
