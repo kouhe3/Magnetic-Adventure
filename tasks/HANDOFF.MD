@@ -61,7 +61,7 @@ python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 
 - 本机 Windows：用 `pwsh` 或 omp 的 bash（brush）。**不要裸 `bash`**（可能命中 WSL stub）、**不要 `du`**（PATH 上是 Sysinternals DU）。
 - `bin/`（`gametop`/`baseline`/`masque` + IDA i64）是**只读 oracle，永不写入**；`work/` 放一次性产物（已 gitignore）。
 - git：不提交 `main`；提交前 `git status`；不自行 push；不改写 author/committer 身份。提交前缀沿用 `feat(...)`/`docs(facts)`/`docs(plan)`/`fix(...)`。
-- 换行：仓库追踪文件统一 **CRLF**，`.gitattributes` 是 `* -text`（blob 字节 == 工作树字节，F130）。新文件写完转 CRLF。
+- 换行：工作树里追踪的文本统一 **CRLF**。`.gitattributes` 仍是 `* -text`（脚本/二进制/vendor 快照逐字节保真，F130），另给**本仓库文档**（`AGENTS.md`、`README.md`、`docs/*.md`、`tasks/*.md`、`tasks/*.MD`）加 `text eol=crlf`：提交归一为 LF、检出为 CRLF ⇒ 工具把文档误写成裸 LF 不会再造成整文件重写（F275）。vendor/ 快照不走归一；新文件写完仍转 CRLF。
 - **L2-B 工具链（本轮新增，都在 `work/` 与 `C:\tmp`，gitignore）**：
   - FPC 2.2.4：`C:\lazarus\fpc\2.2.4\bin\i386-win32\fpc.exe`（用户装的 Lazarus 0.9.28.2 附带，构建日期 **2009/10/25**，与目标的 12/27 差两个月但**实测不阻碍逐位对应**，F206）。
   - LCL 0.9.28.3（自编）：源码树 `C:\tmp\laz9283`（**必须无空格路径**），单元在 `lcl\units\i386-win32{,/win32}`。用 MSYS2 的 make（`pacman -S make` → `C:\msys64\usr\bin\make.exe`）。

@@ -23,3 +23,12 @@
 *.png   binary
 *.jpg   binary
 *.zip   binary
+
+# 文档：行尾交给 git 稳定（提交归一为 LF、检出为 CRLF）。
+# 工具把文档写成裸 LF 不会造成整文件重写（bc3289f 的 docs/facts.md 事故）。
+# 只覆盖本仓库自己的文档；vendor/ 快照、构建脚本与二进制仍走 `* -text`（blob == 工作树）。
+/AGENTS.md   text eol=crlf
+/README.md   text eol=crlf
+/docs/*.md   text eol=crlf
+/tasks/*.md  text eol=crlf
+/tasks/*.MD  text eol=crlf
