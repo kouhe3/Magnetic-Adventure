@@ -228,6 +228,9 @@ int main(int argc, char** argv) {
     lua_State* L = luaL_newstate();
     if (!L) { fclose(g_log); return Fail("luaL_newstate", "null"); }
     luaL_openlibs(L);
+    /* 固定随机种子：脚本用 math.random() 算尺寸（basefs.lua AddFireWorks），
+       否则 C++ exe 与 FPC 加载的 lua51.dll 的 rand() 序列不同，对拍全是假差异。 */
+    luaL_dostring(L, "math.randomseed(1)");
     if (!ReadCsv(csv, &names, &err)) { lua_close(L); fclose(g_log); return Fail("csv", err.c_str()); }
     for (size_t i = 0; i < names.size(); ++i) known[names[i]] = 1;
     for (size_t i = 0; i < leaves.size(); ++i) files.push_back(std::string(dir) + "/" + leaves[i]);

@@ -8,6 +8,7 @@ interface
 uses LuaDll, LuaLog;
 
 function NextId(const Name: string): Integer;
+procedure ResetIds;
 procedure RegisterBindings(L: TLuaState);
 
 implementation
@@ -24,6 +25,11 @@ begin
   end
   else
     Result := 0;
+end;
+
+procedure ResetIds;
+begin
+  g_nextId := 1000;
 end;
 
 function bind_Do_Command(L: TLuaState): Integer; cdecl;

@@ -102,6 +102,8 @@
 
 ## 变更记录
 
+- 2026-10-31 依据 F243（**T6.3/a2 全量：52/52 关 call+args 与 `lua_probe` 相同**）：① `magnet.pas` 加 `LoadLevelScripts`（UTF-16LE `lvl_info.lvl`，`LevelFiles = "..."` 带空格）+ `LuaBindRunAll`（52 关独立 JSONL）+ `HOST_LUA_SELFTEST=4`。② `luabind.pas` 加 `ResetIds`（每关 id 从 1000 起）。③ 两侧固定 `math.randomseed(1)`（`AddFireWorks` 的随机尺寸）。④ 修 `tools/lua_probe_all.py` 的 `defined_entries` 拼接补换行（`BaseFsBeforeCreate` 被漏）。⑤ 判据：`levels=52 ok=52 fail=0` + 逐关 `lua_bind_ab.py` **52/52 `mismatches=0`**。下一步 T6.3-b：工厂语义（274 pending / 65 KB）+ b2 建体序对拍。
+
 - 2026-10-31 依据 F242（**T6.3/a2 第一刀：e0 关 call+args 与 `lua_probe` 逐条相同**）：① 新增 `src/host_lcl/lualog.pas`（JSONL 序列化，对齐 `lua_probe`；NaN/Inf→null），生成器插入 `LuaLogBegin/End`。② `HOST_LUA_SELFTEST=3` 按 `lvl_o0,lvl_e0,basefs` 加载并调用三个入口，写 `HOST_LUA_LOG`。③ 新仪器 `tools/lua_bind_ab.py`：比 `call+args`（数值容差 1e-6，`ret` 不参与）。④ 判据：**55/55 行 mismatches=0**。下一步：52 关全量（Pascal 解析 `lvl_info.lvl`）+ 对象表/工厂语义。
 
 - 2026-10-31 依据 F241（**T6.3/a1：144 绑定壳生成 + 宿主注册**）：① 新增 `tools/gen_lua_bindings.py` → `src/host_lcl/luabind.pas`（144 个 `cdecl` 壳 + `RegisterBindings`，桩语义对齐 `lua_probe`）。② 新增 `src/host_lcl/luadll.pas` 共享 lua51.dll 动态加载。③ 坑：`lua_setfield` 不要预压 key（否则栈残留 144 → 随机崩溃）。④ 判据：`bindings=144 loaded=3/3`（3/3 次）、独立程序 5/5 `top=0`、a0 与 `wincompare` 未回归。下一步 a2：52 关全量 + JSONL 与 C++ `lua_probe` 的 `call+args` 对拍（`ret` 因桩实现不同不参与）。

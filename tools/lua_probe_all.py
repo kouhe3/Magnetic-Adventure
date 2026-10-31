@@ -42,7 +42,9 @@ def defined_entries(dirpath, leaves):
     for leaf in leaves:
         p = os.path.join(dirpath, leaf)
         if os.path.exists(p):
-            text += open(p, encoding="utf-8", errors="replace").read()
+            # 必须补换行：上一个文件末尾没有 "\n" 时，下一个文件首行的
+            # `function X` 会接在别人行尾，^ 匹配不到（lvl01 的 BaseFsBeforeCreate 就这样漏过）。
+            text += "\n" + open(p, encoding="utf-8", errors="replace").read()
     return [e for e in ENTRIES if re.search(r"^function\s+%s\b" % re.escape(e), text, re.M)]
 
 

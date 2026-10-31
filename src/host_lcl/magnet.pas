@@ -281,7 +281,7 @@ begin
 end;
 
 // T6.3/a2：跑一关脚本并把绑定调用落成 JSONL（call+args 与 lua_probe 对拍）。
-function LuaBindRun(const Scripts: array of string; out Log: string): string;
+function LuaBindRun(Scripts: TStrings; const LogPath: string; out Log: string): string;
 const
   kEntries: array[0..2] of string = ('BaseFsBeforeCreate', 'Create', 'AttachScripts');
 var
@@ -302,14 +302,20 @@ begin
     Result := 'newstate=nil';
     Exit;
   end;
-  LuaLogInit(EnvStr('HOST_LUA_LOG'));
+  LuaLogInit(LogPath);
   try
     Lua.OpenLibs(L);
+    Rc := Lua.LoadString(L, PChar('math.randomseed(1)'));
+    if Rc = 0 then
+      Rc := Lua.PCall(L, 0, 0, 0);
+    if Rc <> 0 then
+      Lua.SetTop(L, 0);
+    ResetIds;
     RegisterBindings(L);
     Dir := EnvStr('HOST_LUA_DIR');
     if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
       Dir := Dir + '\';
-    for i := 0 to High(Scripts) do
+    for i := 0 to Scripts.Count - 1 do
     begin
       Path := Dir + Scripts[i];
       Content := ReadTextFile(Path);
@@ -351,10 +357,133 @@ begin
 end;
 
 function LuaBindRunE0(out Log: string): string;
-const
-  kScripts: array[0..2] of string = ('lvl_o0.lua', 'lvl_e0.lua', 'basefs.lua');
+var
+  S: TStringList;
 begin
-  Result := LuaBindRun(kScripts, Log);
+  S := TStringList.Create;
+  try
+    S.Add('lvl_o0.lua');
+    S.Add('lvl_e0.lua');
+    S.Add('basefs.lua');
+    Result := LuaBindRun(S, EnvStr('HOST_LUA_LOG'), Log);
+  finally
+    S.Free;
+  end;
+end;
+
+function SplitList(const S: string): TStringList;
+var
+  Rest, Item: string;
+  P: Integer;
+begin
+  Result := TStringList.Create;
+  Rest := S;
+  P := Pos(',', Rest);
+  while P > 0 do
+  begin
+    Item := Trim(Copy(Rest, 1, P - 1));
+    if Item <> '' then
+      Result.Add(Item);
+    Rest := Copy(Rest, P + 1, MaxInt);
+    P := Pos(',', Rest);
+  end;
+  Item := Trim(Rest);
+  if Item <> '' then
+    Result.Add(Item);
+end;
+
+// lvl_info.lvl 是 UTF-16LE 文本；每关一行 LevelFiles="a.lua, b.lua"。
+function LoadLevelScripts(const Path: string): TStringList;
+var
+  Raw: string;
+  W: WideString;
+  Text: string;
+  Lines: TStringList;
+  i, P, Q: Integer;
+  S: string;
+begin
+  Result := TStringList.Create;
+  Raw := ReadTextFile(Path);
+  if Raw = '' then
+    Exit;
+  SetLength(W, Length(Raw) div 2);
+  if Length(W) > 0 then
+    Move(Raw[1], W[1], Length(W) * 2);
+  Text := UTF8Encode(W);
+  Lines := TStringList.Create;
+  try
+    Lines.Text := Text;
+    for i := 0 to Lines.Count - 1 do
+    begin
+      if Pos('LevelFiles', Lines[i]) = 0 then
+        Continue;
+      P := Pos('=', Lines[i]);
+      if P = 0 then
+        Continue;
+      S := Copy(Lines[i], P + 1, MaxInt);
+      P := Pos('"', S);
+      if P = 0 then
+        Continue;
+      S := Copy(S, P + 1, MaxInt);
+      Q := Pos('"', S);
+      if Q = 0 then
+        Continue;
+      Result.Add(Copy(S, 1, Q - 1));
+    end;
+  finally
+    Lines.Free;
+  end;
+end;
+
+function Pad2(N: Integer): string;
+begin
+  if N < 10 then
+    Result := '0' + IntToStr(N)
+  else
+    Result := IntToStr(N);
+end;
+
+// T6.3/a2 全量：52 关逐关新建 state + 写 lvlNN.jsonl。
+function LuaBindRunAll(out Log: string): string;
+var
+  Levels: TStringList;
+  Scripts: TStringList;
+  i, ok, fail: Integer;
+  Dir, OutDir, OutPath, OneLog: string;
+begin
+  Result := '';
+  Log := '';
+  Dir := EnvStr('HOST_LUA_DIR');
+  if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
+    Dir := Dir + '\';
+  OutDir := EnvStr('HOST_LUA_LOG_DIR');
+  if (OutDir <> '') and (OutDir[Length(OutDir)] <> '\') then
+    OutDir := OutDir + '\';
+  Levels := LoadLevelScripts(Dir + 'lvl_info.lvl');
+  try
+    ok := 0;
+    fail := 0;
+    for i := 0 to Levels.Count - 1 do
+    begin
+      Scripts := SplitList(Levels[i]);
+      try
+        OutPath := OutDir + 'lvl' + Pad2(i) + '.jsonl';
+        if LuaBindRun(Scripts, OutPath, OneLog) = 'ok' then
+          Inc(ok)
+        else
+        begin
+          Inc(fail);
+          Log := Log + 'lvl' + Pad2(i) + ': ' + OneLog;
+        end;
+      finally
+        Scripts.Free;
+      end;
+    end;
+    Result := 'levels=' + IntToStr(Levels.Count) + ' ok=' + IntToStr(ok) +
+      ' fail=' + IntToStr(fail);
+  finally
+    Levels.Free;
+  end;
 end;
 
 // 日志一律落在 exe 旁边（build/ 已 gitignore），别污染仓库根的 CWD。
@@ -490,6 +619,11 @@ begin
       else if EnvStr('HOST_LUA_SELFTEST') = '3' then
       begin
         WriteLn(tf, LuaBindRunE0(log));
+        Write(tf, log);
+      end
+      else if EnvStr('HOST_LUA_SELFTEST') = '4' then
+      begin
+        WriteLn(tf, LuaBindRunAll(log));
         Write(tf, log);
       end
       else
