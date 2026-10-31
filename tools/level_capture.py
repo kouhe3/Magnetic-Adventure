@@ -131,6 +131,60 @@ def parse_log(path):
     return rows
 
 
+
+def stalled(path):
+    """True when the log tail is a breakpoint hit with no following #HB line."""
+    last_hb = last_bp = -1
+    for i, l in enumerate(open(path, encoding="utf-8", errors="replace")):
+        if l.startswith("#HB "):
+            last_hb = i
+        elif l.startswith("INT3 breakpoint"):
+            last_bp = i
+    return last_bp > last_hb
+
+
+_MAP_REF = None
+
+
+def _map_ref():
+    global _MAP_REF
+    if _MAP_REF is None:
+        from PIL import Image
+        im = Image.open(os.path.join(ROOT, "work", "map_screen.png")).convert("RGB")
+        _MAP_REF = im.crop((1, 39, 1 + 1018, 39 + 739)).resize((255, 185))
+    return _MAP_REF
+
+
+def map_diff(pid):
+    """Mean abs diff (sampled) between the current client and the map reference."""
+    from PIL import ImageGrab
+    win = us.find_window(pid)
+    if not win:
+        return 999.0
+    ox, oy, w, h = us.client_rect(win)
+    img = ImageGrab.grab(bbox=(ox, oy, ox + w, oy + h)).convert("RGB").resize((255, 185))
+    ref = _map_ref()
+    a = list(img.getdata())
+    b = list(ref.getdata())
+    tot = 0
+    n = 0
+    for i in range(0, len(a), 7):
+        pa, pb = a[i], b[i]
+        tot += abs(pa[0] - pb[0]) + abs(pa[1] - pb[1]) + abs(pa[2] - pb[2])
+        n += 3
+    return tot / max(n, 1)
+
+
+def open_map(pid):
+    for _ in range(3):
+        click_design(pid, 285, 414)
+        time.sleep(0.9)
+        d = map_diff(pid)
+        print("  map diff %.1f" % d, flush=True)
+        if d < 25.0:
+            return True
+    return False
+
 def capture_level(level, node, args, headless):
     game_dir = args.game_dir
     pid = subprocess.Popen([os.path.join(game_dir, "game.exe")], cwd=game_dir,
@@ -143,8 +197,9 @@ def capture_level(level, node, args, headless):
         hd = subprocess.Popen([headless, "-pid", str(pid)], cwd=os.path.dirname(headless),
                               stdout=open(log, "wb"), creationflags=NO_WINDOW)
         time.sleep(args.attach_wait)
-        click_design(pid, 285, 414)
-        time.sleep(1.2)
+        if not open_map(pid):
+            return None, "map not opened"
+        time.sleep(0.4)
         click_design(pid, node[0], node[1])
         # wait for the Add_* burst
         t0 = time.time()
@@ -163,12 +218,12 @@ def capture_level(level, node, args, headless):
                 print("  burst t=%.1f n=%d" % (time.time() - t0, n), flush=True)
             if n > 0 and n == last:
                 stable += 0.4
-                if stable >= 3.5:
+                if stable >= 8.0:
                     break
             else:
                 stable = 0.0
             last = n
-        time.sleep(0.3)
+        time.sleep(1.5)   # grace so the level screen paints before the kill
     finally:
         sh("taskkill", "/PID", str(pid), "/F")
         if hd:
@@ -191,7 +246,8 @@ def main():
     ap.add_argument("--db", default=r"C:\Users\K\AppData\Local\Microsoft\WinGet\Packages\x64dbg.x64dbg_Microsoft.Winget.Source_8wekyb3d8bbwe\release\x32\headless\db\game.exe.dd32")
     ap.add_argument("--menu-timeout", type=float, default=35)
     ap.add_argument("--attach-wait", type=float, default=6)
-    ap.add_argument("--burst-timeout", type=float, default=15)
+    ap.add_argument("--burst-timeout", type=float, default=30)
+    ap.add_argument("--retries", type=int, default=2)
     a = ap.parse_args()
 
     nodes = {}
@@ -212,7 +268,24 @@ def main():
     try:
         for i, lv in enumerate(levels, 1):
             t0 = time.time()
-            rows, err = capture_level(lv, nodes[lv], a, a.headless)
+            probe_n = 0
+            pp = os.path.join(ROOT, "work", "lua_probe", "lvl%02d.jsonl" % (lv - 1))
+            if os.path.exists(pp):
+                probe_n = sum(1 for l in open(pp, encoding="utf-8")
+                              if l.strip() and json.loads(l).get("call", "").startswith("Add_"))
+            target = max(probe_n - 2, 1)
+            best, err = None, ""
+            for attempt in range(a.retries + 1):
+                rows, err = capture_level(lv, nodes[lv], a, a.headless)
+                log = os.path.join(a.outdir, "lvl%02d.log" % lv)
+                if rows and (best is None or len(rows) > len(best)):
+                    best = rows
+                if rows and len(rows) >= target and not stalled(log):
+                    break
+                if err:
+                    break
+                time.sleep(1.0)
+            rows = best
             tags = {}
             for r in rows or []:
                 tags[r["tag"]] = tags.get(r["tag"], 0) + 1
