@@ -102,6 +102,8 @@
 
 ## 变更记录
 
+- 2026-10-31 依据 F241（**T6.3/a1：144 绑定壳生成 + 宿主注册**）：① 新增 `tools/gen_lua_bindings.py` → `src/host_lcl/luabind.pas`（144 个 `cdecl` 壳 + `RegisterBindings`，桩语义对齐 `lua_probe`）。② 新增 `src/host_lcl/luadll.pas` 共享 lua51.dll 动态加载。③ 坑：`lua_setfield` 不要预压 key（否则栈残留 144 → 随机崩溃）。④ 判据：`bindings=144 loaded=3/3`（3/3 次）、独立程序 5/5 `top=0`、a0 与 `wincompare` 未回归。下一步 a2：52 关全量 + JSONL 与 C++ `lua_probe` 的 `call+args` 对拍（`ret` 因桩实现不同不参与）。
+
 - 2026-10-31 依据 F240（**T6.3/a0：宿主接通 Lua**）：① CMake 新增 `lua51_dll`（`LUA_BUILD_AS_DLL`，产物 `lua51.dll`，导入库 `lua51_dll.lib` 避免与静态库同名）。② `src/host_lcl/magnet.pas` 动态加载 `lua51.dll`，`HOST_LUA_SELFTEST=1` 自检 `return 2+3` ⇒ `ok=TRUE result=5 top=1`。③ 两个 FPC 坑入账：无参函数指针必须写 `()`（否则取到函数地址）；自检退出用 `ExitProcess` 而非 `Halt`（LCL/GLScene finalization 崩 217）。④ `wincompare` 仍 15/15。下一步 a1：按 `mapping/lua-binding-args.csv` 生成 `luabind.pas`（144 个 `cdecl` 壳 + `RegisterBindings`），判据 52 关 JSONL 与 C++ `lua_probe` 逐条相同。
 
 - 2026-10-31 依据 F239（**T6.3 参数表完成：144/144**）：① 新增 `tools/ida_lua_asm.py`（IDA MCP 导出 144 个函数的完整反汇编到 `work/lua_bindings_asm.json`）与 `tools/lua_binding_args.py`（解析五个读取器 → `mapping/lua-binding-args.csv`，144 行：args DSL / ret / factories）。② 复核 helper 语义：`sub_596C50`（4 槽）、`sub_596BA0`（3 槽，缺省不写）、`sub_596900`（optnumber）、`sub_5969F0`（optint）、`sub_596940`（optstring）；另有 `sub_598990`（对象属性，Lua 参数固定为对象 id）与 `sub_595D20`（lua_tolstring）。③ 分布：固定参数 131 / 无参数 10 / 动态 3（`Do_Command`、`Attach_ShapePolygon`、`Add_Rope` 变参）；86 个绑定有直接工厂调用；返回 int 58 / float 21 / none 56 / mixed 9。④ 判据：`rows=144 conflicts=0`；52 关语料 **12,593 调用** `kind_mismatch=0 arity_gt=0`（3 个 known_extra 是脚本多传、函数不读）。⑤ 顺带修复 `tools/lua_probe.cpp`：NaN/Inf 实参写成 `null`（`-nan(ind)` 不是合法 JSON）。T6.3 下一步：按参数表生成绑定外壳 + 接 `lua51`。

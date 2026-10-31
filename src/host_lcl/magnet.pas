@@ -24,32 +24,9 @@ program magnet;
 uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
-  GLRenderContextInfo, FrameShot, Windows;
+  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaBind;
 
 type
-  TLuaState = Pointer;
-
-  TLuaNewState = function: TLuaState; cdecl;
-  TLuaOpenLibs = procedure(L: TLuaState); cdecl;
-  TLuaLoadString = function(L: TLuaState; const S: PChar): Integer; cdecl;
-  TLuaPCall = function(L: TLuaState; NArgs, NResults, ErrFunc: Integer): Integer; cdecl;
-  TLuaToInteger = function(L: TLuaState; Idx: Integer): Integer; cdecl;
-  TLuaToString = function(L: TLuaState; Idx: Integer; Len: PInteger): PChar; cdecl;
-  TLuaClose = procedure(L: TLuaState); cdecl;
-  TLuaGetTop = function(L: TLuaState): Integer; cdecl;
-
-  TLuaDll = record
-    Handle: HMODULE;
-    NewState: TLuaNewState;
-    OpenLibs: TLuaOpenLibs;
-    LoadString: TLuaLoadString;
-    PCall: TLuaPCall;
-    ToInteger: TLuaToInteger;
-    ToString: TLuaToString;
-    Close: TLuaClose;
-    GetTop: TLuaGetTop;
-  end;
-
   TCameraEvents = class
     procedure Ortho(const viewport: TRectangle; width, height, DPI: Integer;
       var viewPortRadius: Single);
@@ -179,65 +156,128 @@ begin
     Result := '';
 end;
 
-// 动态加载 lua51.dll（不写进 import 表：DLL 缺失时宿主仍能启动，wincompare 门禁不受影响）。
-function LuaLoad(out A: TLuaDll): Boolean;
-begin
-  FillChar(A, SizeOf(A), 0);
-  A.Handle := LoadLibrary(PChar('lua51.dll'));
-  if A.Handle = 0 then
-    Exit(False);
-  A.NewState := TLuaNewState(GetProcAddress(A.Handle, PChar('luaL_newstate')));
-  A.OpenLibs := TLuaOpenLibs(GetProcAddress(A.Handle, PChar('luaL_openlibs')));
-  A.LoadString := TLuaLoadString(GetProcAddress(A.Handle, PChar('luaL_loadstring')));
-  A.PCall := TLuaPCall(GetProcAddress(A.Handle, PChar('lua_pcall')));
-  A.ToInteger := TLuaToInteger(GetProcAddress(A.Handle, PChar('lua_tointeger')));
-  A.ToString := TLuaToString(GetProcAddress(A.Handle, PChar('lua_tolstring')));
-  A.Close := TLuaClose(GetProcAddress(A.Handle, PChar('lua_close')));
-  A.GetTop := TLuaGetTop(GetProcAddress(A.Handle, PChar('lua_gettop')));
-  Result := Assigned(A.NewState) and Assigned(A.OpenLibs) and
-    Assigned(A.LoadString) and Assigned(A.PCall) and Assigned(A.ToInteger) and
-    Assigned(A.ToString) and Assigned(A.Close) and Assigned(A.GetTop);
-end;
-
 // T6.3/a0 判据：新建 state → 跑 `return 2+3` → 读回 5。
 function LuaSelfTest(const Code: string; out Log: string): Boolean;
 var
-  A: TLuaDll;
   L: TLuaState;
   Rc: Integer;
 begin
   Result := False;
   Log := '';
-  if not LuaLoad(A) then
+  if not LuaLoad then
   begin
     Log := 'dll=missing';
     Exit;
   end;
-  L := A.NewState();   // 无参函数指针必须带 ()，否则取到的是函数地址本身
+  L := Lua.NewState();   // 无参函数指针必须带 ()，否则取到的是函数地址本身
   if L = nil then
   begin
     Log := 'newstate=nil';
     Exit;
   end;
   try
-    A.OpenLibs(L);
-    Rc := A.LoadString(L, PChar(Code));
+    Lua.OpenLibs(L);
+    Rc := Lua.LoadString(L, PChar(Code));
     if Rc <> 0 then
     begin
-      Log := 'load=' + IntToStr(Rc) + ' ' + string(A.ToString(L, -1, nil));
+      Log := 'load=' + IntToStr(Rc) + ' ' + LuaLastError(L);
       Exit;
     end;
-    Rc := A.PCall(L, 0, 1, 0);
+    Rc := Lua.PCall(L, 0, 1, 0);
     if Rc <> 0 then
     begin
-      Log := 'pcall=' + IntToStr(Rc) + ' ' + string(A.ToString(L, -1, nil));
+      Log := 'pcall=' + IntToStr(Rc) + ' ' + LuaLastError(L);
       Exit;
     end;
-    Log := 'result=' + IntToStr(A.ToInteger(L, -1)) + ' top=' + IntToStr(A.GetTop(L));
+    Log := 'result=' + IntToStr(Lua.ToInteger(L, -1)) + ' top=' + IntToStr(Lua.GetTop(L));
     Result := True;
   finally
-    A.Close(L);
+    Lua.Close(L);
   end;
+end;
+
+function ReadTextFile(const Path: string): string;
+var
+  Stream: TFileStream;
+begin
+  Result := '';
+  if not FileExists(Path) then
+    Exit;
+  Stream := TFileStream.Create(Path, fmOpenRead or fmShareDenyWrite);
+  try
+    SetLength(Result, Stream.Size);
+    if Stream.Size > 0 then
+      Stream.ReadBuffer(Result[1], Stream.Size);
+  finally
+    Stream.Free;
+  end;
+end;
+
+// T6.3/a1 判据：注册 144 个绑定 + 编译一关的三个脚本（不执行）。
+function LuaBindSelfTest(out Log: string): string;
+const
+  kScripts: array[0..2] of string = ('basefs.lua', 'lvl_o0.lua', 'lvl_e0.lua');
+var
+  L: TLuaState;
+  Rc, loaded, i: Integer;
+  Dir, Path, Content: string;
+begin
+  Result := '';
+  Log := '';
+  if not LuaLoad then
+  begin
+    Result := 'dll=missing';
+    Exit;
+  end;
+  L := Lua.NewState();
+  if L = nil then
+  begin
+    Result := 'newstate=nil';
+    Exit;
+  end;
+  try
+    Lua.OpenLibs(L);
+  except
+    ExitProcess(42);
+  end;
+  try
+    RegisterBindings(L);
+  except
+    ExitProcess(43);
+  end;
+  Dir := EnvStr('HOST_LUA_DIR');
+  if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
+    Dir := Dir + '\';
+  loaded := 0;
+  for i := 0 to High(kScripts) do
+  begin
+    Path := Dir + kScripts[i];
+    Content := ReadTextFile(Path);
+    if Content = '' then
+    begin
+      Log := Log + kScripts[i] + ': missing' + #13#10;
+      Continue;
+    end;
+    Rc := -1;
+    try
+      Rc := Lua.LoadString(L, PChar(Content));
+    except
+      ExitProcess(44);
+    end;
+    if Rc = 0 then
+    begin
+      Inc(loaded);
+      try
+        Lua.SetTop(L, 0);
+      except
+        ExitProcess(45);
+      end;
+    end
+    else
+      Log := Log + kScripts[i] + ': ' + LuaLastError(L) + #13#10;
+  end;
+  Result := 'bindings=144 loaded=' + IntToStr(loaded) + '/' + IntToStr(Length(kScripts));
+  Lua.Close(L);
 end;
 
 // 日志一律落在 exe 旁边（build/ 已 gitignore），别污染仓库根的 CWD。
@@ -360,12 +400,18 @@ begin
     CloseFile(tf);
   end;
 
-  if EnvFlag('HOST_LUA_SELFTEST') then
+  if EnvStr('HOST_LUA_SELFTEST') <> '' then
   begin
     try
       AssignFile(tf, 'C:\tmp\magnet_lua_selftest.log');
       Rewrite(tf);
-      WriteLn(tf, 'ok=', LuaSelfTest('return 2+3', log), ' ', log);
+      if EnvStr('HOST_LUA_SELFTEST') = '2' then
+      begin
+        WriteLn(tf, LuaBindSelfTest(log));
+        Write(tf, log);
+      end
+      else
+        WriteLn(tf, 'ok=', LuaSelfTest('return 2+3', log), ' ', log);
       CloseFile(tf);
     except
       on E: Exception do
