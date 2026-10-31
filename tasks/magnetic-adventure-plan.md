@@ -102,6 +102,7 @@
 
 ## 变更记录
 
+- 2026-10-31 依据 F258/F259（**b1 前置：每关新进程 + 人工 Play；合成点击不可依赖**）：① Play=resume，暂停菜单回主菜单不销毁关卡 ⇒ 每关采集必须新起进程。② 合成点击点 Play 多数会话让游戏 exit(0)（点背景安全；等 10 s/悬停 2 s 无效），只有一次外部进程点击成功进关并命中 3 个断点 ⇒ 自动点击不可依赖。③ hostprobe 固定 `--no-play`，Play 由人点；断点命中/寄存器/内存采集已验证。
 - 2026-10-31 依据 F256/F257（**b1 采集链路定型：人工进关 + 脚本 attach 读内存；自动点击暂不可用**）：① attach + 手动 Play 不崩，断点可正常命中（3 次，eax=对象指针、edx=名字串记录）。② 合成点击（mouse_event/PostMessage/回车）在 attach 后不进关，无调试器时同一代码可用 ⇒ hostprobe 改 `--no-play` + 人工点 Play，采集改为「人工进关 → 脚本 attach → 按管理器偏移（`dword_665334` +0x1C/+0x20/+0x24）RPM dump 对象表/内联串」。③ 不再用"点 Play 后退出"推断崩溃（那是探针 finally 的 taskkill）。
 - 2026-10-31 依据 F254/F255（**T6.3/b1 起步：运行时句柄/工厂快照已拿到；无头探针环境收口**）：① 存档设 0 → Play 进 Introduction，断点 0x59915A 两次命中，eax=对象指针（`magnet_hero_1`/`lvl_decor_4` 内联串可读）；0x5982FF 命中后单步 `push eax`，`[esp]`=eax ⇒ Lua 句柄=对象指针。② 切微软拼音 + `headless.ini [Events]` 全 0 后，无头 attach 点 Play 只停在自设断点（3.1 s），无注入 DLL 入口暂停；原生 `pause` 亦可用。⇒ 探针可直接用 x32dbg 交互断点做宿主内验证；T7.2 仍按计划做注入（不依赖调试器）。
 - 2026-10-31 依据 F253（**MCP `PauseDebug` 不可靠；暂停改用原生 `pause`**）：GUI 会话里 `mcp__x32dbg_pausedebug` 连续三次后 `GetDebugState` 仍 RUNNING，状态栏「设置断点于 7775A1CC 失败！(SetBPX)」（插件在过期 IP 上 SetBPX）；同会话 `ExecuteDebuggerCommand("pause")` 立即 PAUSED，F12 亦正常。⇒ 探针脚本暂停统一用原生 `pause`；F251/F252 的暂停残留项关闭，T7.2 的注入/日志实现不受影响。
