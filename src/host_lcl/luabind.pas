@@ -5,7 +5,7 @@ unit LuaBind;
 // 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。
 interface
 
-uses LuaDll;
+uses LuaDll, LuaLog;
 
 function NextId(const Name: string): Integer;
 procedure RegisterBindings(L: TLuaState);
@@ -28,312 +28,364 @@ end;
 
 function bind_Do_Command(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
   n, i: Integer;
   d: Double;
 begin
+  LuaLogBegin(L, 'Do_Command');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
   n := v3;
   for i := 0 to n - 1 do
     d := LuaOptNumber(L, 4 + i, 0.0);
-  Result := NextId('Do_Command');
+  id := NextId('Do_Command');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_WoodBox(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_WoodBox');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_WoodBox');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_WoodBox');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_MetallScrew(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_MetallScrew');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_MetallScrew');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_MetallScrew');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_MetallGear(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_MetallGear');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_MetallGear');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_MetallGear');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_WoodGear(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_WoodGear');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_WoodGear');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_WoodGear');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_WoodWall(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_WoodWall');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_WoodWall');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_WoodWall');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_WoodFormWall(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_WoodFormWall');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_WoodFormWall');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_WoodFormWall');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SwitchArm(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_SwitchArm');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_SwitchArm');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SwitchArm');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Lock(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Lock');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Lock');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Lock');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Key(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Key');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Key');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Key');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Symbol(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Symbol');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Symbol');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Symbol');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_HammerParts(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_HammerParts');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_HammerParts');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_HammerParts');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_BarDoor(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_BarDoor');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_BarDoor');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_BarDoor');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Ball(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Ball');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Ball');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Ball');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ControlArm(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_ControlArm');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_ControlArm');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ControlArm');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_DoorHandle(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_DoorHandle');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_DoorHandle');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_DoorHandle');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ScrewDriver(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_ScrewDriver');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_ScrewDriver');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ScrewDriver');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Rope(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -341,6 +393,7 @@ var
   n, i: Integer;
   d: Double;
 begin
+  LuaLogBegin(L, 'Add_Rope');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -351,381 +404,446 @@ begin
     d := Lua.ToNumber(L, i);
     Inc(i);
   end;
-  Result := NextId('Add_Rope');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Rope');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Cork(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Cork');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Cork');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Cork');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_TestTube(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_TestTube');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_TestTube');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_TestTube');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Rack(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Rack');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Rack');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Rack');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Battery(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Battery');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Battery');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Battery');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ElectricPlug(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_ElectricPlug');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_ElectricPlug');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ElectricPlug');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Spanner(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Spanner');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Spanner');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Spanner');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Laser(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Laser');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Laser');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Laser');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_StaticCan(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_StaticCan');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_StaticCan');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_StaticCan');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Lamp(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Lamp');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Lamp');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Lamp');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_PropellerFan(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_PropellerFan');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_PropellerFan');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_PropellerFan');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Magnet(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Magnet');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Magnet');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Magnet');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_WoodDetail(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_WoodDetail');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_WoodDetail');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_WoodDetail');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ToothGear(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_ToothGear');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_ToothGear');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ToothGear');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ShankBody(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_ShankBody');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_ShankBody');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ShankBody');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_Barrel(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_Barrel');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_Barrel');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_Barrel');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_PushButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_PushButton');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_PushButton');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_PushButton');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_FlyAwayLockIcon(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_FlyAwayLockIcon');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_FlyAwayLockIcon');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_FlyAwayLockIcon');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SpiderWeb(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_SpiderWeb');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_SpiderWeb');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SpiderWeb');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_PhysObjByIndex(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Get_PhysObjByIndex');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Get_PhysObjByIndex');
-  Lua.PushInteger(L, Result);
+  id := NextId('Get_PhysObjByIndex');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointNail(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_JointNail');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_JointNail');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointNail');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointNailToStatic(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Add_JointNailToStatic');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Add_JointNailToStatic');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointNailToStatic');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointSkid(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
@@ -734,6 +852,7 @@ var
   v6: Double;
   v7: Double;
 begin
+  LuaLogBegin(L, 'Add_JointSkid');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
@@ -741,13 +860,15 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptNumber(L, 7, 0.0);
-  Result := NextId('Add_JointSkid');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointSkid');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointShank(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
@@ -756,6 +877,7 @@ var
   v6: Double;
   v7: Double;
 begin
+  LuaLogBegin(L, 'Add_JointShank');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
@@ -763,13 +885,15 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptNumber(L, 7, 0.0);
-  Result := NextId('Add_JointShank');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointShank');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointDistance(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
@@ -779,6 +903,7 @@ var
   v7: Double;
   v8: Double;
 begin
+  LuaLogBegin(L, 'Add_JointDistance');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
@@ -787,63 +912,77 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptNumber(L, 7, 0.0);
   v8 := LuaOptNumber(L, 8, 0.0);
-  Result := NextId('Add_JointDistance');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointDistance');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Flip_GraphObjectX(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Flip_GraphObjectX');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Flip_GraphObjectX');
-  Lua.PushNumber(L, Result);
+  id := NextId('Flip_GraphObjectX');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Flip_GraphObjectY(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Flip_GraphObjectY');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Flip_GraphObjectY');
-  Lua.PushNumber(L, Result);
+  id := NextId('Flip_GraphObjectY');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_FlipGraphObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Set_FlipGraphObject');
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Set_FlipGraphObject');
-  Lua.PushNumber(L, Result);
+  id := NextId('Set_FlipGraphObject');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointSimpleGear(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
   v4: Integer;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_JointSimpleGear');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
   v4 := LuaOptInt(L, 4, 0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_JointSimpleGear');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointSimpleGear');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointSimplePulley(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
@@ -858,6 +997,7 @@ var
   v12: Double;
   v13: Double;
 begin
+  LuaLogBegin(L, 'Add_JointSimplePulley');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -871,13 +1011,15 @@ begin
   v11 := LuaOptNumber(L, 11, 0.0);
   v12 := LuaOptNumber(L, 12, 0.0);
   v13 := LuaOptNumber(L, 13, 0.0);
-  Result := NextId('Add_JointSimplePulley');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointSimplePulley');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointSimplePrismatic(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
@@ -885,35 +1027,41 @@ var
   v5: Double;
   v6: Double;
 begin
+  LuaLogBegin(L, 'Add_JointSimplePrismatic');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
-  Result := NextId('Add_JointSimplePrismatic');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointSimplePrismatic');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_JointSimpleRevolute(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Add_JointSimpleRevolute');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Add_JointSimpleRevolute');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_JointSimpleRevolute');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_GraphSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -922,6 +1070,7 @@ var
   v6: Double;
   v7: PChar;
 begin
+  LuaLogBegin(L, 'Add_GraphSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -929,13 +1078,15 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
-  Result := NextId('Add_GraphSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_GraphSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_HudGraphSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -944,6 +1095,7 @@ var
   v6: Double;
   v7: PChar;
 begin
+  LuaLogBegin(L, 'Add_HudGraphSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -951,13 +1103,15 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
-  Result := NextId('Add_HudGraphSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_HudGraphSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_AlphaDoubleSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -967,6 +1121,7 @@ var
   v7: PChar;
   v8: PChar;
 begin
+  LuaLogBegin(L, 'Add_AlphaDoubleSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -975,13 +1130,15 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
   v8 := LuaOptStr(L, 8);
-  Result := NextId('Add_AlphaDoubleSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_AlphaDoubleSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_ExtAlphaDoubleSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -993,6 +1150,7 @@ var
   v9: PChar;
   v10: PChar;
 begin
+  LuaLogBegin(L, 'Add_ExtAlphaDoubleSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1003,13 +1161,15 @@ begin
   v8 := LuaOptNumber(L, 8, 0.0);
   v9 := LuaOptStr(L, 9);
   v10 := LuaOptStr(L, 10);
-  Result := NextId('Add_ExtAlphaDoubleSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_ExtAlphaDoubleSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SpringSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1017,37 +1177,43 @@ var
   v5: Double;
   v6: Double;
 begin
+  LuaLogBegin(L, 'Add_SpringSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
-  Result := NextId('Add_SpringSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SpringSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_GearChalkSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_GearChalkSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_GearChalkSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_GearChalkSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_AnimateSmoke(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1055,19 +1221,22 @@ var
   v5: Double;
   v6: Integer;
 begin
+  LuaLogBegin(L, 'Add_AnimateSmoke');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptInt(L, 6, 0);
-  Result := NextId('Add_AnimateSmoke');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_AnimateSmoke');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_AnimateHUDSmoke(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1075,19 +1244,22 @@ var
   v5: Double;
   v6: Integer;
 begin
+  LuaLogBegin(L, 'Add_AnimateHUDSmoke');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptInt(L, 6, 0);
-  Result := NextId('Add_AnimateHUDSmoke');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_AnimateHUDSmoke');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_AlphaHint(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1096,6 +1268,7 @@ var
   v6: Double;
   v7: PChar;
 begin
+  LuaLogBegin(L, 'Add_AlphaHint');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1103,13 +1276,15 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
-  Result := NextId('Add_AlphaHint');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_AlphaHint');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_AlphaHudSprite(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1118,6 +1293,7 @@ var
   v6: Double;
   v7: PChar;
 begin
+  LuaLogBegin(L, 'Add_AlphaHudSprite');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1125,63 +1301,77 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
-  Result := NextId('Add_AlphaHudSprite');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_AlphaHudSprite');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_MovingPipe(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_MovingPipe');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_MovingPipe');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_MovingPipe');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Destroy_Joint(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Destroy_Joint');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Destroy_Joint');
+  id := NextId('Destroy_Joint');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Destroy_Body(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Destroy_Body');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Destroy_Body');
+  id := NextId('Destroy_Body');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SimplePhysicObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Add_SimplePhysicObject');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Add_SimplePhysicObject');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SimplePhysicObject');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SimplePhysCircle(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
   v3: Double;
@@ -1189,19 +1379,22 @@ var
   v5: Double;
   v6: Double;
 begin
+  LuaLogBegin(L, 'Add_SimplePhysCircle');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
-  Result := NextId('Add_SimplePhysCircle');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SimplePhysCircle');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SimpleButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1211,6 +1404,7 @@ var
   v7: PChar;
   v8: PChar;
 begin
+  LuaLogBegin(L, 'Add_SimpleButton');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1219,13 +1413,15 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
   v8 := LuaOptStr(L, 8);
-  Result := NextId('Add_SimpleButton');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_SimpleButton');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_HudButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1235,6 +1431,7 @@ var
   v7: PChar;
   v8: PChar;
 begin
+  LuaLogBegin(L, 'Add_HudButton');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1243,435 +1440,540 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
   v8 := LuaOptStr(L, 8);
-  Result := NextId('Add_HudButton');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_HudButton');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_NextButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_NextButton');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_NextButton');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_NextButton');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_CloseButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_CloseButton');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_CloseButton');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_CloseButton');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Do_ShowCommand(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Do_ShowCommand');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Do_ShowCommand');
+  id := NextId('Do_ShowCommand');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Do_HideCommand(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Do_HideCommand');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Do_HideCommand');
+  id := NextId('Do_HideCommand');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_SimpleTimer(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Add_SimpleTimer');
-  Lua.PushInteger(L, Result);
+  LuaLogBegin(L, 'Add_SimpleTimer');
+  id := NextId('Add_SimpleTimer');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Start_Timer(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Start_Timer');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Start_Timer');
+  id := NextId('Start_Timer');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_GlobalVar(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_GlobalVar');
   v1 := LuaOptStr(L, 1);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_GlobalVar');
+  id := NextId('Set_GlobalVar');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_ScrObjPos(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_ScrObjPos');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_ScrObjPos');
+  id := NextId('Set_ScrObjPos');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_ScrObjPos(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_ScrObjPos');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_ScrObjPos');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_ScrObjPos');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 3;
+  LuaLogEnd(id);
 end;
 
 function bind_Local_ToWorld(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Local_ToWorld');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Local_ToWorld');
-  Lua.PushNumber(L, Result);
+  id := NextId('Local_ToWorld');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Result := 2;
+  LuaLogEnd(id);
 end;
 
 function bind_World_ToLocal(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'World_ToLocal');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('World_ToLocal');
-  Lua.PushNumber(L, Result);
+  id := NextId('World_ToLocal');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Result := 2;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysSensor(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Set_PhysSensor');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Set_PhysSensor');
+  id := NextId('Set_PhysSensor');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysBullet(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Set_PhysBullet');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Set_PhysBullet');
+  id := NextId('Set_PhysBullet');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysFilterData(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Integer;
   v4: Integer;
 begin
+  LuaLogBegin(L, 'Set_PhysFilterData');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
   v4 := LuaOptInt(L, 4, 0);
-  Result := NextId('Set_PhysFilterData');
+  id := NextId('Set_PhysFilterData');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Re_Filter(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Re_Filter');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Re_Filter');
+  id := NextId('Re_Filter');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysThresholdPlayerForce(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_PhysThresholdPlayerForce');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_PhysThresholdPlayerForce');
+  id := NextId('Set_PhysThresholdPlayerForce');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysParams(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_PhysParams');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_PhysParams');
+  id := NextId('Set_PhysParams');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_PhysParams(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_PhysParams');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_PhysParams');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_PhysParams');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 3;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_ExtPhysParams(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_ExtPhysParams');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_ExtPhysParams');
+  id := NextId('Set_ExtPhysParams');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysDamping(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Set_PhysDamping');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Set_PhysDamping');
+  id := NextId('Set_PhysDamping');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_DebugPosition(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_DebugPosition');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_DebugPosition');
+  id := NextId('Set_DebugPosition');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_DebugText(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Set_DebugText');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Set_DebugText');
+  id := NextId('Set_DebugText');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_JointLimits(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_JointLimits');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_JointLimits');
+  id := NextId('Set_JointLimits');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_JointLimits(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_JointLimits');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_JointLimits');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_JointLimits');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 3;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_JointMotors(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_JointMotors');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_JointMotors');
+  id := NextId('Set_JointMotors');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_JointMotors(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_JointMotors');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_JointMotors');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_JointMotors');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 3;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_JointAngle(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_JointAngle');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_JointAngle');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_JointAngle');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_JointTranslation(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_JointTranslation');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_JointTranslation');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_JointTranslation');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Clear_JustCreationFlag(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Clear_JustCreationFlag');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Clear_JustCreationFlag');
+  id := NextId('Clear_JustCreationFlag');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Apply_PhysImpulse(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Apply_PhysImpulse');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Apply_PhysImpulse');
+  id := NextId('Apply_PhysImpulse');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysVelocity(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Set_PhysVelocity');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Set_PhysVelocity');
+  id := NextId('Set_PhysVelocity');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_PhysVelocity(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_PhysVelocity');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_PhysVelocity');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_PhysVelocity');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Result := 2;
+  LuaLogEnd(id);
 end;
 
 function bind_Apply_PhysForce(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
 begin
+  LuaLogBegin(L, 'Apply_PhysForce');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
-  Result := NextId('Apply_PhysForce');
+  id := NextId('Apply_PhysForce');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Apply_PhysForceAtPos(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Apply_PhysForceAtPos');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Apply_PhysForceAtPos');
+  id := NextId('Apply_PhysForceAtPos');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_ShapeCircle(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1680,6 +1982,7 @@ var
   v6: Double;
   v7: Double;
 begin
+  LuaLogBegin(L, 'Attach_ShapeCircle');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1687,12 +1990,14 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptNumber(L, 7, 0.0);
-  Result := NextId('Attach_ShapeCircle');
+  id := NextId('Attach_ShapeCircle');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_ShapePolygon(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
   v3: Double;
@@ -1701,6 +2006,7 @@ var
   n, i: Integer;
   d: Double;
 begin
+  LuaLogBegin(L, 'Attach_ShapePolygon');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1712,57 +2018,68 @@ begin
     d := LuaOptNumber(L, 6 + 2 * i, 0.0);
     d := LuaOptNumber(L, 7 + 2 * i, 0.0);
   end;
-  Result := NextId('Attach_ShapePolygon');
+  id := NextId('Attach_ShapePolygon');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_SimpleGraphObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
   v4: Double;
   v5: PChar;
 begin
+  LuaLogBegin(L, 'Attach_SimpleGraphObject');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptStr(L, 5);
-  Result := NextId('Attach_SimpleGraphObject');
+  id := NextId('Attach_SimpleGraphObject');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_PhysicObjectWithAdvGraph(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
   v3: Double;
   v4: Double;
   v5: Double;
 begin
+  LuaLogBegin(L, 'Add_PhysicObjectWithAdvGraph');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
-  Result := NextId('Add_PhysicObjectWithAdvGraph');
-  Lua.PushInteger(L, Result);
+  id := NextId('Add_PhysicObjectWithAdvGraph');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_GraphObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_GraphObject');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_GraphObject');
-  Lua.PushInteger(L, Result);
+  id := NextId('Get_GraphObject');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_AlphaHintGraphObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
@@ -1770,18 +2087,21 @@ var
   v5: PChar;
   v6: PChar;
 begin
+  LuaLogBegin(L, 'Attach_AlphaHintGraphObject');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptStr(L, 5);
   v6 := LuaOptStr(L, 6);
-  Result := NextId('Attach_AlphaHintGraphObject');
+  id := NextId('Attach_AlphaHintGraphObject');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_AlphaHintExGraphObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
   v3: Double;
@@ -1791,6 +2111,7 @@ var
   v7: PChar;
   v8: PChar;
 begin
+  LuaLogBegin(L, 'Attach_AlphaHintExGraphObject');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptNumber(L, 3, 0.0);
@@ -1799,364 +2120,486 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptStr(L, 7);
   v8 := LuaOptStr(L, 8);
-  Result := NextId('Attach_AlphaHintExGraphObject');
+  id := NextId('Attach_AlphaHintExGraphObject');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_GraphObjectParent(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Set_GraphObjectParent');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Set_GraphObjectParent');
+  id := NextId('Set_GraphObjectParent');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_MaterialEmission(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
   v2: Double;
   v3: Double;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_MaterialEmission');
   v1 := LuaOptStr(L, 1);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_MaterialEmission');
+  id := NextId('Set_MaterialEmission');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_JointThresholdForce(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v4: Double;
 begin
+  LuaLogBegin(L, 'Set_JointThresholdForce');
   v1 := LuaOptInt(L, 1, 0);
   v4 := LuaOptNumber(L, 4, 0.0);
-  Result := NextId('Set_JointThresholdForce');
+  id := NextId('Set_JointThresholdForce');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_RopePhysItem(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Get_RopePhysItem');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Get_RopePhysItem');
-  Lua.PushInteger(L, Result);
+  id := NextId('Get_RopePhysItem');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_RopeJointItem(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Get_RopeJointItem');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Get_RopeJointItem');
-  Lua.PushInteger(L, Result);
+  id := NextId('Get_RopeJointItem');
+  Lua.PushInteger(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Attach_ScriptToObject(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: PChar;
   v3: PChar;
 begin
+  LuaLogBegin(L, 'Attach_ScriptToObject');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptStr(L, 2);
   v3 := LuaOptStr(L, 3);
-  Result := NextId('Attach_ScriptToObject');
+  id := NextId('Attach_ScriptToObject');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PlayerMagnetOff(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Set_PlayerMagnetOff');
+  LuaLogBegin(L, 'Set_PlayerMagnetOff');
+  id := NextId('Set_PlayerMagnetOff');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_CameraPosition(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_CameraPosition');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_CameraPosition');
+  id := NextId('Set_CameraPosition');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_CameraRotation(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Set_CameraRotation');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Set_CameraRotation');
+  id := NextId('Set_CameraRotation');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_CameraViewArea(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_CameraViewArea');
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_CameraViewArea');
+  id := NextId('Set_CameraViewArea');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_RealViewRect(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Get_RealViewRect');
-  Lua.PushNumber(L, Result);
+  LuaLogBegin(L, 'Get_RealViewRect');
+  id := NextId('Get_RealViewRect');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 4;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_ScreenViewerRect(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Get_ScreenViewerRect');
-  Lua.PushNumber(L, Result);
+  LuaLogBegin(L, 'Get_ScreenViewerRect');
+  id := NextId('Get_ScreenViewerRect');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Lua.PushNumber(L, 0);
   Result := 4;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_PhysicTime(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Get_PhysicTime');
-  Lua.PushNumber(L, Result);
+  LuaLogBegin(L, 'Get_PhysicTime');
+  id := NextId('Get_PhysicTime');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Play_SoundSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Play_SoundSample');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Play_SoundSample');
-  Lua.PushNumber(L, Result);
+  id := NextId('Play_SoundSample');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Play_LoopSoundSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Play_LoopSoundSample');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Play_LoopSoundSample');
-  Lua.PushNumber(L, Result);
+  id := NextId('Play_LoopSoundSample');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Stop_SoundSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Stop_SoundSample');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Stop_SoundSample');
+  id := NextId('Stop_SoundSample');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Pause_SoundSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
   v2: Integer;
 begin
+  LuaLogBegin(L, 'Pause_SoundSample');
   v1 := LuaOptStr(L, 1);
   v2 := LuaOptInt(L, 2, 0);
-  Result := NextId('Pause_SoundSample');
+  id := NextId('Pause_SoundSample');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_PhysicMaxHitSoundValue(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: Double;
 begin
+  LuaLogBegin(L, 'Set_PhysicMaxHitSoundValue');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
-  Result := NextId('Set_PhysicMaxHitSoundValue');
+  id := NextId('Set_PhysicMaxHitSoundValue');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Play_MusicSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Play_MusicSample');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Play_MusicSample');
-  Lua.PushNumber(L, Result);
+  id := NextId('Play_MusicSample');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Start_MusicSample(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Start_MusicSample');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Start_MusicSample');
-  Lua.PushNumber(L, Result);
+  id := NextId('Start_MusicSample');
+  Lua.PushNumber(L, id);
   Result := 1;
+  LuaLogEnd(id);
 end;
 
 function bind_Pause_AllMusic(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Pause_AllMusic');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Pause_AllMusic');
+  id := NextId('Pause_AllMusic');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Stop_AllMusic(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Stop_AllMusic');
+  LuaLogBegin(L, 'Stop_AllMusic');
+  id := NextId('Stop_AllMusic');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_LevelMaterial(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
   v2: PChar;
 begin
+  LuaLogBegin(L, 'Add_LevelMaterial');
   v1 := LuaOptStr(L, 1);
   v2 := LuaOptStr(L, 2);
-  Result := NextId('Add_LevelMaterial');
+  id := NextId('Add_LevelMaterial');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Add_LevelSound(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
   v2: PChar;
 begin
+  LuaLogBegin(L, 'Add_LevelSound');
   v1 := LuaOptStr(L, 1);
   v2 := LuaOptStr(L, 2);
-  Result := NextId('Add_LevelSound');
+  id := NextId('Add_LevelSound');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Clear_LevelMaterial(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Clear_LevelMaterial');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Clear_LevelMaterial');
+  id := NextId('Clear_LevelMaterial');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_BackMaterial(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: PChar;
 begin
+  LuaLogBegin(L, 'Set_BackMaterial');
   v1 := LuaOptStr(L, 1);
-  Result := NextId('Set_BackMaterial');
+  id := NextId('Set_BackMaterial');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_GraphMaterial(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
   v2: PChar;
   v3: PChar;
 begin
+  LuaLogBegin(L, 'Set_GraphMaterial');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptStr(L, 2);
   v3 := LuaOptStr(L, 3);
-  Result := NextId('Set_GraphMaterial');
+  id := NextId('Set_GraphMaterial');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Level_Complete(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Level_Complete');
+  LuaLogBegin(L, 'Level_Complete');
+  id := NextId('Level_Complete');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Level_Restart(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Level_Restart');
+  LuaLogBegin(L, 'Level_Restart');
+  id := NextId('Level_Restart');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Go_NextLevel(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Go_NextLevel');
+  LuaLogBegin(L, 'Go_NextLevel');
+  id := NextId('Go_NextLevel');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Do_LevelComplete(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Do_LevelComplete');
+  LuaLogBegin(L, 'Do_LevelComplete');
+  id := NextId('Do_LevelComplete');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_VisibleHintButton(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Set_VisibleHintButton');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Set_VisibleHintButton');
+  id := NextId('Set_VisibleHintButton');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_VisibleRollMap(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Set_VisibleRollMap');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Set_VisibleRollMap');
+  id := NextId('Set_VisibleRollMap');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Set_HideTimeHint(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Set_HideTimeHint');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Set_HideTimeHint');
+  id := NextId('Set_HideTimeHint');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Drop_ToLog(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Double;
 begin
+  LuaLogBegin(L, 'Drop_ToLog');
   v1 := LuaOptNumber(L, 1, 0.0);
-  Result := NextId('Drop_ToLog');
+  id := NextId('Drop_ToLog');
   Result := 0;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_MousePosition(L: TLuaState): Integer; cdecl;
+var
+  id: Integer;
 begin
-  Result := NextId('Get_MousePosition');
-  Lua.PushNumber(L, Result);
+  LuaLogBegin(L, 'Get_MousePosition');
+  id := NextId('Get_MousePosition');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Result := 2;
+  LuaLogEnd(id);
 end;
 
 function bind_Get_JointReactionForce(L: TLuaState): Integer; cdecl;
 var
+  id: Integer;
   v1: Integer;
 begin
+  LuaLogBegin(L, 'Get_JointReactionForce');
   v1 := LuaOptInt(L, 1, 0);
-  Result := NextId('Get_JointReactionForce');
-  Lua.PushNumber(L, Result);
+  id := NextId('Get_JointReactionForce');
+  Lua.PushNumber(L, id);
   Lua.PushNumber(L, 0);
   Result := 2;
+  LuaLogEnd(id);
 end;
 
 procedure RegisterBindings(L: TLuaState);

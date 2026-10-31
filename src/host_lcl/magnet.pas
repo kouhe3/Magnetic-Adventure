@@ -24,7 +24,7 @@ program magnet;
 uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
-  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaBind;
+  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind;
 
 type
   TCameraEvents = class
@@ -280,6 +280,83 @@ begin
   Lua.Close(L);
 end;
 
+// T6.3/a2：跑一关脚本并把绑定调用落成 JSONL（call+args 与 lua_probe 对拍）。
+function LuaBindRun(const Scripts: array of string; out Log: string): string;
+const
+  kEntries: array[0..2] of string = ('BaseFsBeforeCreate', 'Create', 'AttachScripts');
+var
+  L: TLuaState;
+  Rc, i: Integer;
+  Dir, Path, Content: string;
+begin
+  Result := '';
+  Log := '';
+  if not LuaLoad then
+  begin
+    Result := 'dll=missing';
+    Exit;
+  end;
+  L := Lua.NewState();
+  if L = nil then
+  begin
+    Result := 'newstate=nil';
+    Exit;
+  end;
+  LuaLogInit(EnvStr('HOST_LUA_LOG'));
+  try
+    Lua.OpenLibs(L);
+    RegisterBindings(L);
+    Dir := EnvStr('HOST_LUA_DIR');
+    if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
+      Dir := Dir + '\';
+    for i := 0 to High(Scripts) do
+    begin
+      Path := Dir + Scripts[i];
+      Content := ReadTextFile(Path);
+      if Content = '' then
+      begin
+        Log := Log + Scripts[i] + ': missing' + #13#10;
+        Continue;
+      end;
+      Rc := Lua.LoadString(L, PChar(Content));
+      if Rc <> 0 then
+      begin
+        Log := Log + Scripts[i] + ': ' + LuaLastError(L) + #13#10;
+        Exit;
+      end;
+      Rc := Lua.PCall(L, 0, 0, 0);
+      if Rc <> 0 then
+      begin
+        Log := Log + Scripts[i] + ': pcall ' + LuaLastError(L) + #13#10;
+        Exit;
+      end;
+    end;
+    for i := 0 to High(kEntries) do
+    begin
+      Lua.GetField(L, LUA_GLOBALSINDEX, PChar(kEntries[i]));
+      if Lua.LType(L, -1) = 6 then
+      begin
+        Rc := Lua.PCall(L, 0, 0, 0);
+        if Rc <> 0 then
+          Log := Log + kEntries[i] + ': ' + LuaLastError(L) + #13#10;
+      end
+      else
+        Lua.SetTop(L, -2);
+    end;
+    Result := 'ok';
+  finally
+    LuaLogClose;
+    Lua.Close(L);
+  end;
+end;
+
+function LuaBindRunE0(out Log: string): string;
+const
+  kScripts: array[0..2] of string = ('lvl_o0.lua', 'lvl_e0.lua', 'basefs.lua');
+begin
+  Result := LuaBindRun(kScripts, Log);
+end;
+
 // 日志一律落在 exe 旁边（build/ 已 gitignore），别污染仓库根的 CWD。
 function ExePath(const Name: string): string;
 begin
@@ -408,6 +485,11 @@ begin
       if EnvStr('HOST_LUA_SELFTEST') = '2' then
       begin
         WriteLn(tf, LuaBindSelfTest(log));
+        Write(tf, log);
+      end
+      else if EnvStr('HOST_LUA_SELFTEST') = '3' then
+      begin
+        WriteLn(tf, LuaBindRunE0(log));
         Write(tf, log);
       end
       else

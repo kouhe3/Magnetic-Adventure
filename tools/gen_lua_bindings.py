@@ -92,21 +92,23 @@ def gen_binding(row):
 
     ret = row["ret"]
     cnt = int(row["ret_count"] or "0")
-    body.append("  Result := NextId('%s');" % name)
+    body.append("  id := NextId('%s');" % name)
     if ret == "none" or cnt <= 0:
         body.append("  Result := 0;")
     else:
         push = "Lua.PushInteger" if ret in ("int", "mixed") else "Lua.PushNumber"
-        body.append("  %s(L, Result);" % push)
+        body.append("  %s(L, id);" % push)
         for _ in range(1, cnt):
             body.append("  %s(L, 0);" % push)
         body.append("  Result := %d;" % cnt)
+    body.append("  LuaLogEnd(id);")
 
     lines = ["function bind_%s(L: TLuaState): Integer; cdecl;" % name]
-    if var_lines:
-        lines.append("var")
-        lines += var_lines
+    lines.append("var")
+    lines.append("  id: Integer;")
+    lines += var_lines
     lines.append("begin")
+    lines.append("  LuaLogBegin(L, '%s');" % name)
     lines += body
     lines.append("end;")
     return "\n".join(lines)
@@ -124,7 +126,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll;\n\nfunction NextId(const Name: string): Integer;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog;\n\nfunction NextId(const Name: string): Integer;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n")
