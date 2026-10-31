@@ -74,7 +74,7 @@
 
 > **52 关：PASS 52 / FAIL 0 / 无可用录制 0**；录制 52 份可判定（其中全步零超差 50 份）、3 份 v01 排除、0 份过小跳过。
 >
-> 构建指纹：`f29993a1` `/arch:IA32` `/fp:default` `Release` `/O2 /Ob2 /DNDEBUG` 建于 2026-10-29T14:34:35（`build/build_info.json`，F98）。
+> 构建指纹：`6873bc8f` `/arch:IA32` `/fp:default` `Release` `/O2 /Ob2 /DNDEBUG` 建于 2026-10-30T07:22:58（`build/build_info.json`，F98）。
 >
 > 判据：`no_crash` + `bounded`（末两个十分位中位数 ≤ 前段×1.25+2，跳过前 10% 加载期；F56/F65）。`逐位首发` 是不受容差影响的严格口径。
 >
