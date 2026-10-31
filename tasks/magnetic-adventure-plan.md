@@ -81,11 +81,28 @@
 - [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214、F154、F155、F157、F158、F166（**完成**：`src/host_lcl/magnet.pas` 40 行 —— bsNone 建窗 + 手工补 caption 位 + `SWP_FRAMECHANGED` + 按外框居中 + 视口用真实客户区；`wincompare --ours build/host_lcl --ours-exe magnet.exe` **fields=15 diffs=0**。坑：原版 style 带 `WS_POPUP`（切 BorderStyle 会丢）、LCL 的 `ClientWidth` 缓存改 style 后是旧的、`uses GLFilePNG` 需要 `libpng13.dll`/`zlib1.dll`）
 - [x] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak （复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187、F225–F230（**完成（菜单层）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 19 个 `TGLHUDSprite`（设计空间 1018×739，顺序=原版 draw 顺序），纹理走 GLFilePNG + 自持 32 位 RGBA（LCL 的 TPicture 丢 alpha，F226）。判据：新仪器 `tools/menu_draw_ab.py`（按素材名对齐）比原版 `glidle.bin` frame 10 vs 宿主 frame 2 ⇒ **19/19 draw 零差（dbbox=0/duv=0/dα=0）**，未配对的只有文本层；像素 `HOST_DUMP_FRAME` 自读帧 mean|Δ| 2.46/255（缺文本 + 光标不旋转为主，F230）。三个库级坑已记账：TextureMode 默认 decal（F227）、ObjectsSorting 默认重排（F228）、GLScene 不发 glBlendFunc（F229）。**剩**：关卡场景模型（归 T6.4 应用层））
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201
-- [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据 依据：F204、F213
+- [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据；单元判据与工作台见 M7 依据：F204、F213
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
 
+## M7 函数级测量与替换（应用层单元判据，2026-10-30 新增）
+
+> 目的：在黑盒输入输出之外建**逐函数判据**——记录未导出函数每次调用的 pre/post 状态，再用同工具链编出的实现顶替原函数入口，按 `(rva, call_seq)` 比对。
+> 判据：**逐 call 的 post-state 摘要逐位相等 + 不崩溃 + 零调用函数清零**。「不崩溃」只是 harness 的运行条件，不是判据。
+> 与 M6 的关系：M7 是 T6.4 的工作台与判据；T7.0/T7.1 可立即并行，不改变 M6 的 T6.3→T6.4→T6.5 顺序，T7.6 并入 T6.5 整机门禁。
+
+- [ ] T7.0 跨模块 RTL 实测：双向分配/释放 10 万次、`ReallocMem`、异常跨模块 unwind 依据：F235、F233
+- [ ] T7.1 应用层清单减法：用 patch 后 GLScene+LCL 骨架（F213）对 `game.exe` 跑 `code_match.py funcs`，sim≥0.95 标为「库，继承」、其余为待复原；输出 RVA/大小/sim/调用点数 依据：F204、F210、F213、F232
+- [ ] T7.2 `hosttrace`：`hostrun.exe`（CREATE_SUSPENDED + 注入）+ `hosttrace.dll`（读 `HT_CFG`、5 字节 jmp trampoline、`HTFFI01` 日志、VEH 兜底回落原函数） 依据：F232、F233、F234、F235
+- [ ] T7.3 双跑 A/B：R（原函数）与 S（我们的实现）同场景同输入，按 `(rva, call_seq)` 比 post-state（寄存器/栈出参/`fpu_cw`/ST0/watch CRC）；先量 A/A 地板 依据：F233、F234
+- [ ] T7.4 纯函数输入空间扫描：内嵌 A/B（快照→调我们的→比→恢复→返回原值），随机 + 边界 + 位模式 依据：F233
+- [ ] T7.5 按调用频次批量替换 + 覆盖率台账（每函数命中次数）→ 自动生成 `mapping/functions.csv`（L1 函数映射） 依据：F204、F232
+- [ ] T7.6 全替换混合产物（原版 LCL/GLScene + 我方应用层）整机回归，并入 T6.5 门禁 依据：F181、F194、F196、F213
+
+
 ## 变更记录
+
+- 2026-10-30 依据 F232–F235（**新增 M7：函数级测量与替换，作为 T6.4 的单元判据**）：① 判据定为「逐 call post-state 摘要逐位相等 + 不崩溃 + 零调用函数清零」；「不崩溃」只是 harness 运行条件。② 已量：`0x521000` 上方 **1,931 函数 / 389,815 B**（F232）；样本 `sub_521990` 的签名与调用约定（Self@EAX、float 在栈、`retn 8`）可从反编译 + 调用点恢复（F233）；exe **无 ASLR/DEP**（F234）；FPC 2.2.4 的堆是 `GetProcessHeap`（F235，跨模块实测见 T7.0）。③ 任务链：T7.0 跨模块 RTL → T7.1 清单减法（glskel `funcs` 减出应用层）→ T7.2 `hosttrace` → T7.3 双跑 A/B → T7.4 纯函数扫描 → T7.5 批量替换 + `mapping/functions.csv` → T7.6 并入 T6.5。④ 边界：这是单元判据，不替代组合层门禁（GL 序列/像素/存档/52 关）；差分测试不等于证明，覆盖不到的路径仍未证。
 
 - 2026-10-30 依据 F231（**补上用户名文本层，菜单 21/21 draw 零差**）：`src/host_lcl/menuscene.pas` 新增 `TFontTable`（`gulim1.dat` 258 条 32 B 记录）与 `TMagTextSprite`（继承 `TGLHUDSprite`，重写 `DoRender`：一次 `glBegin(GL_QUADS)` 画 N 个字模 quad，色 `(0.8984,0.7852,0.5195)`）。原版同一串画两遍（alpha=1 + alpha=0），两遍都补。判据：`tools/menu_draw_ab.py` ⇒ **pairs=21 mismatches=0**，不再有未配对项；像素 2.464→2.448/255（文本只占 0.2% 面积）。
 
