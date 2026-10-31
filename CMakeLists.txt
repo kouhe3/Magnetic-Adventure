@@ -229,6 +229,15 @@ set_target_properties(lua_probe PROPERTIES OUTPUT_NAME lua_probe
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# objlog：注入原版 game.exe 的进程内对象创建记录器（src/objlog/objlog.c）。
+# 把 65 个 `call <Add_*工厂>` 点改成 thunk，靠改写返回地址记录 eax/edx，不暂停进程；
+# 站点表由 `python tools/gen_objlog.py` 从 work/add_bps_all.txt 生成到 src/objlog/sites.h。
+add_library(objlog SHARED src/objlog/objlog.c)
+set_target_properties(objlog PROPERTIES
+  OUTPUT_NAME objlog
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_link_libraries(objlog PRIVATE kernel32)
+
 # ---- 宿主脚手架（T3.1）----
 # 只复刻窗口/消息参数（F154/F155/F156/F158），暂不含 GL 与 pak 加载。
 # 验收：tools/winprobe.py 对原版与产物各跑一次，逐字段 diff（见其 docstring）。
