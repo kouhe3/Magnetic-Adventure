@@ -5,6 +5,8 @@
 
 ## 0. 一句话现状
 
+**2026-10-31 更新**：T6.3/b0 完成（F249/F250）——Lua 的 `Add_*` 句柄是**堆对象指针**（工厂返回 `sub_583300`/`sub_58C500` 对象，`push eax; lua_pushinteger`），句柄校验 `sub_40AB90` 会解引用 `[handle]`；111 个脚本对句柄无算术、无 `io.` ⇒ 我方可用任意稳定 id，唯一硬要求是无效句柄回退（`Add_JointNail` → 0.0）。运行时证据用 `work/probe_objtable.py`（外部 `ReadProcessMemory` 读 `dword_665334` 对象管理器）。
+
 **2026-10-30 决策：宿主改走 FPC/LCL + GLScene 重建（计划 M6），C++ 宿主保留作对照物。** 当天 T6.1 窗口层就完成：`src/host_lcl/magnet.pas`（40 行）让 `tools/wincompare.py` 的 15 个窗口字段 `diffs=0`（F214）。下面几段描述的是 **C++ 路线**（F184–F200）的成果，仍可作对照基准，但不再是交付主线。
 
 两个 DLL 已复刻并验证完毕（**b2Physics 87/87 + 52 关全 PASS**；**Squall 99/99 + 17 个宿主导入 0 分歧**）；宿主 exe 过了窗口门禁，**主菜单由宿主代码现算**：纹理直读 pak（上传像素 37/37 与原版逐字节相同，F187）、布局按固定设计空间 1018×739 与二态悬停（F190），与原版逐像素 mean|Δ| **1.088/255**、A/A 地板 0.00。
@@ -283,6 +285,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 8. 踩过的坑（复用清单）
 
+- **x32dbg 交互断点在本机不可用**（F251）：attach 原版后点一次 Play 会依次停在 6 个腾讯注入模块的入口（`biz_bundle`/`game_center`/`isgpet_bundle`/`picface`/`systembeautify_bundle`/`ichat_bundle`；`DllEntry`/`TlsCallbacks` 关不掉），此后 `PauseDebug` 不生效——`GetDebugState` 报 RUNNING、窗口应答 `WM_NULL`，但软件光标/悬停不刷新、点 Play 进不去关卡。宿主内验证用**外部 `ReadProcessMemory`**（`work/probe_objtable.py`：起游戏→等 menu→点 Play→读 `0x665334` 管理器），长期用 T7.2 进程内注入。
 - **FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通**（F244）：`sysheap.inc` 只提供 `SysOSAlloc/SysOSFree`；`heap.inc` 是**每模块私有 freelist + 32K chunk + 共享 chunk 头**（`used`/`ocRecycleFlag`，`MaxKeptOSChunks=4`）。跨模块 free 只靠块头布局恰好相同，chunk 归还时另一侧 freelist 悬垂——实测 `host GetMem→DLL FreeMem` 与反向都在首 5000 次内崩/挂（F245/F246）。要么装宿主 `TMemoryManager`+`TMemoryMutexManager`（真宿主 `.data 0x5D5C50`/`0x5D5C80`），要么绝不交换堆所有权。
 - **异常不能跨模块**（F247）：`ExceptAddrStack`/`ExceptObjectStack` 是每模块 ThreadVar。exe 回调里 raise 用 DLL `try` 包住 → exit 217；DLL raise 被 exe 包住 → DLL 先走 unhandled，exe 只捕到 `EAccessViolation`。注入函数必须模块内 try/except 全包，异常对象也不跨模块。
 - **注入代码跑宿主线程**（F246）：同一份"共享 MM"代码在主线程 PASS，在工作线程 1–2 万次内崩——[推断] 宿主堆按单线程使用。b2 代理的 `B2RTLPROBE_DLL` 用主线程 `SetTimer` 进入，不要用 `CreateThread`。
