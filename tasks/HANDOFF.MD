@@ -285,7 +285,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 8. 踩过的坑（复用清单）
 
-- **x32dbg 交互断点在本机不可用**（F251）：attach 原版后点一次 Play 会依次停在 6 个腾讯注入模块的入口（`biz_bundle`/`game_center`/`isgpet_bundle`/`picface`/`systembeautify_bundle`/`ichat_bundle`；`DllEntry`/`TlsCallbacks` 关不掉），此后 `PauseDebug` 不生效——`GetDebugState` 报 RUNNING、窗口应答 `WM_NULL`，但软件光标/悬停不刷新、点 Play 进不去关卡。宿主内验证用**外部 `ReadProcessMemory`**（`work/probe_objtable.py`：起游戏→等 menu→点 Play→读 `0x665334` 管理器），长期用 T7.2 进程内注入。
+- **调试器探针环境**（F252）：`biz_bundle`/`game_center`/`isgpet_bundle`/`picface`/`systembeautify_bundle`/`ichat_bundle` 是**搜狗输入法**注入，切系统 IME 到**微软拼音**后不再加载；`groupy_32.dll`（Stardock Groupy 壳扩展）仍会注入。无头实例的事件断点配置在 `x32\headless\headless.ini` 的 **`[Events]` 段**（写成 `[Symbols]` 不生效），否则默认值会让每次 Play 停在注入 DLL 入口。MCP `PauseDebug` 后 `GetDebugState` 仍报 RUNNING 的现象待 GUI F12 对照（未定）。宿主内验证仍可先用外部 `ReadProcessMemory`（`work/probe_objtable.py`）。
 - **FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通**（F244）：`sysheap.inc` 只提供 `SysOSAlloc/SysOSFree`；`heap.inc` 是**每模块私有 freelist + 32K chunk + 共享 chunk 头**（`used`/`ocRecycleFlag`，`MaxKeptOSChunks=4`）。跨模块 free 只靠块头布局恰好相同，chunk 归还时另一侧 freelist 悬垂——实测 `host GetMem→DLL FreeMem` 与反向都在首 5000 次内崩/挂（F245/F246）。要么装宿主 `TMemoryManager`+`TMemoryMutexManager`（真宿主 `.data 0x5D5C50`/`0x5D5C80`），要么绝不交换堆所有权。
 - **异常不能跨模块**（F247）：`ExceptAddrStack`/`ExceptObjectStack` 是每模块 ThreadVar。exe 回调里 raise 用 DLL `try` 包住 → exit 217；DLL raise 被 exe 包住 → DLL 先走 unhandled，exe 只捕到 `EAccessViolation`。注入函数必须模块内 try/except 全包，异常对象也不跨模块。
 - **注入代码跑宿主线程**（F246）：同一份"共享 MM"代码在主线程 PASS，在工作线程 1–2 万次内崩——[推断] 宿主堆按单线程使用。b2 代理的 `B2RTLPROBE_DLL` 用主线程 `SetTimer` 进入，不要用 `CreateThread`。
