@@ -3,6 +3,8 @@
 用法:
     python tools/lua_event_check.py work/lua_probe/lvl49.jsonl C:/tmp/magnet_evt/lvl49.jsonl \
         [--objlog work/objlog_lvl49.jsonl]
+    python tools/lua_event_check.py work/lua_probe/lvl49.jsonl C:/tmp/magnet_evt/lvl49_neg.jsonl \
+        --no-tail
 
 判据（全部满足才 PASS，exit 0）:
   1. 前缀：触发前的调用与 `work/lua_probe/lvl49.jsonl` 的 call+args 逐条相同
@@ -16,6 +18,9 @@
   4. `Add_JointSimpleGear` 末参 == GearRad/Ratio == 2.4/(6*245/256)（相对 1e-9）。
   5. `Add_JointSimpleRevolute` 实参 [0] == 前面 `Get_ScrObjPos` 的实参，
      [1] == 触发时传入的 Body2 对象 id。
+
+`--no-tail`：用于负例——事件已派发但 Lua 守卫不成立（如 Body2 不是 gear、
+或 State 不在 1/2）时，JSONL 必须与 init 参考**逐条相同、无追加**。
 
 覆盖边界:
     - 只覆盖「Attach 登记 + 事件派发 + 回调执行」；真实接触由物理层产生，
@@ -78,11 +83,31 @@ def main():
     ap.add_argument("probe", help="init 参考（tools/lua_probe 产物）")
     ap.add_argument("fired", help="HOST_LUA_FIRE 后的宿主 JSONL")
     ap.add_argument("--objlog", default="", help="原版 objlog 记录（可选，校验 factory 名字序）")
+    ap.add_argument("--no-tail", action="store_true",
+                    help="负例：断言事件触发后没有任何追加调用（与 probe 逐条相同）")
     args = ap.parse_args()
 
     probe = load(args.probe)
     fired = load(args.fired)
     fails = []
+
+    if args.no_tail:
+        if len(fired) != len(probe):
+            fails.append("expected no appended calls: probe=%d fired=%d" %
+                         (len(probe), len(fired)))
+        if len(fired) >= len(probe) and not all(
+                row_eq(probe[i], fired[i]) for i in range(len(probe))):
+            bad = next(i for i in range(len(probe)) if not row_eq(probe[i], fired[i]))
+            fails.append("prefix mismatch at call %d: %r vs %r" %
+                         (bad + 1, probe[bad], fired[bad]))
+        if fails:
+            for f in fails:
+                print("FAIL", f)
+            print("PASS 0/1")
+            return 1
+        print("tail=0 calls=%d (guard rejected, identical to init)" % len(fired))
+        print("PASS 1/1")
+        return 0
 
     if len(fired) <= len(probe):
         fails.append("no appended calls: probe=%d fired=%d" % (len(probe), len(fired)))

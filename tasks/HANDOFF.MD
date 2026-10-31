@@ -376,6 +376,11 @@ HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=49 HOST_LUA_DIR=work/pak_gametop \
 python tools/lua_event_check.py work/lua_probe/lvl49.jsonl C:/tmp/magnet_evt/lvl49.jsonl \
   --objlog work/objlog_lvl49.jsonl        # 期望 PASS 1/1
 
+# 负例（派发成功但 Lua 守卫不成立 ⇒ 与 init 逐条相同、无追加）
+HOST_LUA_FIRE='1016:OnAddContact:1012'   # Body2 不是 gear
+HOST_LUA_FIRE='1020:OnRotate:0'          # State=3，两个分支都不进
+python tools/lua_event_check.py work/lua_probe/lvl49.jsonl <该次日志> --no-tail   # 期望 PASS 1/1
+
 # 52 关回归（改生成器/绑定后必跑）
 HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR='C:\tmp\magnet_bind2' \
   build/host_lcl/magnet.exe               # 期望 levels=52 ok=52 fail=0
