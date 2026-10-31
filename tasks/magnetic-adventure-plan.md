@@ -258,3 +258,4 @@
 
 - 2026-10-28 初版：对齐=行为等价+函数映射；基准=GameTop；范围=宿主 + 两个自有 DLL。
 - 2026-10-29 依据 F130：仓库追踪的文本换行统一到 **CRLF**（38 个 LF/混合文件改写 + 新增 `.gitattributes` 的 `* -text`，禁止 git 做换行归一化，blob 字节即工作树字节）。验收：`b2World.cpp` 纯 LF / 纯 CRLF 两版在 `/Brepro` 下 `.obj` 逐位相同；重建后 `rec_20261029_183942` 仍 `bodies_bad=0 mismatches=0`；导出表 87/87。仓库保养，不涉及行为对齐口径。
+- 2026-10-31 依据 F260/F261/F262（**T6.3/b1 采集链路定型**）：headless 的 MCP 插件写操作全静默失效（挂断点/暂停/日志命令），改走**离线模块库注入**——`tools/moduledb.py` 读写 `headless/db/<module>.dd32`（LZ4 legacy 帧 + JSON；RVA、oldbytes、`logText`、`"commandText":"run"`），采集期间不加载插件，命中即写 stdout 并自动继续。Introduction 已采 25/25 对象（`work/hostcapture_intro2.*`：tag/句柄/vtable/父指针/名字）。下一步：同一断点库保持挂载，进关卡即记录，按关卡切分后与 `work/lua_probe/lvlNN.jsonl` 对拍。
