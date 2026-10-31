@@ -30,7 +30,7 @@ import uistate as us
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NO_WINDOW = 0x08000000
-HB = re.compile(r"(\S+) (\S+) (\S+) (\S+) (\S+) (\S+)(?: &?\"(.*)\")?$")
+HB = re.compile(r"^(\S+) (\S+) (\S+) (\S+) (\S+) (\S+)(.*)$")
 
 
 def sh(*args):
@@ -47,6 +47,25 @@ def plugin_off():
         moved = True
     return moved, off, on
 
+
+
+def force_fg(hwnd):
+    u = us.u
+    fg = u.GetForegroundWindow()
+    if fg == hwnd:
+        return True
+    tid_fg = u.GetWindowThreadProcessId(fg, None)
+    tid = us.k.GetCurrentThreadId()
+    ok = False
+    if tid_fg:
+        u.AttachThreadInput(tid, tid_fg, True)
+        u.ShowWindow(hwnd, 9)
+        u.BringWindowToTop(hwnd)
+        ok = bool(u.SetForegroundWindow(hwnd))
+        u.AttachThreadInput(tid, tid_fg, False)
+    else:
+        ok = bool(u.SetForegroundWindow(hwnd))
+    return ok or u.GetForegroundWindow() == hwnd
 
 def click_design(pid, dx, dy, hold=150):
     win = us.find_window(pid)
@@ -94,14 +113,20 @@ def parse_log(path):
     for line in open(path, encoding="utf-8", errors="replace"):
         if not line.startswith("#HB "):
             continue
-        m = HB.match(line[4:].rstrip("\n"))
+        body = line[4:]
+        for mark in ("[STATE]", "[x64dbg"):
+            i = body.find(mark)
+            if i >= 0:
+                body = body[:i]
+        m = HB.match(body.rstrip())
         if not m:
             continue
-        tag, eax, edx, d0, d8, d12, name = m.groups()
+        tag, eax, edx, d0, d8, d12, tail = m.groups()
         rec = {"tag": tag, "eax": "0x" + eax, "edx": "0x" + edx,
                "obj": ["0x" + d0, "0x" + d8, "0x" + d12]}
-        if name is not None:
-            rec["name"] = name
+        q = re.search(r'"([^"]*)"', tail)
+        if q:
+            rec["name"] = q.group(1)
         rows.append(rec)
     return rows
 
@@ -128,15 +153,17 @@ def capture_level(level, node, args, headless):
         while time.time() - t0 < args.burst_timeout:
             time.sleep(0.4)
             if win:
-                us.u.SetForegroundWindow(win[0])   # keep focus: the game pauses on WM_KILLFOCUS
+                force_fg(win[0])   # the game pauses on WM_KILLFOCUS; focus loss can stall init
             try:
                 n = sum(1 for l in open(log, encoding="utf-8", errors="replace")
                         if l.startswith("#HB "))
             except OSError:
                 n = 0
+            if n != last:
+                print("  burst t=%.1f n=%d" % (time.time() - t0, n), flush=True)
             if n > 0 and n == last:
                 stable += 0.4
-                if stable >= 2.0:
+                if stable >= 3.5:
                     break
             else:
                 stable = 0.0
