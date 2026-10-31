@@ -91,16 +91,18 @@
 > 判据：**逐 call 的 post-state 摘要逐位相等 + 不崩溃 + 零调用函数清零**。「不崩溃」只是 harness 的运行条件，不是判据。
 > 与 M6 的关系：M7 是 T6.4 的工作台与判据；T7.0/T7.1 可立即并行，不改变 M6 的 T6.3→T6.4→T6.5 顺序，T7.6 并入 T6.5 整机门禁。
 
-- [ ] T7.0 跨模块 RTL 实测：双向分配/释放 10 万次、`ReallocMem`、异常跨模块 unwind 依据：F235、F233
+- [x] T7.0 跨模块 RTL 实测：双向分配/释放 10 万次、`ReallocMem`、异常跨模块 unwind 依据：F235、F233（**完成（F244–F248）**：默认 RTL 的双向交叉 10 万次都在首 5000 次内崩/挂，交叉 `ReAllocMem` 挂死；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。工作台 `tools/rtlprobe/` + `tools/rtlprobe_build.py`；F235 的"进程堆直通"推论已证伪）
 - [x] T7.1 应用层清单减法：用 patch 后 GLScene+LCL 骨架（F213）对 `game.exe` 跑 `code_match.py funcs`，sim≥0.95 标为「库，继承」、其余为待复原；输出 RVA/大小/sim/调用点数 依据：F236、F237、F238（**完成**：`tools/app_inventory.py` + `tools/glskel9.pas`（48 单元）⇒ 待复原 **1,012 函数 / 196,597 B / 60,868 指令**；清单 `mapping/app-functions.csv`，1,030 行含 18 个导入桩）
-- [ ] T7.2 `hosttrace`：`hostrun.exe`（CREATE_SUSPENDED + 注入）+ `hosttrace.dll`（读 `HT_CFG`、5 字节 jmp trampoline、`HTFFI01` 日志、VEH 兜底回落原函数） 依据：F232、F233、F234、F235
-- [ ] T7.3 双跑 A/B：R（原函数）与 S（我们的实现）同场景同输入，按 `(rva, call_seq)` 比 post-state（寄存器/栈出参/`fpu_cw`/ST0/watch CRC）；先量 A/A 地板 依据：F233、F234
+- [ ] T7.2 `hosttrace`：`hostrun.exe`（CREATE_SUSPENDED + 注入）+ `hosttrace.dll`（读 `HT_CFG`、5 字节 jmp trampoline、`HTFFI01` 日志、VEH 兜底回落原函数） 依据：F232、F233、F234、F235（**F244–F247 约束**：注入函数必须跑在宿主自己的线程上；模块内 try/except 全包，异常不跨模块；要么共享宿主 `TMemoryManager`+`TMemoryMutexManager`，要么零分配/只用 `GetProcessHeap` 自有块，绝不能用自身 RTL free 宿主分配）
+- [ ] T7.3 双跑 A/B：R（原函数）与 S（我们的实现）同场景同输入，按 `(rva, call_seq)` 比 post-state（寄存器/栈出参/`fpu_cw`/ST0/watch CRC）；先量 A/A 地板 依据：F233、F234（**F246**：只在宿主线程上跑；工作线程会与宿主单线程堆竞争，2 万次内崩）
 - [ ] T7.4 纯函数输入空间扫描：内嵌 A/B（快照→调我们的→比→恢复→返回原值），随机 + 边界 + 位模式 依据：F233
 - [ ] T7.5 按调用频次批量替换 + 覆盖率台账（每函数命中次数）→ 自动生成 `mapping/functions.csv`（L1 函数映射） 依据：F204、F232
 - [ ] T7.6 全替换混合产物（原版 LCL/GLScene + 我方应用层）整机回归，并入 T6.5 门禁 依据：F181、F194、F196、F213
 
 
 ## 变更记录
+
+- 2026-10-31 依据 F244–F248（**T7.0 完成：跨模块 RTL 实测**）：① **F235 的推论被否**：FPC 2.2.4 的 `GetMem/FreeMem` 走 `heap.inc` 通用堆（每模块私有 freelist + 32K chunk、`MaxKeptOSChunks=4`），`sysheap.inc` 只给 OS 层；异常链 `ExceptAddrStack`/`ExceptObjectStack` 是每模块 ThreadVar。② 新仪器 `tools/rtlprobe/`（`rplib.lpr` FPC DLL + `rphost.lpr` 同工具链 harness）+ `tools/rtlprobe_build.py`（`--build`/`--same`/`--host`）；b2 代理加 env 门控 `B2RTLPROBE_DLL`（主线程 `SetTimer` 调 `rp_host_entry`，导出表仍 87/87）。③ 判据：默认 RTL 下 `host GetMem→DLL FreeMem` 与反向各 10 万次都在首 5000 次内崩/挂；交叉 `ReAllocMem` 挂死；强制 chunk 归还时宿主 120 个空闲块悬垂（对照 0）。装宿主 `.data 0x5D5C50` 的 `TMemoryManager` + `0x5D5C80` 的 `TMemoryMutexManager` 后，真宿主主线程 A/B 10 万 + 交叉 realloc 2 万 PASS（同一份代码在工作线程 1–2 万次内崩）。④ 异常：同工具链 exe→DLL 未捕获（exit 217）、DLL→exe 只捕获到 `EAccessViolation`（AV 退出）、真宿主 DLL 内调 `fpc_raiseexception` 进程死；共享 MM 不改变。⑤ 对下游的硬约束：T7.2/T7.3 的替换函数必须跑宿主线程、模块内 try/except、共享 MM 或零分配。
 
 - 2026-10-31 依据 F243（**T6.3/a2 全量：52/52 关 call+args 与 `lua_probe` 相同**）：① `magnet.pas` 加 `LoadLevelScripts`（UTF-16LE `lvl_info.lvl`，`LevelFiles = "..."` 带空格）+ `LuaBindRunAll`（52 关独立 JSONL）+ `HOST_LUA_SELFTEST=4`。② `luabind.pas` 加 `ResetIds`（每关 id 从 1000 起）。③ 两侧固定 `math.randomseed(1)`（`AddFireWorks` 的随机尺寸）。④ 修 `tools/lua_probe_all.py` 的 `defined_entries` 拼接补换行（`BaseFsBeforeCreate` 被漏）。⑤ 判据：`levels=52 ok=52 fail=0` + 逐关 `lua_bind_ab.py` **52/52 `mismatches=0`**。下一步 T6.3-b：工厂语义（274 pending / 65 KB）+ b2 建体序对拍。
 

@@ -336,6 +336,23 @@ static void JoinDir(char* dst, const char* dir, const char* leaf) {
     dst[i + j] = 0;
 }
 
+/* T7.0 探针挂载：B2RTLPROBE_DLL 指向一个导出 rp_host_entry 的 FPC DLL。
+ * 默认零成本（不设环境变量不建线程），只改这一处，不动导出表与日志格式。 */
+static char g_probe_dll[MAX_PATH];
+
+/* 定时器回调在主线程的消息循环里执行：探针的堆操作与宿主主线程不并发，
+ * 这样测到的才是 RTL 语义本身，而不是两个线程抢同一个堆。 */
+static void CALLBACK RtlProbeTimer(HWND hwnd, UINT msg, UINT_PTR id, DWORD tick) {
+    HMODULE h;
+    FARPROC f;
+    (void)hwnd; (void)msg; (void)tick;
+    KillTimer(NULL, id);
+    h = LoadLibraryA(g_probe_dll);
+    if (!h) return;
+    f = GetProcAddress(h, "rp_host_entry");
+    if (f) ((void (__stdcall *)(void))f)();
+}
+
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
     (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) {
@@ -346,6 +363,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         int i;
 
         DisableThreadLibraryCalls(inst);
+        n = GetEnvironmentVariableA("B2RTLPROBE_DLL", g_probe_dll, MAX_PATH);
+        if (n > 0 && n < MAX_PATH)
+            SetTimer(NULL, 0, 1500, RtlProbeTimer);   /* 主线程有消息循环后才回调 */
         n = GetModuleFileNameA(inst, self, MAX_PATH);
         i = (int)(n ? n - 1 : 0);
         while (i > 0 && self[i] != '\\') --i;

@@ -13,7 +13,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 **本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **trunk r4700** 且 `GLLCLViewer.o` **95.6%**（F208）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
 
-台账 **210 条**（F01–F210，只增不减），计划 20/43 完成。
+台账 **248 条**（F01–F248，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
@@ -196,6 +196,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 | 阶段 | 状态 |
 |---|---|
 | **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 菜单层 ✅ 21/21（F225–F231）；T6.3 参数表 ✅ 144/144（F239）、a0 ✅（F240）、a1 ✅（F241）、a2 52/52 关 ✅（F242/F243），剩工厂语义 + 状态机；T6.4 应用层、T6.5 整机 A/B 排队 |
+| **M7 函数级（T6.4 的工作台）** | T7.0 ✅ 跨模块 RTL 实测（F244–F248）：默认 RTL 双向 10 万次首 5000 次内崩/挂、交叉 realloc 挂死、chunk 归还时宿主 120 个空闲块悬垂；共享宿主 `TMemoryManager`+`TMemoryMutexManager` 后真宿主主线程 A/B 10 万 + 2 万 PASS；异常跨模块两向不可捕获。剩 T7.2 注入/日志、T7.3 双跑、T7.4 扫描、T7.5 台账、T7.6 整机 |
 | M0/M1 资源与规格 | pak 格式闭环、Lua 导出、资产索引 ✅；T0.3（IDA 全量导出）/T0.4（oracle 采集）仍是历史遗留项，按需再补 |
 | M2 两个 DLL | b2：87/87、52 关全量 PASS、A/A 地板内；Squall：99/99、17 个宿主导入调用序 0 分歧（含优雅退出）、环回音频逐秒 corr 0.9998；**剩 PCM 逐位（F134，三条路线均否，F147）** 与长时回归（T2.6b） |
 | M3 宿主（C++ 仿写，**对照物**） | 路线切换后**不再是交付口径**：窗口层 15/15（F166）、主菜单渲染（F184）、纹理直读 pak（F187）、布局现算 + 二态悬停（F190，draw A/B 零偏差、**C++ 宿主截屏 mean\|Δ\| 1.088/255**）、Lua 5.1.5 + 52 关清单（F191）。这些能力在 M6 里用 GLScene 原库重做，判据换成逐调用/逐指令 |
@@ -247,6 +248,8 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 **当前主线是 M6（宿主重建）**：~~T6.2~~（菜单层已完成，F225）→ **T6.3 Lua 144 绑定 + 状态机（进行中：参数表 144/144（F239）+ a0（F240）+ a1（F241）+ a2 全量 52/52（F242/F243）；下一步工厂语义 + 对象表）** → T6.4 应用层复原（含关卡场景模型） → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
 
+**M7 已开工**：T7.0 ✅（F244–F248）。下一步 T7.2 `hosttrace`，硬约束：注入函数跑宿主自己的线程（F246：主线程 PASS / 工作线程 1–2 万次内崩）、模块内 try/except 全包（F247）、共享宿主 `TMemoryManager`（`.data 0x5D5C50`）+ `TMemoryMutexManager`（`0x5D5C80`）或零分配，绝不能用自身 RTL free 宿主分配（F244/F245）。
+
 > 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
 1. **T3.3 续：144 个绑定 + Lua 状态机**（F180/F191：清单与脚本加载已通，`mapping/lua-bindings.csv` 是绑定表；执行期需要 `Add_SimplePhysicObject`/`Attach_Shape*`/`Attach_SimpleGraphObject`/`Add_Joint*`/`Set_Phys*`，事件走 `Attach_ScriptToObject`）。**桩 harness 已落地（F224）**：`tools/lua_probe.cpp`（144 个桩 + JSONL）+ `tools/lua_probe_all.py`，**52/52 关脚本初始化 rc=0**。竖切已完成，下一步是把 `Add_*` 的实参/id 序列与**原版 b2 代理的建体调用序**对拍，再逐个把桩换成真实语义。
@@ -280,6 +283,9 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 8. 踩过的坑（复用清单）
 
+- **FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通**（F244）：`sysheap.inc` 只提供 `SysOSAlloc/SysOSFree`；`heap.inc` 是**每模块私有 freelist + 32K chunk + 共享 chunk 头**（`used`/`ocRecycleFlag`，`MaxKeptOSChunks=4`）。跨模块 free 只靠块头布局恰好相同，chunk 归还时另一侧 freelist 悬垂——实测 `host GetMem→DLL FreeMem` 与反向都在首 5000 次内崩/挂（F245/F246）。要么装宿主 `TMemoryManager`+`TMemoryMutexManager`（真宿主 `.data 0x5D5C50`/`0x5D5C80`），要么绝不交换堆所有权。
+- **异常不能跨模块**（F247）：`ExceptAddrStack`/`ExceptObjectStack` 是每模块 ThreadVar。exe 回调里 raise 用 DLL `try` 包住 → exit 217；DLL raise 被 exe 包住 → DLL 先走 unhandled，exe 只捕到 `EAccessViolation`。注入函数必须模块内 try/except 全包，异常对象也不跨模块。
+- **注入代码跑宿主线程**（F246）：同一份"共享 MM"代码在主线程 PASS，在工作线程 1–2 万次内崩——[推断] 宿主堆按单线程使用。b2 代理的 `B2RTLPROBE_DLL` 用主线程 `SetTimer` 进入，不要用 `CreateThread`。
 - **KnownDLL 决定能不能文件代理**：`dsound` 拦不住（F147，`ole32` 在 KnownDLLs），`opengl32` 能拦（F175）。动手前先查 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs`。
 - **代理日志必须逐条 WriteFile**（F139）：录制用 TerminateProcess 结束，用户态缓冲会整段丢。GL 代理额外做了 200 ms 周期 flush。
 - **单帧宿主抓 GL 必须 `GLPROXY_FLUSH=1`**（F222）：默认 flush 要等「下一条调用」，单帧进程画完就静默，`p.kill()` 再把 4 MB 缓冲整段丢掉 ⇒ 日志里"一条绘制调用都没有"，看起来像代理覆盖缺口（F215 就是这样误判的）。`<log>.wglproc` 另记 `wglGetProcAddress` 的解析归属：ret=0 是 1.1 核心名（静态导入，日志可见），落在驱动模块（`igxelpicd32.dll`）的是扩展名（直连，看不见）。
@@ -319,6 +325,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 |---|---|
 | 物理 DLL | `src/b2physics/b2physics.cpp`（87 导出）、`b2physics.def`、`vendor/box2d-2.0.2`（带 `altered (F###)` 注释） |
 | 音频 DLL | `vendor/squall`（上游 1.48，3 处 `altered (F136/F138/F148)`）、`vendor/libogg-1.3.5`、`vendor/libvorbis-1.3.7` |
+| 跨模块 RTL 探针 | `tools/rtlprobe/rplib.lpr`（FPC DLL：`rp_*` + `rp_host_entry`，宿主 RVA 常量）、`tools/rtlprobe/rphost.lpr`（同工具链 harness）、`tools/rtlprobe_build.py`（`--build`/`--same`/`--host`）；代理 env `B2RTLPROBE_DLL` 用主线程 `SetTimer` 进入 |
 | Lua | `vendor/lua-5.1.5`（官方 tar.gz md5 `2e115fe26e435e33b0d5c022e4490567`，**未改动**）→ CMake target `lua51` + `luac` |
 | 宿主（M6 主线） | `src/host_lcl/magnet.pas`（窗口+场景装配+Lua 自检）、`src/host_lcl/menuscene.pas`（菜单 19 层 HUD 精灵 + GLFilePNG 纹理）、`src/host_lcl/pakfile.pas`（pak 只读）、`src/host_lcl/frameshot.pas`（自读帧写 BMP）、`src/host_lcl/luadll.pas`（lua51.dll 动态加载）、`src/host_lcl/luabind.pas`（生成物：144 绑定壳）、`src/host_lcl/lualog.pas`（绑定 JSONL） |
 | 宿主 | `src/host/main.cpp`（窗口/消息）、`src/host/gl_render.cpp`（WGL + 菜单渲染）、`src/host/pak.{h,cpp}`（pak 只读）、`src/host/wic_decode.{h,cpp}`（WIC 解码）、`src/host/texture_table.h`（生成物） |
@@ -338,6 +345,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 4. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误）与 **F202–F208**（L2-B 工具链考古），再读计划 §变更记录 最近三条。
 5. **新宿主先跑一遍**：`python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas` → `wincompare --ours build/host_lcl --ours-exe magnet.exe` 应得 `fields=15 diffs=0`（F214）。
 6. 按 §6 的 **M6** 队列开工（T6.3 绑定外壳）；先跑 `python tools/lua_binding_args.py --check-probe work/lua_probe/*.jsonl`，应得 `rows=144 ok=131 noargs=10 dynamic=3 partial=0 conflicts=0 factories=86` 与 `probe_calls=12593 kind_mismatch=0 arity_gt=0 known_extra=3`（F239）。Lua 接线自检：`HOST_LUA_SELFTEST=1 build/host_lcl/magnet.exe` ⇒ exit=0、`C:\tmp\magnet_lua_selftest.log` 为 `ok=TRUE result=5 top=1`（F240；运行目录需 `lua51.dll`）；绑定注册：`HOST_LUA_SELFTEST=2 HOST_LUA_DIR=work/pak_gametop` ⇒ `bindings=144 loaded=3/3`（F241）；52 关对拍：`HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR=C:\tmp\magnet_bind` ⇒ `levels=52 ok=52 fail=0`；逐关 `python tools/lua_bind_ab.py work/lua_probe/lvlNN.jsonl C:/tmp/magnet_bind/lvlNN.jsonl` 应得 52/52 `mismatches=0`（F242/F243）。改计划记得追加变更记录并写 `依据：F##`。
+7. **T7.0 工作台**：`python tools/rtlprobe_build.py --build --same splitctl release mm-heapa` ⇒ `splitctl PASS`、`release FAIL`（`dups=0`、`host_free_in_chunk=120`）、`mm-heapa PASS`（F244–F248）；真宿主：`python tools/rtlprobe_build.py --host work/e2e_game --mode mmrec --log work/rtl_mmrec.log` ⇒ `A/B 10 万 + C 2 万 ok=True`（`.data 0x5D5C50`/`0x5D5C80`，主线程）。
 
 ## 11. 已拍板：宿主走 FPC/LCL + GLScene 重建（原"要不要转正"）
 
