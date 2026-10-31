@@ -36,7 +36,7 @@ python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 
 python tools/gl_seq_ab.py work/aa_gl_a.bin work/aa_gl_b.bin --a-skip 1 --b-skip 1 --frames 13 --float-tol 1e-3
 ```
 
-**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 的"无 swap/glClear"是缓冲尾巴（F222 勘误 F215），加 `GLPROXY_FLUSH=1` 即可抓到。**T6.2 菜单层已完成（F225–F230）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 **19 个 `TGLHUDSprite`**（设计空间 1018×739，创建顺序=原版 draw 顺序）；新仪器 `tools/menu_draw_ab.py` 按**素材名**逐 draw 比 ⇒ **21/21 零差**（dbbox=0/duv=0/dα=0，含用户名文本层的两条 `gulim1.png`）。文本层：`TFontTable` 解析 `gulim1.dat`（258 条 32 B，`advance==w`、`v0` 落在四边形下边）+ `TMagTextSprite`（`TGLHUDSprite` 子类，一次 `glBegin` 画 N 个字模 quad；原版同一串画两遍 alpha=1/0，F231）。像素自读帧 `HOST_DUMP_FRAME`（`src/host_lcl/frameshot.pas`）mean|Δ| **2.45/255**，残差主要是光标不旋转与下采样。**下一步：T6.3（Lua 144 绑定语义）**——参数表已完成 **144/144**（F239，`mapping/lua-binding-args.csv`），下一步按表生成绑定外壳 + 接 `lua51` + 对象表/工厂语义；关卡场景模型归 T6.4。
+**新宿主**：`src/host_lcl/magnet.pas` 已接相机（`TGLCamera.Create(S)` + `S.Objects.AddChild(Cam)` + `V.Camera := Cam`）并在 `Application.Run` 前 `V.Render`；`wincompare` 仍 **15/15**。**视口/呈现已证通**（F218）：设 `V.Buffer.BackgroundColor := clBlack` 后抓屏主体 `(0,0,0)`；加一个红色 `TGLCube`（`Diffuse/Emission` 红、`Lighting := False`）后 `work/host_cube2.png` 有 **3,306 个纯红 (255,0,0)** 像素。**正交相机也已接通**（F219）：`csCustom` + `glOrtho(±26.862, ±19.5)`，1 单位立方体在 1527×1108 抓图里占 **28×29 物理像素**（≈18.95 px/unit ×1.5 DPI）。**纹理直读 pak 也已打通**（F220）：`src/host_lcl/pakfile.pas` 解析 v0.2，`mm_cent2.png` 上到立方体，抓屏中心 (146,125,101) 木纹。**37 条启动纹理全部可解码**（F221）：`HOST_TEX_SELFTEST=1` 日志 `loaded=37/37`（PNG+JPG）。之前的 240 灰是 GLScene 默认背景 `clBtnFace`，不是 DC 失效（F217 已勘误）。`work/host_gl_final.bin` 的"无 swap/glClear"是缓冲尾巴（F222 勘误 F215），加 `GLPROXY_FLUSH=1` 即可抓到。**T6.2 菜单层已完成（F225–F230）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 **19 个 `TGLHUDSprite`**（设计空间 1018×739，创建顺序=原版 draw 顺序）；新仪器 `tools/menu_draw_ab.py` 按**素材名**逐 draw 比 ⇒ **21/21 零差**（dbbox=0/duv=0/dα=0，含用户名文本层的两条 `gulim1.png`）。文本层：`TFontTable` 解析 `gulim1.dat`（258 条 32 B，`advance==w`、`v0` 落在四边形下边）+ `TMagTextSprite`（`TGLHUDSprite` 子类，一次 `glBegin` 画 N 个字模 quad；原版同一串画两遍 alpha=1/0，F231）。像素自读帧 `HOST_DUMP_FRAME`（`src/host_lcl/frameshot.pas`）mean|Δ| **2.45/255**，残差主要是光标不旋转与下采样。**T6.3 进行中：参数表 144/144（F239）+ a0 宿主接通 Lua（F240，`HOST_LUA_SELFTEST` = result 5）；下一步 a1：生成 `luabind.pas`（144 个 `cdecl` 壳 + `RegisterBindings`）并做 52 关 JSONL 对拍**；关卡场景模型归 T6.4。
 
 **关键覆盖边界（F222/F223，勘误 F215）**：GL 代理**能**看见宿主的绘制调用——之前"没有 glClear/glBegin"是缓冲尾巴被 `p.kill()` 丢掉的假象（默认每 200 ms 或下一条调用才 flush）。单帧/短命进程抓包**必须** `GLPROXY_FLUSH=1`；同一次启动可抓到 `glBegin=2 / glVertex3f=48 / glClear=2`，两次启动 3,526 条名字序列逐条相同（A/A = 0）。仍看不见的只有扩展函数：`wglGetProcAddress` 的 3,158 次解析里 1,756 次返回 NULL（1.1 核心名，走静态导入 = 代理），1,402 次返回 `igxelpicd32.dll`（扩展名直连；渲染路径按 F178 不用扩展）。因此 T6.2 验收仍按三层：① 库层 `code_match funcs`（已过）② 场景参数（相机/对象/变换）③ 直接 GL 调用序（`gl_seq_ab.py`；宿主日志没有 `wglSwapBuffers`，需要"整段/无帧边界"模式）——像素只作验收。
 
@@ -195,7 +195,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 | 阶段 | 状态 |
 |---|---|
-| **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 菜单层 ✅ 21/21（F225–F231）；T6.3 参数表 ✅ 144/144（F239），剩绑定外壳 + 状态机；T6.4 应用层、T6.5 整机 A/B 排队 |
+| **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 菜单层 ✅ 21/21（F225–F231）；T6.3 参数表 ✅ 144/144（F239）、a0 宿主接通 Lua ✅（F240），剩绑定外壳 + 状态机；T6.4 应用层、T6.5 整机 A/B 排队 |
 | M0/M1 资源与规格 | pak 格式闭环、Lua 导出、资产索引 ✅；T0.3（IDA 全量导出）/T0.4（oracle 采集）仍是历史遗留项，按需再补 |
 | M2 两个 DLL | b2：87/87、52 关全量 PASS、A/A 地板内；Squall：99/99、17 个宿主导入调用序 0 分歧（含优雅退出）、环回音频逐秒 corr 0.9998；**剩 PCM 逐位（F134，三条路线均否，F147）** 与长时回归（T2.6b） |
 | M3 宿主（C++ 仿写，**对照物**） | 路线切换后**不再是交付口径**：窗口层 15/15（F166）、主菜单渲染（F184）、纹理直读 pak（F187）、布局现算 + 二态悬停（F190，draw A/B 零偏差、**C++ 宿主截屏 mean\|Δ\| 1.088/255**）、Lua 5.1.5 + 52 关清单（F191）。这些能力在 M6 里用 GLScene 原库重做，判据换成逐调用/逐指令 |
@@ -245,7 +245,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 ## 6. 排队（建议顺序）
 
-**当前主线是 M6（宿主重建）**：~~T6.2~~（菜单层已完成，F225）→ **T6.3 Lua 144 绑定 + 状态机（进行中：参数表已完成 144/144，F239；下一步按表生成绑定外壳 + 接 `lua51` + 对象表/工厂语义）** → T6.4 应用层复原（含关卡场景模型） → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
+**当前主线是 M6（宿主重建）**：~~T6.2~~（菜单层已完成，F225）→ **T6.3 Lua 144 绑定 + 状态机（进行中：参数表 144/144（F239）+ a0 宿主接通 Lua（F240）；下一步 a1 按表生成 `luabind.pas` + 52 关 JSONL 对拍 + 对象表/工厂语义）** → T6.4 应用层复原（含关卡场景模型） → T6.5 整机 A/B。下面 1–7 是 **C++ 路线/对照物** 的队列，路线切换后降级为参考。
 
 > 主交付线仍是下面 1–7。**L2-B 的版本夹逼已经做完**（F211，见 §0.1）：GLScene = **v1.1 / trunk r5000 一带**，1,043 个函数只剩 **12 个**（2,448 B）对不上，且已确证是原版本地补丁（`SetHSpace` 的钳位在 trunk r4600–r6150 里不存在）。**下一步**（若继续 L2-B）：把这 12 个补丁函数按反汇编复原（2.4 KB，`tools/code_match.py funcs --unit <U> --top 400` 能给出逐个 sim 与位移，配合 IDA 反编译），然后剩下的就只有应用代码（≤390 KB）。⚠️ 旧的逐单元百分比已作废（F209）。
 
@@ -305,6 +305,8 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 - **trunk 2011+ 用了泛型**（`GThreadList<T>`）：FPC 2.2.4 直接语法错误 ⇒ 原版不可能来自 2011 年的 trunk，别往那个方向找。
 - **老 GLScene 的 `GLFilePNG` 会拉进 `LIBPNG.pas`**，后者在 FPC 下 `FORWARD not allowed in interface section`；量体量时把该单元摘掉即可。
 - **FPC 2.2.4 下 `Pointer` → 过程变量赋值是硬错误**：编 GLScene 必须 `-Mdelphi`（objfpc 会在 `OpenGL1x.pas` 报几十条 "Incompatible types: got Pointer"）。
+- **FPC 2.2.4 无参函数指针必须写 `()`**：`L := A.NewState;` 取到的是函数地址本身（实测 = DLL 基址+0x13520），不是调用；症状是 `lua_gettop` 返回垃圾、`luaL_openlibs` 在 DLL 内访问冲突（F240）。
+- **LCL/GLScene 程序里 `Halt` 会触发 finalization 崩溃**（退出码 217）：自检/一次性模式用 `ExitProcess` 直接收尾（F240）。
 
 ## 9. 关键文件索引
 
@@ -330,7 +332,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 3. `python tools/code_match.py cover bin/gametop/game.exe work/toolchain_probe/o_r4700final/glskel5.exe --tail 0x521000` → 应复现 **归因 72.8% / 目标侧 59.0% / 尾部 19.9%**；再跑 `funcs --unit controls.o` 应得 **99.9% ≥0.95**（`--unit GLObjects.o` 应得 76.7%）。数字对不上说明工具链被换过（多半是 LCL 被加了 `-O1` 或用错了 `-Fu`）。
 4. 读 `docs/facts.md` 的 F175–F187（GL 结论 + WIC 解码 + prim 勘误）与 **F202–F208**（L2-B 工具链考古），再读计划 §变更记录 最近三条。
 5. **新宿主先跑一遍**：`python tools/glskel_build.py work/glscene_patch build/host_lcl src/host_lcl/magnet.pas` → `wincompare --ours build/host_lcl --ours-exe magnet.exe` 应得 `fields=15 diffs=0`（F214）。
-6. 按 §6 的 **M6** 队列开工（T6.3 绑定外壳）；先跑 `python tools/lua_binding_args.py --check-probe work/lua_probe/*.jsonl`，应得 `rows=144 ok=131 noargs=10 dynamic=3 partial=0 conflicts=0 factories=86` 与 `probe_calls=12593 kind_mismatch=0 arity_gt=0 known_extra=3`（F239）。改计划记得追加变更记录并写 `依据：F##`。
+6. 按 §6 的 **M6** 队列开工（T6.3 绑定外壳）；先跑 `python tools/lua_binding_args.py --check-probe work/lua_probe/*.jsonl`，应得 `rows=144 ok=131 noargs=10 dynamic=3 partial=0 conflicts=0 factories=86` 与 `probe_calls=12593 kind_mismatch=0 arity_gt=0 known_extra=3`（F239）。Lua 接线自检：`HOST_LUA_SELFTEST=1 build/host_lcl/magnet.exe` ⇒ exit=0、`C:\tmp\magnet_lua_selftest.log` 为 `ok=TRUE result=5 top=1`（F240；运行目录需 `lua51.dll`）。改计划记得追加变更记录并写 `依据：F##`。
 
 ## 11. 已拍板：宿主走 FPC/LCL + GLScene 重建（原"要不要转正"）
 

@@ -189,7 +189,7 @@ endif()
 # 依据 docs/facts.md F04：游戏逻辑是 pak 内明文 Lua 5.1 源码。宿主用自己的 Lua 跑，
 # 不依赖游戏目录里的 lua51.dll（两版发行的该 DLL md5 不同，见 F12）。
 set(LUA_ROOT "${CMAKE_SOURCE_DIR}/vendor/lua-5.1.5/src")
-add_library(lua51 STATIC
+set(LUA_SRC
   ${LUA_ROOT}/lapi.c ${LUA_ROOT}/lcode.c ${LUA_ROOT}/ldebug.c ${LUA_ROOT}/ldo.c
   ${LUA_ROOT}/ldump.c ${LUA_ROOT}/lfunc.c ${LUA_ROOT}/lgc.c ${LUA_ROOT}/llex.c
   ${LUA_ROOT}/lmem.c ${LUA_ROOT}/lobject.c ${LUA_ROOT}/lopcodes.c ${LUA_ROOT}/lparser.c
@@ -198,9 +198,21 @@ add_library(lua51 STATIC
   ${LUA_ROOT}/lauxlib.c ${LUA_ROOT}/lbaselib.c ${LUA_ROOT}/ldblib.c ${LUA_ROOT}/liolib.c
   ${LUA_ROOT}/lmathlib.c ${LUA_ROOT}/loslib.c ${LUA_ROOT}/ltablib.c ${LUA_ROOT}/lstrlib.c
   ${LUA_ROOT}/loadlib.c ${LUA_ROOT}/linit.c)
+add_library(lua51 STATIC ${LUA_SRC})
 set_target_properties(lua51 PROPERTIES
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_include_directories(lua51 PUBLIC ${LUA_ROOT})
+
+# lua51.dll：FPC 宿主（magnet.exe）用 `external 'lua51.dll'` 加载。
+# LUA_BUILD_AS_DLL 让带 LUA_CORE/LUA_LIB 的源文件导出 lua_*（luaconf.h:154-162）；
+# 导入库改名 lua51_dll.lib，避免与上面的静态库 lua51.lib 同名。
+add_library(lua51_dll SHARED ${LUA_SRC})
+target_compile_definitions(lua51_dll PRIVATE LUA_BUILD_AS_DLL)
+target_include_directories(lua51_dll PUBLIC ${LUA_ROOT})
+set_target_properties(lua51_dll PROPERTIES
+  OUTPUT_NAME lua51
+  ARCHIVE_OUTPUT_NAME lua51_dll
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # luac：Lua 5.1 的语法检查器/编译器；tools/check_lua.py 用它把 pak 里的脚本全量编译一遍
 add_executable(luac ${LUA_ROOT}/luac.c ${LUA_ROOT}/print.c)
