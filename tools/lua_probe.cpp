@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
+#include <cmath>
 #include <map>
 #include <string>
 #include <vector>
@@ -58,9 +59,13 @@ static int l_stub(lua_State* L) {
     for (int i = 1; i <= n; ++i) {
         if (i > 1) fputc(',', g_log);
         switch (lua_type(L, i)) {
-        case LUA_TNUMBER:
-            fprintf(g_log, "%.9g", (double)lua_tonumber(L, i));
+        case LUA_TNUMBER: {
+            double d = (double)lua_tonumber(L, i);
+            /* Lua 表达式会算出 NaN/Inf（如 0/0）；printf 的 "-nan(ind)" 不是合法 JSON */
+            if (std::isfinite(d)) fprintf(g_log, "%.9g", d);
+            else fputs("null", g_log);
             break;
+        }
         case LUA_TSTRING:
             fputc('"', g_log);
             JsonEscape(lua_tostring(L, i));
