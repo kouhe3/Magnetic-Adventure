@@ -107,8 +107,16 @@ def gen_binding(row):
     lines.append("var")
     lines.append("  id: Integer;")
     lines += var_lines
+    if name == "Attach_ScriptToObject":
+        lines.append("  s2, s3: string;")
     lines.append("begin")
     lines.append("  LuaLogBegin(L, '%s');" % name)
+    if name == "Attach_ScriptToObject":
+        # 必须排在参数读取之后：v1/v2/v3 由下面的读参语句赋值。
+        at = len(fixed)
+        body[at:at] = ["  if v2 <> nil then s2 := v2;",
+                       "  if v3 <> nil then s3 := v3;",
+                       "  EventsAdd(v1, s2, s3);"]
     lines += body
     lines.append("end;")
     return "\n".join(lines)
@@ -126,7 +134,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"

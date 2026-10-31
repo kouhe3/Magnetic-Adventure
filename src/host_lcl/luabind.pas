@@ -5,7 +5,7 @@ unit LuaBind;
 // 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。
 interface
 
-uses LuaDll, LuaLog;
+uses LuaDll, LuaLog, LuaEvents;
 
 function NextId(const Name: string): Integer;
 procedure ResetIds;
@@ -2213,11 +2213,15 @@ var
   v1: Integer;
   v2: PChar;
   v3: PChar;
+  s2, s3: string;
 begin
   LuaLogBegin(L, 'Attach_ScriptToObject');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptStr(L, 2);
   v3 := LuaOptStr(L, 3);
+  if v2 <> nil then s2 := v2;
+  if v3 <> nil then s3 := v3;
+  EventsAdd(v1, s2, s3);
   id := NextId('Attach_ScriptToObject');
   Result := 0;
   LuaLogEnd(id);

@@ -364,3 +364,23 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 | B 把 L2-B 转正 | 改 `requirements.md` 的 L2-B 行为"未测量/进行中"，主线切成"库层收敛 + 应用代码复原" | 主机工作量从"写 C++ 宿主"变成"复原 Pascal 源码"，前期还要先把 GLScene/LCL 的残余漂移收敛到 >99% |
 
 **建议**：先做 §6 那条"函数级归因"的单单元竖切（半个到一个会话），拿到"是几个函数还是另一代"的答案再决定。那个答案直接决定 B 的工程量，也避免在没有数据的情况下改定稿文档。
+## 12. 最近一轮（2026-10-31 晚，T6.3/b2 事件派发竖切）
+
+**一句话**：`Attach_ScriptToObject` 不再只是桩——登记进 `src/host_lcl/luaevents.pas`，`HOST_LUA_FIRE` 可注入 `OnAddContact`，lvl49 的回调会真正执行并产出与原版 objlog 同名同序的 2 个工厂调用（F273/F274）。
+
+```bash
+# 单关 + 注入事件（index 49 = lvl_o7,lvl_e7,basefs；1016 = gLSystem.bBigDial）
+HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=49 HOST_LUA_DIR=work/pak_gametop \
+  HOST_LUA_LOG='C:\tmp\magnet_evt\lvl49.jsonl' \
+  HOST_LUA_FIRE='1016:OnAddContact:gLSystem.bGearB' build/host_lcl/magnet.exe
+python tools/lua_event_check.py work/lua_probe/lvl49.jsonl C:/tmp/magnet_evt/lvl49.jsonl \
+  --objlog work/objlog_lvl49.jsonl        # 期望 PASS 1/1
+
+# 52 关回归（改生成器/绑定后必跑）
+HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR='C:\tmp\magnet_bind2' \
+  build/host_lcl/magnet.exe               # 期望 levels=52 ok=52 fail=0
+```
+
+**下一步（T6.3 剩项）**：把注入事件换成 b2 世界的真实接触（工厂语义 274 pending / 65 KB → b2 建体序 → `OnAddContact` 由物理层触发）；其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
+
+**坑**：生成器里登记调用必须写在参数读取**之后**（放在前面会读到 0，`EventsFire` 报 `no binding for 1016/...`）；`luaevents.pas` 是新增文件，记得 CRLF。

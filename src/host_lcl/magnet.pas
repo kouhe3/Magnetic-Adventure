@@ -24,7 +24,7 @@ program magnet;
 uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
-  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind;
+  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents;
 
 type
   TCameraEvents = class
@@ -288,6 +288,8 @@ var
   L: TLuaState;
   Rc, i: Integer;
   Dir, Path, Content: string;
+  FireSpec, EvName, Body2Expr, FireErr: string;
+  P1, P2, FireObjId, Fired: Integer;
 begin
   Result := '';
   Log := '';
@@ -311,6 +313,7 @@ begin
     if Rc <> 0 then
       Lua.SetTop(L, 0);
     ResetIds;
+    EventsReset;
     RegisterBindings(L);
     Dir := EnvStr('HOST_LUA_DIR');
     if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
@@ -348,6 +351,29 @@ begin
       end
       else
         Lua.SetTop(L, -2);
+    end;
+    // T6.3 接触回调竖切：HOST_LUA_FIRE="<objId>:<Event>:<Body2 的 Lua 表达式>"。
+    // 物理层还没有，事件由自检注入；判据见 tools/lua_event_check.py。
+    FireSpec := EnvStr('HOST_LUA_FIRE');
+    if FireSpec <> '' then
+    begin
+      P1 := Pos(':', FireSpec);
+      P2 := 0;
+      if P1 > 0 then
+        P2 := Pos(':', Copy(FireSpec, P1 + 1, MaxInt));
+      if (P1 > 0) and (P2 > 0) then
+      begin
+        FireObjId := StrToIntDef(Copy(FireSpec, 1, P1 - 1), -1);
+        EvName := Copy(FireSpec, P1 + 1, P2 - 1);
+        Body2Expr := Copy(FireSpec, P1 + P2 + 1, MaxInt);
+        if EventsFireExpr(L, FireObjId, EvName, Body2Expr, Fired, FireErr) then
+          Log := Log + 'fired=' + IntToStr(Fired) + ' event=' + EvName +
+            ' obj=' + IntToStr(FireObjId) + ' body2=' + Body2Expr + #13#10
+        else
+          Log := Log + 'fire_error=' + FireErr + #13#10;
+      end
+      else
+        Log := Log + 'fire_error=bad spec ' + FireSpec + #13#10;
     end;
     Result := 'ok';
   finally
@@ -481,6 +507,37 @@ begin
     end;
     Result := 'levels=' + IntToStr(Levels.Count) + ' ok=' + IntToStr(ok) +
       ' fail=' + IntToStr(fail);
+  finally
+    Levels.Free;
+  end;
+end;
+
+// 单关运行（自检 5）：Index 是 lvl_info.lvl 里的顺序（0 起），脚本列表与 a2 相同。
+// 配合 HOST_LUA_FIRE 用来验证事件派发（T6.3 接触回调）。
+function LuaBindRunLevel(Index: Integer; out Log: string): string;
+var
+  Levels, Scripts: TStringList;
+  Dir: string;
+begin
+  Result := '';
+  Log := '';
+  Dir := EnvStr('HOST_LUA_DIR');
+  if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
+    Dir := Dir + '\';
+  Levels := LoadLevelScripts(Dir + 'lvl_info.lvl');
+  try
+    if (Index < 0) or (Index >= Levels.Count) then
+    begin
+      Result := 'level=out_of_range total=' + IntToStr(Levels.Count);
+      Exit;
+    end;
+    Scripts := SplitList(Levels[Index]);
+    try
+      Result := 'level=' + IntToStr(Index) + ' ' +
+        LuaBindRun(Scripts, EnvStr('HOST_LUA_LOG'), Log);
+    finally
+      Scripts.Free;
+    end;
   finally
     Levels.Free;
   end;
@@ -624,6 +681,11 @@ begin
       else if EnvStr('HOST_LUA_SELFTEST') = '4' then
       begin
         WriteLn(tf, LuaBindRunAll(log));
+        Write(tf, log);
+      end
+      else if EnvStr('HOST_LUA_SELFTEST') = '5' then
+      begin
+        WriteLn(tf, LuaBindRunLevel(StrToIntDef(EnvStr('HOST_LUA_LEVEL'), 48), log));
         Write(tf, log);
       end
       else
