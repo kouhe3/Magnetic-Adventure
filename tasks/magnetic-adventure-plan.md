@@ -49,7 +49,7 @@
 - [ ] T3.5 文本渲染路径 依据：F11、F192（**路线已定**：文字 = pak 内 `*.dat` 32 B/字记录表（`u32 字符码; f32 u0,v0,u1,v1; u32 w,h,flag`，UV 以 512 归一化），抓包 'o' quad 与表内字符 111 记录**逐位相同**、`advance==w`、行高 `==h` ⇒ 解析 `.dat` 即可，不需要反推字宽；剩：行距/换行/左右对齐、关卡字体 `pt_sans*.dat`（3176 B，非 32 B 对齐，格式未解）与 `gulim2.dat`（32 条））
 - [ ] T3.6 配置/存档写入（`cfg.ini` 等） 依据：F01
 - [x] T3.8 复原原版对 GLScene 的本地补丁（库层收口） 依据：F211、F212、F213（**完成：12 个残差函数 → 0**。补丁入库 `patches/glscene-v11-game.patch`（5 文件 / 6.4 KB）：`SetHSpace`/`SetVSpace` 钳位到 ≥1、文本 API 改 `WideString`、`CalcStringWidth`/`RenderString` 声明 `virtual`、`TGLHUDText.FText: WideString`、`DestroyRC` 去掉 `RemoveBuffer`、`Assign` 加 `TGLPNGImage` 分支（+`uses GLFilePNG`）、`LMEraseBkgnd` 恒 1、`LMPaint` 去掉 `WM_SIZE` workaround。判据：pristine v1.1 + `patch -p1` + `tools/glskel_build.py` → `code_match funcs` 扫 12 个单元 = **1,054 个函数 / 0 个 sim<0.95**（构建两次复现）。副产品：原版**链接了 `GLFilePNG`**（推翻 F208 的"编不了"）。边界：只覆盖骨架链接的 12 个单元）
-- [ ] T3.9 宿主实现路线拍板：C++ 仿写 vs FPC/LCL + GLScene 重建 依据：F202、F211、F213（**待拍板**。C++ 路线现状：`src/host` 已过窗口 15/15、菜单 mean|Δ| **1.088/255**（F190）——那是**仿写的残差**，且 `verify.py` 里没有像素门禁。FPC 路线现状：库层已 100% 复原（F213），宿主可以就是"LCL 窗体 + GLScene 视口 + 144 个 Lua 绑定"，渲染/文本/视口行为由同一份库产出，判据从"像素 diff"换成"逐调用 + 逐指令 + 像素验收"。**决策点 = HANDOFF §11**；两边的差别不是"能不能"，是"要不要把已有 C++ 代码扔掉"）
+- [x] T3.9 宿主实现路线拍板：C++ 仿写 vs FPC/LCL + GLScene 重建 依据：F202、F211、F213（**已拍板：选 B（FPC/LCL + GLScene 重建），2026-10-30，见 HANDOFF §11**。C++ 路线现状：`src/host` 已过窗口 15/15、菜单 mean|Δ| **1.088/255**（F190）——那是**仿写的残差**，且 `verify.py` 里没有像素门禁，保留作对照物。FPC 路线现状：库层已 100% 复原（F213），宿主 = "LCL 窗体 + GLScene 视口 + 144 个 Lua 绑定"，渲染/文本/视口行为由同一份库产出，判据从"像素 diff"换成"逐调用 + 逐指令 + 像素验收"（M6 已开工））
 - [x] T3.7 用同版工具链测出宿主的"库/应用"分界 + 库层版本（L2-B 度量前置） 依据：F202–F211（**已完成**：① 尺寸分界 `.text` `0x521000`，应用 ≤389,815 B（F204）；② 工具链开关全对——LCL 逐指令 99.9–100%（F210）；③ **版本夹逼（F211）**：`tools/ver_bisect.py` 扫 r4700→r5025，跳变点 r4850/r4900/r4980/r5002 ⇒ GLScene = **v1.1 / trunk r5000 一带**（v1.1 发布包与 r5002–r5025 数字完全相同：100/100/98.8/84.9/84.6/99.7）；④ 残余：11 个单元 1,043 个函数里 **只有 12 个（2,448 B）sim<0.95**，全在文本/HUD/视口（`RenderTextAtPosition`、`RenderString` 助手、`DoRender`、`CalcStringWidth`、`SetHSpace/SetVSpace`、`LMPaint`、`LMEraseBkgnd`、`TGLPictureImage.Assign`、`DestroyRC`）；`SetHSpace` 的下限钳位在 trunk r4600–r6150 **不存在** ⇒ 这 12 个是**原版本地补丁**；⑤ F208 的"r4700 最 fit"被 F211 取代（glX 名字在 Win32 下被编掉，指纹假差异）。**下一步**：把 12 个补丁函数从反汇编复原（2.4 KB），再评估应用代码的复原形态）
 
 ## M4 行为对齐验收
@@ -61,7 +61,7 @@
 - [ ] T4.5 映射覆盖率报告 依据：F01
 - [ ] T4.10 宿主 exe 的 A/B（exe 不能像 DLL 那样替换，改为"同脚本串行跑 + 在边界对拍"） 依据：F154、F166、F172、F174（四层判据，从便宜到贵：① 窗口层已可用——`tools/wincompare.py` 本身就是 exe-vs-exe，15 字段 diffs=0；② **DLL 调用层**：代理 DLL 与宿主无关，同一份 b2Physics/Squall 代理分别装进原版目录与自建宿主目录，两边跑同一脚本，用 `squall_ab` 的结构对拍比"调用序列/返回值"；③ 状态层：跑完 diff 存档（`tools/profile.py` 解码后逐键比）；④ 输出层：固定尺寸/DPI 的像素 diff 与环回音频 diff（只能给输出等价）。三个约束：单实例→串行且跑前 kill 干净；存档共享→每次备份复原；输入一致性→复用 `e2e_tutorial` 的脚本（F174 已证两次运行日志字节数相同））
 - [x] T4.6 重录 `Get the Map` / `The First Totem`（现只剩 v01 日志，不可作判据） 依据：F99、F100（已完成，F101）
-- [ ] T4.7 （路线已作废）用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108（dist_probe 的 cdecl 调用约定错误见 F112；真实根因是 b2Distance 早退阈值，F122 已修）
+- [x] T4.7 （**已关闭：路线作废，根因已修**）原任务是用 `tools/dist_probe.py` 沿法线平移 B 扫出原版 `b2Distance` 误判为 0 的边界，并调两边内部 `Support`(`0x100144C0`)/`ProcessTwo`(`0x10009160`)/`ProcessThree`(`0x100092F0`) 定位误判发生在哪一步；反汇编锚点：poly-poly 泛型 `0x1000AB00`/`0x1000A5E0`、`b2TimeOfImpact=0x10018B20`、`b2_World_Step=0x10001490` 依据：F102、F107、F108（dist_probe 的 cdecl 调用约定错误见 F112；**根因是 b2Distance 早退阈值，F122 已修 ⇒ 无需再扫边界**）
 - [ ] T4.8 残余 1 ULP：`Good Shot!` 的 `lvy`（首发 4847、bad 4,825，该录制 A/A 地板 0） 依据：F128
 - [ ] T4.9 PCM 逐位（阻塞：dsound 文件代理 / 代理内 IAT / 日志重放三条路线均否） 依据：F134、F147、F195（**F195 追加**：环回 A/A 自身就不逐位（52.5% 样本差、`max|Δ|` 433，与 A/B 同量级）⇒ loopback 只作波形等价证据；逐位改抓 DLL 写进 DSound 缓冲区的字节，vtable hook 只替换返回对象的方法、不拦 `CoCreateInstance`）
 
@@ -101,6 +101,8 @@
 
 
 ## 变更记录
+
+- 2026-10-31 依据 F122/F213（**清两条与事实不符的未勾选项**）：① T3.9 标完成——2026-10-30 已拍板选 B（FPC/LCL + GLScene 重建），M6 已按该路线开工（T6.1/T6.2 完成），C++ 宿主保留作对照物（HANDOFF §11）。② T4.7 标关闭——真实根因是 `b2Distance` 早退阈值（F122 已修），"扫误判边界"的路线作废，不再执行。两条只在复选框与备注上收敛，判据与结论不变；`[x]` 只增不减。
 
 - 2026-10-31 依据 F273/F274（**T6.3/b2 第一刀：事件派发竖切，接触回调可注入执行**）：① 新增 `src/host_lcl/luaevents.pas`（`Attach_ScriptToObject` 登记 + 按 `(objId,event)` 派发；派发前设全局 `self`，再以 `(objId, Body2)` 调登记的全局函数）。② `tools/gen_lua_bindings.py` 把 `Attach_ScriptToObject` 接进登记表——插入点必须在**参数读取之后**（先前放在读参前，`v1/v2/v3` 全 0，派发报 `no binding`）；JSONL 日志与返回值不变。③ `magnet.pas` 新增 `HOST_LUA_FIRE=<objId>:<Event>:<Body2 的 Lua 表达式>`（init 三个入口之后注入一次）与 `HOST_LUA_SELFTEST=5`（单关运行，`HOST_LUA_LEVEL`）。④ 新增判据工具 `tools/lua_event_check.py`：前缀逐条对 `work/lua_probe/lvl49.jsonl`、尾段固定 5 条、两个工厂名对 `work/objlog_lvl49.jsonl` burst1 末尾、gear 比 1e-9。⑤ 判据：`HOST_LUA_FIRE=1016:OnAddContact:gLSystem.bGearB` ⇒ 追加 `Set_JointLimits / Get_ScrObjPos / Add_JointSimpleRevolute / Set_JointLimits / Add_JointSimpleGear`，`PASS 1/1`；52 关回归 `levels=52 ok=52 fail=0` + 逐关 `lua_bind_ab` **52/52 mismatches=0**；`verify.py` 6/6。⑥ F274 记下：lvl49 的 `State=3` 是 `lvl_o7.lua` 的 `Create()` 里设的（183 行），接触回调只差物理接触 ⇒ 下一步与工厂语义/b2 建体序同批做。
 
