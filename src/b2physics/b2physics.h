@@ -39,12 +39,24 @@ struct B2ShapeDefC {         // 形状描述公共头（F32 实测：+4 摩擦�
 struct B2JointCommonC { b2World* world; b2Body* body1; b2Body* body2; };
 struct B2DistanceJointC : B2JointCommonC { B2Vec2C anchor1, anchor2; unsigned char collide; };
 struct B2RevoluteJointC : B2JointCommonC {
-    B2Vec2C anchor; unsigned char enableLimit; float lower, upper;
-    unsigned char enableMotor; float motorSpeed, maxMotorTorque; unsigned char collide;
+    // 逐字节探测出的宿主布局（F314）：anchor@0x0C，collide@0x14，lower/upper@0x18/0x1C，
+    // enableLimit@0x20，maxMotorTorque@0x24，motorSpeed@0x28，enableMotor@0x2C
+    B2Vec2C anchor;
+    unsigned char collide;
+    float lower, upper;
+    unsigned char enableLimit;
+    float maxMotorTorque, motorSpeed;
+    unsigned char enableMotor;
 };
 struct B2PrismaticJointC : B2JointCommonC {
-    B2Vec2C anchor, axis; unsigned char enableLimit; float lower, upper;
-    unsigned char enableMotor; float motorSpeed, maxMotorForce; unsigned char collide;
+    // 同上（F314）：anchor@0x0C、axis@0x14、collide@0x1C、lower/upper@0x20/0x24、
+    // enableLimit@0x28、maxMotorForce@0x2C、motorSpeed@0x30、enableMotor@0x34
+    B2Vec2C anchor, axis;
+    unsigned char collide;
+    float lower, upper;
+    unsigned char enableLimit;
+    float maxMotorForce, motorSpeed;
+    unsigned char enableMotor;
 };
 struct B2GearJointC : B2JointCommonC { b2Joint* joint1; b2Joint* joint2; float ratio; };
 struct B2PulleyJointC : B2JointCommonC {

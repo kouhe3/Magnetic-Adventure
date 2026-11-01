@@ -301,14 +301,14 @@ def collect_seq(path, stop_at_step=False):
             b1, b2 = struct.unpack_from('<2I', m0, 4)
             ax, ay = struct.unpack_from('<2f', m0, 12)
             lo, up = struct.unpack_from('<2f', m0, 24)
-            ms, mt = struct.unpack_from('<2f', m0, 36)
+            mt, ms = struct.unpack_from('<2f', m0, 36)   # +0x24 力矩、+0x28 速度（F314）
             joints.append(('Revolute', at(body_index, b1, seq), at(body_index, b2, seq),
                            ax, ay, m0[20], lo, up, m0[32], ms, mt, m0[44]))
         else:
             b1, b2 = struct.unpack_from('<2I', m0, 4)
             ax, ay, vx, vy = struct.unpack_from('<4f', m0, 12)
             lo, up = struct.unpack_from('<2f', m0, 32)
-            ms, mf = struct.unpack_from('<2f', m0, 44)
+            mf, ms = struct.unpack_from('<2f', m0, 44)   # +0x2C 力、+0x30 速度（F314）
             joints.append(('Prismatic', at(body_index, b1, seq), at(body_index, b2, seq),
                            ax, ay, vx, vy, m0[28], lo, up, m0[40], ms, mf, m0[52]))
     setters = []
@@ -393,20 +393,20 @@ def cmd_joints(a):
             lim = m0[20]
             lo, up = struct.unpack_from('<2f', m0, 24)
             mot = m0[32]
-            ms, mt = struct.unpack_from('<2f', m0, 36)
+            mt, ms = struct.unpack_from('<2f', m0, 36)   # +0x24 力矩、+0x28 速度（F314）
             print(f'{n:3d} Revolute  seq={seq:6d} site=0x{ret:08X} '
                   f'b1=0x{b1:08X} b2=0x{b2:08X} anchor=({ax:g},{ay:g}) '
-                  f'lim={lim} lo={lo:g} up={up:g} mot={mot} ms={ms:g} mt={mt:g} col={m0[44]}')
+                  f'lim={m0[32]} lo={lo:g} up={up:g} mot={m0[44]} ms={ms:g} mt={mt:g} col={m0[20]}')
         else:
             b1, b2 = struct.unpack_from('<2I', m0, 4)
             ax, ay, vx, vy = struct.unpack_from('<4f', m0, 12)
             lim = m0[28]
             lo, up = struct.unpack_from('<2f', m0, 32)
             mot = m0[40]
-            ms, mf = struct.unpack_from('<2f', m0, 44)
+            mf, ms = struct.unpack_from('<2f', m0, 44)   # +0x2C 力、+0x30 速度（F314）
             print(f'{n:3d} Prismatic seq={seq:6d} site=0x{ret:08X} '
                   f'b1=0x{b1:08X} b2=0x{b2:08X} anchor=({ax:g},{ay:g}) axis=({vx:g},{vy:g}) '
-                  f'lim={lim} lo={lo:g} up={up:g} mot={mot} ms={ms:g} mf={mf:g} col={m0[52]}')
+                  f'lim={m0[40]} lo={lo:g} up={up:g} mot={m0[52]} ms={ms:g} mf={mf:g} col={m0[28]}')
     print(f'joints={n}')
     return 0
 

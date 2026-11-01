@@ -20,6 +20,8 @@
     physics:full    （--full）52 份全量，写 work/sweep.jsonl 并重生成 docs/levels.md
     physics:changed （--changed REV）按 src/b2physics 相对 REV 的 diff 选样，只跑覆盖这些
                     导出的最少录制集（tools/rec_pick.py，F310）；超预算的导出只报 warn
+    b2:contract     87 个导出的合成契约探针（tools/b2_contract.py，F314）：返回值/出参/
+                    回调/状态回读逐项相同；覆盖不到真实时序，与录制互补
 
 覆盖边界：不含"人眼看画面/听声音"的项目（像素 diff、PCM 波形），那些要么在别的工具里
 （audio_capture/audio_diff、frame_probe），要么还没建（T4.2 的 GL 调用 diff）。
@@ -204,6 +206,17 @@ def check_physics_changed(rev):
     return True, detail, time.time() - t0
 
 
+def check_b2_contract():
+    """合成契约：87 个导出各点一次，我方 vs 原版逐项比（F314）。"""
+    ours = os.path.join(BUILD, "b2Physics.dll")
+    orig = os.path.join(ORACLE, "b2Physics.dll")
+    rc, out, dt = run([PY32, "tools/b2_contract.py", ours, orig], timeout=300)
+    m = re.search(r"exported=(\d+)/(\d+) diffs=(\d+)", out)
+    ok = bool(rc == 0 and m and m.group(3) == "0" and m.group(1) == m.group(2))
+    detail = m.group(0) if m else ((out.strip().splitlines() or ["(no output)"])[-1])
+    return ok, detail, dt
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="追加全量物理重放")
@@ -225,6 +238,7 @@ def main():
         ("squall:contract", check_contract),
         ("squall:decode", check_decode),
         ("physics:sample", check_physics_sample),
+        ("b2:contract", check_b2_contract),
     ]
     if args.full:
         checks.append(("physics:full", check_physics_full))

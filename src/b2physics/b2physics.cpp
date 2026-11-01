@@ -497,8 +497,10 @@ B2API void* b2_Body_CreateShape_Polygon(const B2ShapeDefC* dp) {
     return sh;
 }
 
-B2API void b2_Body_DestroyShape(b2Shape* shape) {
-    TRACE("b2_Body_DestroyShape"); shape->m_body->DestroyShape(shape); }
+B2API void b2_Body_DestroyShape(b2Body* body, b2Shape* shape) {
+    // 原版是 (body, shape)（IDA: 0x10001A10 ecx=arg0(body)、eax=arg1(shape) →
+    // b2Body::DestroyShape）；宿主从未调用过它，录制语料没暴露（F314）。
+    TRACE("b2_Body_DestroyShape"); body->DestroyShape(shape); }
 
 B2API float b2_Body_GetAngle(b2Body* body) {
     TRACE("b2_Body_GetAngle"); return body->m_sweep.a; }
@@ -526,8 +528,10 @@ B2API void* b2_Body_GetLocalVector(void* out, b2Body* body, const float* v) {
 B2API void b2_Body_GetMass(b2Body* body, B2MassDataC* out) {
     TRACE("b2_Body_GetMass");
     out->mass = body->m_mass;
-    out->cx = body->m_sweep.c.x;
-    out->cy = body->m_sweep.c.y;
+    // 原版给的是**局部**质心（m_sweep.localCenter），不是世界坐标 m_sweep.c
+    // （IDA 0x10001BE0：cx/cy 取 body+0x20/+0x24；F314）
+    out->cx = body->m_sweep.localCenter.x;
+    out->cy = body->m_sweep.localCenter.y;
     out->I = body->m_I;
 }
 
@@ -656,12 +660,9 @@ B2API void* b2_Shape_GetNext(b2Shape* shape) {
 
 B2API int b2_Shape_GetShapeType(b2Shape* shape) {
     TRACE("b2_Shape_GetShapeType");
-    switch (shape->m_type) {
-        case e_unknownShape: return 0;
-        case e_circleShape: return 1;
-        case e_polygonShape: return 2;
-        default: return -1;
-    }
+    // 原版直接给宿主侧枚举：circle=0、polygon=1、unknown=-1
+    // （IDA 0x100014F0 的 m_type+1 跳表；F314 的契约探针实测 0/1/1）
+    return (int)shape->m_type;
 }
 
 B2API float b2_Shape_GetDensity(b2Shape* shape) {
@@ -682,8 +683,10 @@ B2API void b2_Shape_SetRestitution(b2Shape* shape, float v) {
 B2API int b2_Shape_SetSensor(b2Shape* shape, int v) {
     TRACE("b2_Shape_SetSensor"); shape->m_isSensor = v != 0; return v; }
 
-B2API void* b2_Shape_GetFilter(b2Shape* shape, B2FilterC* out) {
+B2API void* b2_Shape_GetFilter(B2FilterC* out, b2Shape* shape) {
     TRACE("b2_Shape_GetFilter");
+    // 原版是 out-first（IDA: 0x10001640 先读 arg1 的 +0x22 再写 arg0）；
+    // 宿主从未调用过它，所以录制语料没暴露这个参数顺序（F314）。
     out->category = shape->m_filter.categoryBits;
     out->mask = shape->m_filter.maskBits;
     out->group = shape->m_filter.groupIndex;
