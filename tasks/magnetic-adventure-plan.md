@@ -3,6 +3,7 @@
 依据：`docs/facts.md`；需求：`docs/requirements.md`。
 规则：任务必须有 `依据：`；依据缺失或指向不存在的事实 → 不开工。
 闸门（premise-gate，2026-11-01，T6.3d）：`mode=直接做` —— oracle = 原版 b2 代理录制（B2FFI02，L2/L4；宿主 A/A=0，F282）；criteria = `python tools/phys_sweep.py`（逐关 `b2_sites compare --stop-at-step` 的 `TOTAL mismatches=0`）。
+闸门（premise-gate，2026-11-01，T6.4f/T6.3e）：`mode=改造后做 | 直接做` —— oracle = 原版 `TLevelButtonWithHint` 反编译 + 一次 GLFFI02 填充态抓包（L2/L3）；T6.3e = Lua 5.1 + `mapping/lua-binding-args.csv`（L2）；criteria = T6.4f 逐 draw `mismatches=0`，T6.3e 期望 JSONL `mismatches=0`。
 
 ### 路线图闸门（premise-gate，2026-11-01 全线过闸）
 
@@ -15,6 +16,8 @@
 | T6.4b 输入/拖拽 | 改造后做：先录轨迹 | 鼠标轨迹 + B2FFI02（L2/L4） | 轨迹重放后 `python tools/b2_sites.py compare` → `TOTAL mismatches=0` | 秒级（无头） |
 | T6.4c 存档/配置 | 直接做 | 原版存档 + `tools/profile.py` 解码（L2） | 逐键解码 diff → `diffs=0` | 秒级 |
 | T6.4d 循环/状态机 | 改造后做：先定锚点 | `uistate` 状态序列（L3；F169/F172） | 状态序列与切换时刻逐项相同（A/A 先量） | ≈40 s（有头） |
+| T6.4f 提示按钮（[?] 填充/点击） | 改造后做：先抓一次填充态 | 原版 `TLevelButtonWithHint` 反编译（L2：0x57A4D0 / +0x2C / +0x30 / +0x58=5.0 / +0x5C）+ 一次 GLFFI02 填充态抓包 | 强制 `[0x665334]+0x5C=+0x58` 后抓 draw，宿主逐 draw `mismatches=0`；`DoShowHint` 调用名/参数一致 | 有头，单关 ≈20–40 s（估） |
+| T6.3e 自制测试关卡（Lua 覆盖） | 直接做 | Lua 5.1 + `mapping/lua-binding-args.csv` / `lua_bindings_decomp.json`（L2）；`magnet.pas:LoadLevelScripts` 读 `HOST_LUA_DIR/lvl_info.lvl` | `HOST_LUA_DIR=work/lua_test HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=52 build/host_lcl/magnet.exe` → JSONL；期望序列 `mismatches=0` | 秒级（无头） |
 | T7.2a 竖切 → T7.3–T7.5 应用层 | 待竖切裁决 | 原版进程内 pre/post 记录（L2） | 同输入同调用序 post-state 摘要逐位相同 + 一条负例 | 亚秒（注入后） |
 | M3 / T0.3 / T0.4 / T2.5 / T4.8 / T4.9 | 冻结或拒绝 | — | 见 `tasks/backlog.md` 的回流条件 | — |
 
@@ -104,6 +107,7 @@
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201、F239–F243、F267–F274（**b0/a0–a2/b1/b2 已完成**：144 绑定参数表与壳、52/52 关 `call+args` 与 `lua_probe` 逐条相同（F239–F243）；对象采集改走进程内 `objlog` thunk（F270），单进程一次采齐 **52/52 关**，**51 关**与原版绑定序列逐项一致（F271）；**接触回调的登记与派发已落地**（F273/F274：`Attach_ScriptToObject` → `luaevents.pas` → `HOST_LUA_FIRE` 注入，lvl49 追加的 2 个工厂调用与 objlog 同名同序，52 关 init 零回归）。**剩**：把注入换成真实物理接触（b2 建体序）；工厂语义（274 pending / 65 KB）；其余事件回调接物理层（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`））
 - [x] T6.3c 真实物理接触（T6.3 切片）：`host_lcl` 动态加载 `b2Physics.dll`，按工厂语义建 world/bodies/shapes/joints（`dt=0.01`、`vi=pi=20`），接触回调经 `luaevents.pas` 派发 `OnAddContact` 依据：F276–F281、F273、F274（**body/shape + 关节 + 接触管道 + 位置 getter/setter + phys params/filters 已完成**：原版录制 vs 宿主 ⇒ bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16、一次 init 的 56 个 setter 全 0；WoodWall 密度 0 变静态与原版一致（F281）；接触（`HOST_PHYS_MOVE` 诊断输入）触发 OnAddContact，尾段 5 条与 objlog 同名同序；A/A 0；**剩**：真实玩法输入/力驱动接触（T6.4））
 - [ ] T6.3d 工厂覆盖扩展（逐个建体绑定，按关卡录制对拍）依据：F282、F276–F281、F283–F290（**覆盖图 45/52 PASS**：`tools/phys_sweep.py` 逐关 `b2_sites compare --stop-at-step`，已默认 `HOST_HEADLESS=1`（F290，52 关 9.6 s）；`tools/gen_phys_shapes.py` 生成形状表；`Add_Rope` 10 关与 `Add_HammerParts` 双 body 已接（F289）。**剩余 5 关**：视觉角度/父图局部坐标（5/36/42）、录制不可用（9）、待归因（28 Looking for Keys）)
+- [ ] T6.3e 自制测试关卡（Lua 覆盖加速） 依据：F304（**判据**：复制 `work/pak_gametop/lvl_info.lvl`，追加 `<Level>` + `lvl_test.lua`，`HOST_LUA_DIR=work/lua_test HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=52` 跑宿主 → JSONL；与 `mapping/lua-binding-args.csv` 的期望序列 `mismatches=0`；**边界**：只对宿主成立；原版要跑同一关需先补 pak 写回（T1.4），不在本切片）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据；单元判据与工作台见 M7 依据：F204、F213
 
 > **2026-11-01 切片**：原文只有「分块」和「用 GL 调用序列与窗口消息做判据」，没有命令也没有 PASS 条件 ⇒ 按闸门拆成 T6.4a–e，每片自带 oracle、二值判据与改造项（见头部「路线图闸门」）。T6.4 本身不再单独开工。
@@ -113,6 +117,7 @@
 - [ ] T6.4c 存档/配置写入（T3.6 的新落点） 依据：F01、F171（**判据**：`python tools/profile.py` 解码后逐键 diff ⇒ `diffs=0`；**改造项**：给 `profile.py` 加 `diff` 子命令）
 - [ ] T6.4d 游戏循环/状态机（loading→intro→menu→level→win/exit） 依据：F169、F171、F172、F177（**判据**：`uistate` 的状态序列 + 切换时刻逐项相同；**改造项**：把状态序列写成可 diff 的 JSONL，并先量两次运行的地板）
 - [ ] T6.4e 关卡文本（T3.5 的新落点：`pt_sans*.dat` 3176 B 非 32 B 对齐、`gulim2.dat`） 依据：F11、F192、F231（**判据**：同 T6.4a 的 draw 列表（字形 quad 的 UV/advance）；像素只作验收）
+- [ ] T6.4f 提示按钮（[?] 填充/点击 → `DoShowHint`） 依据：F301、F302、F303（**判据**：原版强制 `[0x665334]+0x5C` 抓一次 GLFFI02 填充态；宿主逐 draw `mismatches=0`，且点击派发的 `DoShowHint` 与 Lua 期望一致；**边界**：只覆盖抓到的关卡/填充值；最后一关只隐藏按钮，不做对话分支）
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
 
@@ -135,6 +140,7 @@
 
 
 ## 变更记录
+- 2026-11-01 依据 F301–F304（**premise-gate：提示按钮 / 自制测试关卡；汉化版最后一关核对**）：① 判定：**T6.4f = 改造后做**（oracle = 原版 `TLevelButtonWithHint` 反编译 + 一次 GLFFI02 填充态抓包；判据 = 强制 `[0x665334]+0x5C` 后逐 draw `mismatches=0` 且 `DoShowHint` 调用一致）；**T6.3e = 直接做**（oracle = Lua 5.1 + `mapping/lua-binding-args.csv`；判据 = `HOST_LUA_DIR=work/lua_test HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=52` 的 JSONL 与期望序列 `mismatches=0`）。② **不需改 `game.exe`、不需从汇编恢复完整类型信息**：提示内容（含 THE STONES 自动移动，F302）是 Lua；宿主侧按钮只有 5 个字段（F301），驱动原版只需写 `[0x665334]+0x5C`。③ **汉化版核对（F303）**：`hint_94/95.png` 是 The End 的剧情贴图，不含“不要用提示”；`lvl_o40.lua:8` 的 `Set_VisibleHintButton(0)` 才是“别用提示”的实现；551 张 PNG OCR 无此句。④ T6.4f 范围因此不含“对话分支”，只做 [?] 状态机 + `DoShowHint` 派发；T6.3e 用 `HOST_LUA_DIR` 覆盖清单，不动 pak（原版要跑同一关才需 T1.4 pak 写回）。
 - 2026-11-01 依据 F300（**入口级探针：F299 的 363 未覆盖里 166 个实机证明在跑**）：① 新增 `tools/entryprobe/`（`gen_targets.py` 从 `targets.csv` 生成 361 个入口 patch 表；`entryprobe.c` 用 `jmp → lock inc → 重放序言 → jmp target+L`；`run.py` 准备游戏/装载/解码；b2 代理 `B2RTLPROBE_DLL` 装载）；② 人工会话（新建档 KKK → Option/Help → 暂停 RESTART → 关卡交互 → 教程 2–4 → You Got Mail/Burned Out → On a Leash/两个磁铁关 → 退出）实测 **166/361 命中、94/144 Lua cfunc**，census 对这 166 个全为 0；档案链 `0x576310/0x5759F0/0x575E30/0x581C00`（F41 的 XOR 0xB8）与列表 UI `0x5ACE80/0x5ACF40` 已定位；③ 后续 T7.5 覆盖口径改为入口级，F298/F299 的「未覆盖」只能读作「census 未命中」。
 - 2026-11-01 依据 F292、F291（**路线决定：不调编译器、改证明行为**）：① 依据：原版不是确定性编译产物——`game.exe` PE 时间戳非 0、汉化版含 `.TEDATA` 壳；我们自己的完整宿主两次构建也在 `.rsrc` 差 6 字节（构建时间），`.text`/`.data` 逐位相同（F292）⇒ 整文件/字节级对齐不是可达目标。② 判据分层固定：`code_match funcs` 的 sim 降为**分诊工具**（决定先重写谁、发现结构漂移），不再是「匹配」判据；应用函数的判据是**进程内 A/B**（同输入 pre/post 逐位，F291 已证形态）；整机判据仍是 GL 序列 / 物理 FFI / 存档 / 音频。③ 行为可证明的前提是**原版行为确定**（已量的 A/A：b2 重放地板 F282=0、GL 名字序列两次启动逐条相同 F222、Squall 20 步契约 0 分歧 F144、Lua JSONL 两次逐字节相同 F242、无头/有头 b2 0 差异 F290）。④ 新增 **T7.5a 覆盖普查**：1,012 个应用函数在语料（52 关录制 + 菜单/关卡路径）里的命中分布；0 命中必须给「不可达/平台分支/调试残留」理由或补合成扫描（T7.4）——没有这张表，「证明行为」只能声称覆盖到的部分。⑤ T7.2 的产出加一项：除 pre/post 外记每次调用的**函数命中计数**（同一 trampoline 顺手记）。
 - 2026-11-01 依据 F291（**T7.2a 竖切通过：应用层走逐函数替换，判据 = 进程内 A/B**）：① 仪器：`work/ht/`（`htcw.c` MSVC 垫片抓加载前控制字 + `htab.lpr` FPC 驱动 + `htimpl.lpr` FPC 实现 + `run.py` 驱动），载体沿用 b2 代理的 `B2RTLPROBE_DLL`（F246），不改代理。② 判据：见证函数 `sub_5ADF60`（VA 0x5ADF60，点是否在 AABB 内，4 组 x87 比较）在 2000 条有限值语料上 `finite_diff=0 / r_aa=0 / s_aa=0`，跨进程 A/A 摘要 `88F1B88E` 相同，seed+1 负例变；800 条特殊值（NaN/denormal）`nan_diff=0`。③ 两条形态结论：FPC 2.2.4 的 `register` 约定 + 源码级重写与目标**逐指令同构**（同 4 组 `fcompp` + 同极性 `jae/jbe`）⇒ 不需要内联汇编/字节级克隆；**控制字是控制面**——宿主 raw CW `0x137F`，FPC DLL 单独加载留 `0x1372`，把 MSVC 规范化值（`0x001F`）直接 `fldcw` 会解除精度异常屏蔽并抛 EInvalidOp（游戏弹「无效浮点数操作」）。④ 新增 `docs/progress.md`：decomp 口径的覆盖清单（库层 1,054/1,054、应用层 1,012 pending 里 1 个见证函数、144 绑定、明确不做与探针专用各一节）。⑤ T7.2 仍是「记录真实调用点」，竖切只是证明方法可行；T7.5 的 `mapping/functions.csv` 尚未生成，应用层覆盖率按 0% 计。
