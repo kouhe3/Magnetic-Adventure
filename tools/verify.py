@@ -15,8 +15,11 @@
                     （宿主实现可换：`HOST_DIR`/`HOST_EXE` 覆盖，判据不变）
     squall:contract 17 个宿主导入的 20 步契约探针，两侧逐项相同
     squall:decode   35 个 pak 内 OGG 的解码元数据两侧相同
-    physics:sample  抽样录制的 FFI 重放 bounded=PASS 且 bodies_bad 不超过该录制的 A/A 地板
+    physics:sample  抽样录制的 FFI 重放 bounded=PASS；detail 并列 `bad/地板`（F125，
+                    地板不参与判定，只用来判断「bad 非零」是不是缺陷证据）
     physics:full    （--full）52 份全量，写 work/sweep.jsonl 并重生成 docs/levels.md
+    physics:changed （--changed REV）按 src/b2physics 相对 REV 的 diff 选样，只跑覆盖这些
+                    导出的最少录制集（tools/rec_pick.py，F310）；超预算的导出只报 warn
 
 覆盖边界：不含"人眼看画面/听声音"的项目（像素 diff、PCM 波形），那些要么在别的工具里
 （audio_capture/audio_diff、frame_probe），要么还没建（T4.2 的 GL 调用 diff）。
@@ -103,6 +106,12 @@ def check_physics_sample():
         except Exception:
             continue
         rows[r.get("rec")] = r
+    floors = {}
+    try:
+        with open(os.path.join(ROOT, "work", "floors.json"), encoding="utf-8") as fh:
+            floors = json.load(fh).get("rows") or {}
+    except (OSError, ValueError):
+        pass
     bad = []
     for rec in SAMPLE_RECS:
         r = rows.get(rec)
@@ -110,7 +119,18 @@ def check_physics_sample():
             bad.append("%s: 缺行" % rec)
         elif r.get("verdict") not in ("PASS",) and not r.get("ok"):
             bad.append("%s: %s" % (rec, r.get("verdict")))
-    return (not bad), ("; ".join(bad) if bad else "3/3 PASS"), 0.0
+    if bad:
+        return False, "; ".join(bad), 0.0
+    # 地板只作证据刻度：bad 与地板并列，超过地板时标 warn（不改变 PASS）
+    marks = []
+    for rec in SAMPLE_RECS:
+        r = rows.get(rec) or {}
+        f = floors.get(rec) or {}
+        fb = f.get("bad")
+        rb = r.get("bad")
+        marks.append("%s %s/%s%s" % (rec[-6:], rb, "-" if fb is None else fb,
+                                     "" if fb is None or (rb or 0) <= fb else " warn"))
+    return True, "3/3 PASS; bad/floor: " + ", ".join(marks), 0.0
 
 
 def check_e2e():
@@ -142,11 +162,55 @@ def check_physics_full():
     return ok, ("sweep rc=%d report rc=%d" % (rc, rc2)), dt + dt2
 
 
+def check_physics_changed(rev):
+    """只跑「改动涉及的导出」所对应的录制集（tools/rec_pick.py 选样，F310）。
+
+    不追求覆盖全部 57 份：`--changed` 的语义是「这次 diff 能碰到哪些导出」，
+    跑能观测到它们的**最便宜**录制。超预算（唯一录制太长）的导出只报 warn，不静默丢。
+    """
+    t0 = time.time()
+    rc, out, dt = run([sys.executable, "tools/rec_pick.py", "--changed", rev, "--json"])
+    if rc != 0:
+        return False, "rec_pick 失败: %s" % (out.strip()[-200:],), dt
+    try:
+        import json as _json
+        res = _json.loads(out[out.index("{"):])
+    except ValueError:
+        return False, "rec_pick 输出不是 JSON", dt
+    if not res.get("requested"):
+        return True, "无 b2_* 改动（%s）" % rev, dt
+    recs = [p["rec"] for p in res.get("picks") or []]
+    if not recs:
+        return False, "没有录制能覆盖: %s" % ",".join(res["requested"][:4]), dt
+    for rec in recs:
+        run([PY32, "tools/sweep.py", "--only", rec], timeout=1800)
+    import json
+    rows = {}
+    for line in open(os.path.join(ROOT, "work", "sweep.jsonl"), encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        r = json.loads(line)
+        rows[r.get("rec")] = r
+    bad = [r for r in recs if (rows.get(r) or {}).get("verdict") != "PASS"]
+    cov = sum(len(p.get("new_exports") or []) for p in res["picks"])
+    detail = "%d 份 pick / 覆盖 %d/%d 导出 / est %.0fs" % (
+        len(recs), cov, len(res["requested"]), res.get("total_secs") or 0)
+    if res.get("over_budget"):
+        detail += "；warn: %d 导出超预算未跑（%s）" % (
+            len(res["over_budget"]), res["over_budget"][0]["rec"])
+    if bad:
+        return False, detail + "；FAIL: " + ",".join(bad), time.time() - t0
+    return True, detail, time.time() - t0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="追加全量物理重放")
     ap.add_argument("--e2e", action="store_true", help="追加无人值守跑一关（会改存档，前后自动还原）")
     ap.add_argument("--only", default="", help="逗号分隔的门禁名")
+    ap.add_argument("--changed", default="", metavar="REV",
+                    help="按 src/b2physics 相对 REV 的改动选样，追加 physics:changed")
     args = ap.parse_args()
 
     if not os.path.isdir(ORACLE):
@@ -164,6 +228,8 @@ def main():
     ]
     if args.full:
         checks.append(("physics:full", check_physics_full))
+    if args.changed:
+        checks.append(("physics:changed", lambda: check_physics_changed(args.changed)))
     if args.e2e or any(n.startswith("e2e:") for n in (args.only.split(",") if args.only else [])):
         checks.append(("e2e:introduction", check_e2e))
     if args.only:

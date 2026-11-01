@@ -81,8 +81,8 @@ def render():
         for lv in lvs:
             lv2recs.setdefault(lv, []).append(rec)
 
-    out = ["| 关卡 | 录制 | 格式 | 调用 | 步数 | 超差 body-state | 逐位首发 | 首段→末段 | 末段幅度 | 判定 |",
-           "|---|---|---|---|---|---|---|---|---|---|"]
+    out = ["| 关卡 | 录制 | 格式 | 调用 | 步数 | 超差 body-state | 地板 | 逐位首发 | 首段→末段 | 末段幅度 | 判定 |",
+           "|---|---|---|---|---|---|---|---|---|---|---|"]
     stats = {"level": 0, "pass": 0, "fail": 0, "none": 0, "usable": 0,
              "zero": 0, "v01": 0, "small": 0, "missing_row": []}
     counted = set()          # 一份录制可能服务多个关卡（对话关组），统计时只算一次
@@ -114,9 +114,10 @@ def render():
             b = r.get("bounded") or {}
             dev = r.get("dev_deciles") or []
             amp = f"{dev[-1]:.2g}×" if dev and r.get("bad") else "—"
-            out.append("| {} | `{}` | {} | {} | {} | {} | {} | {} → {} | {} | {} |".format(
+            floor = (r.get("floor") or {}).get("bad")
+            out.append("| {} | `{}` | {} | {} | {} | {} | {} | {} | {} → {} | {} | {} |".format(
                 lv, rec, r.get("magic", "?"), fmt_int(r.get("calls")),
-                fmt_int(r.get("steps")), fmt_int(r.get("bad")),
+                fmt_int(r.get("steps")), fmt_int(r.get("bad")), fmt_int(floor),
                 r.get("first_exact") if r.get("first_exact") is not None else "—",
                 fmt_int(b.get("prev")), fmt_int(b.get("last")), amp, verdict_cell(r)))
         if not recs:
@@ -157,9 +158,17 @@ def render():
     summary.append(">\n> **这条结论能撑多重**：判据是个数（每步超差 body 数是否还在涨），不是幅度——"
                    "`末段幅度` 是末个十分位里最坏一具 body 的 |Δ|/容差，被磁力/马达驱动的自由飞行体会把它放大到 1e5 倍，"
                    "但个数饱和就仍是 PASS（F73）。")
-    summary.append(">\n> **噪声地板**：原版 DLL 自放同一份日志在容差内 0 差异（F72/F92），只在第 871 步一类位置出现 denormal 级差"
-                   "（1e-23 量级，重放进程 FPU/MXCSR 与原版游戏内状态不完全一致，F91⑤）——"
-                   "所以「有差异」只在显著高于 denormal 地板时成立。")
+    over = [f"`{rec}`（{r.get('bad')} > {(r.get('floor') or {}).get('bad')}）"
+            for rec, r in sorted(rows.items())
+            if r.get("usable") and r.get("floor")
+            and (r.get("bad") or 0) > ((r.get("floor") or {}).get("bad") or 0)]
+    summary.append(
+        ">\n> **噪声地板**：A/A 地板按录制分别量（F125）——把同一份日志重放到原版 DLL"
+        "（`python tools/sweep.py --floors`，缓存 `work/floors.json`）得到的 `bodies_bad` 就是该录制的"
+        " `地板` 列（`—` = 未算）。「bad 非零」只在**高于地板**时才是差异；地板为 0 时剩下的 "
+        "denormal 级差（1e-23 量级，重放进程 FPU/MXCSR 与原版游戏内状态不完全一致，F91⑤）仍属噪声。")
+    if over:
+        summary.append(">\n> **高于自身地板**（需要看的第一批）：" + "、".join(over) + "。")
     summary.append(">\n> **仪器覆盖不到**：摘要只含 body 的 flags/sleepTime/位置/角度/速度/质量/惯量；"
                    "关节冲量、`sweep.c0/a0`、接触热启动冲量、broadphase fat AABB 都不在其中——"
                    "差异出现在「已覆盖部分逐位相同之后」时，正确结论是「在这里看不见」（F88/F91/F92）。")
