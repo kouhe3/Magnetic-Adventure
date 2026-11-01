@@ -48,6 +48,19 @@ HOOKS = {
     "Add_JointSimplePrismatic": ["  PhysAddJointSimplePrismatic(id, v1, v2, v3, v4, v5, v6);"],
     "Set_JointLimits": ["  PhysSetJointLimits(v1, v2 <> 0.0, v3, v4);"],
     "Set_JointMotors": ["  PhysSetJointMotors(v1, v2 <> 0.0, v3, v4);"],
+    "Set_ScrObjPos": ["  PhysSetBodyPos(v1, v2, v3, v4);"],
+}
+
+# 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
+CUSTOM_RET = {
+    "Get_ScrObjPos": (
+        ["  gx, gy, ga: Double;"],
+        ["  PhysGetBodyPos(v1, gx, gy, ga);",
+         "  Lua.PushNumber(L, gx);",
+         "  Lua.PushNumber(L, gy);",
+         "  Lua.PushNumber(L, ga);",
+         "  Result := 3;"],
+    ),
 }
 
 
@@ -86,6 +99,8 @@ def gen_binding(row):
             var_lines.append("  v%d: Double;" % idx)
     if dyn:
         var_lines += ["  n, i: Integer;", "  d: Double;"]
+    if name in CUSTOM_RET:
+        var_lines += CUSTOM_RET[name][0]
 
     body = []
     for idx, kind, dflt in fixed:
@@ -111,7 +126,9 @@ def gen_binding(row):
     cnt = int(row["ret_count"] or "0")
     body.append("  id := NextId('%s');" % name)
     body += HOOKS.get(name, [])
-    if ret == "none" or cnt <= 0:
+    if name in CUSTOM_RET:
+        body += CUSTOM_RET[name][1]
+    elif ret == "none" or cnt <= 0:
         body.append("  Result := 0;")
     else:
         push = "Lua.PushInteger" if ret in ("int", "mixed") else "Lua.PushNumber"

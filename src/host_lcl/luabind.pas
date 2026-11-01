@@ -1580,6 +1580,7 @@ begin
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Set_ScrObjPos');
+  PhysSetBodyPos(v1, v2, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1588,13 +1589,15 @@ function bind_Get_ScrObjPos(L: TLuaState): Integer; cdecl;
 var
   id: Integer;
   v1: Integer;
+  gx, gy, ga: Double;
 begin
   LuaLogBegin(L, 'Get_ScrObjPos');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Get_ScrObjPos');
-  Lua.PushNumber(L, id);
-  Lua.PushNumber(L, 0);
-  Lua.PushNumber(L, 0);
+  PhysGetBodyPos(v1, gx, gy, ga);
+  Lua.PushNumber(L, gx);
+  Lua.PushNumber(L, gy);
+  Lua.PushNumber(L, ga);
   Result := 3;
   LuaLogEnd(id);
 end;

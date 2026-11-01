@@ -5,10 +5,14 @@
         [--objlog work/objlog_lvl49.jsonl]
     python tools/lua_event_check.py work/lua_probe/lvl49.jsonl C:/tmp/magnet_evt/lvl49_neg.jsonl \
         --no-tail
+    # 物理开启（HOST_PHYS=1）时，init 序列里的 Get_ScrObjPos 返回真实位置，
+    # 与桩 probe 不同：前缀参考改用同 build 的 init-only 日志。
+    python tools/lua_event_check.py work/lua_probe/lvl49.jsonl <fired.jsonl> \
+        --init <init_only.jsonl> --objlog work/objlog_lvl49.jsonl
 
 判据（全部满足才 PASS，exit 0）:
-  1. 前缀：触发前的调用与 `work/lua_probe/lvl49.jsonl` 的 call+args 逐条相同
-     —— 事件派发不得改动 init 序列。
+  1. 前缀：触发前的调用与参考（默认 `work/lua_probe/lvl49.jsonl`；`--init` 可换成
+     同 build 的 init-only 日志）的 call+args 逐条相同 —— 事件派发不得改动 init 序列。
   2. 追加段固定 5 条且顺序相同：
        Set_JointLimits, Get_ScrObjPos, Add_JointSimpleRevolute,
        Set_JointLimits, Add_JointSimpleGear
@@ -83,11 +87,12 @@ def main():
     ap.add_argument("probe", help="init 参考（tools/lua_probe 产物）")
     ap.add_argument("fired", help="HOST_LUA_FIRE 后的宿主 JSONL")
     ap.add_argument("--objlog", default="", help="原版 objlog 记录（可选，校验 factory 名字序）")
+    ap.add_argument("--init", default="", help="init-only 参考 JSONL（默认用 probe）")
     ap.add_argument("--no-tail", action="store_true",
                     help="负例：断言事件触发后没有任何追加调用（与 probe 逐条相同）")
     args = ap.parse_args()
 
-    probe = load(args.probe)
+    probe = load(args.init or args.probe)
     fired = load(args.fired)
     fails = []
 

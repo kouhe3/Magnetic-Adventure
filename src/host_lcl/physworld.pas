@@ -94,6 +94,8 @@ procedure PhysSetJointLimits(Id: Integer; Enable: Boolean; Lower, Upper: Double)
 procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double);
 // 诊断用：把对象瞬移到指定位置（HOST_PHYS_MOVE 自检，不参与正式语义）。
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
+// Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
+procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
 
 implementation
 
@@ -110,6 +112,7 @@ type
   TJointBoolFn = procedure(J: Pointer; Enable: Integer); cdecl;
   TJointLimitsFn = procedure(J: Pointer; Lower, Upper: Single); cdecl;
   TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
+  TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
 
 type
   TPhysObj = record
@@ -144,6 +147,7 @@ var
   g_jointSetLimits: TJointLimitsFn;
   g_jointSetMotorSpeed: TJointFloatFn;
   g_jointSetMaxTorque: TJointFloatFn;
+  g_getXForm: TGetXFormFn;
   g_objs: array[0..MAX_OBJECTS - 1] of TPhysObj;
   g_objCount: Integer;
   g_joints: array[0..MAX_OBJECTS - 1] of TPhysObj;
@@ -461,6 +465,25 @@ begin
     SetXForm(b, X, Y, Angle);
 end;
 
+procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+var
+  b: Pointer;
+  xf: TPhysXForm;
+begin
+  X := 0.0;
+  Y := 0.0;
+  Angle := 0.0;
+  if not g_active then
+    Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then
+    Exit;
+  g_getXForm(b, @xf);
+  X := xf.x;
+  Y := xf.y;
+  Angle := xf.angle;
+end;
+
 procedure PhysStep(Dt: Single; Vi, Pi: Integer);
 begin
   if g_active and (g_world <> nil) then
@@ -542,13 +565,14 @@ begin
   g_jointSetLimits := TJointLimitsFn(GetProcAddress(g_dll, 'b2_Joint_SetLimits'));
   g_jointSetMotorSpeed := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMotorSpeed'));
   g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
+  g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
   if not (Assigned(g_createWorld) and Assigned(g_createBody) and Assigned(g_setXForm) and
     Assigned(g_shapeCircle) and Assigned(g_shapeBox) and Assigned(g_mass) and
     Assigned(g_setUserData) and Assigned(g_step) and Assigned(g_contactCb) and
     Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
     Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
-    Assigned(g_jointSetMaxTorque)) then
+    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm)) then
     Exit(False);
   aabb.lo.x := -100.0;
   aabb.lo.y := -100.0;

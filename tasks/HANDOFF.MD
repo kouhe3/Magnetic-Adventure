@@ -386,6 +386,6 @@ HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR='C:\tmp\magne
   build/host_lcl/magnet.exe               # 期望 levels=52 ok=52 fail=0
 ```
 
-**下一步（T6.3c 已完成 body/shape + 关节 + 接触管道，见 F278/F279）**：宿主对 lvl49 init 的 bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16 与原版录制逐项相同；真实接触（`HOST_PHYS_MOVE=1022:8.04:3.16` 诊断输入）触发 `OnAddContact`，JSONL 尾段 5 条与 objlog 同名同序（`tools/lua_event_check.py` PASS，ratio 0.417959183673）。**剩**：`Get_ScrObjPos` 实装（当前桩返回 0,0，原版接触 revolute 的 anchor 是移动后的位置）与真实玩法输入/力驱动（T6.4）；其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
+**下一步（T6.3c 已完成 body/shape + 关节 + 接触管道 + 位置 getter/setter，见 F278–F280）**：宿主对 lvl49 init 的 bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16 与原版录制逐项相同；真实接触（`HOST_PHYS_MOVE=1022:8.04:3.16` 诊断输入）触发 `OnAddContact`，JSONL 尾段 5 条与 objlog 同名同序（`tools/lua_event_check.py --init <init-only>` PASS，ratio 0.417959183673）。**剩**：真实玩法输入/力驱动接触（T6.4）；其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
 
 **坑**：生成器里登记调用必须写在参数读取**之后**（放在前面会读到 0，`EventsFire` 报 `no binding for 1016/...`）；`luaevents.pas` 是新增文件，记得 CRLF。
