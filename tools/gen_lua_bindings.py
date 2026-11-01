@@ -73,6 +73,9 @@ HOOKS = {
     "Add_MetallScrew": ["  PhysAddMetallScrew(id, v2, v3, v4, v5);"],
     "Add_MetallGear": ["  PhysAddMetallGear(id, v2, v3, v4, v5);"],
     "Attach_ShapePolygon": ["  PhysAttachShapePolygon(v1, v2, v3, v4, v5, @pts[0]);"],
+    # Add_Rope：动态角度表（F289）；Get_RopePhysItem 的真实返回值（0 基）也在 HOOKS 里覆盖。
+    "Add_Rope": ["  PhysAddRope(id, v2, v3, v4, n, @ang[0]);"],
+    "Get_RopePhysItem": ["  id := PhysGetRopeItemId(v1, v2);"],
 }
 
 # 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
@@ -133,6 +136,8 @@ def gen_binding(row):
         var_lines += ["  n, i: Integer;", "  d: Double;"]
     if name == "Attach_ShapePolygon":
         var_lines += ["  pts: array[0..15] of Double;"]
+    if name == "Add_Rope":
+        var_lines += ["  ang: array[0..63] of Double;"]
     if name in CUSTOM_RET:
         var_lines += CUSTOM_RET[name][0]
 
@@ -155,8 +160,9 @@ def gen_binding(row):
                  "    d := LuaOptNumber(L, 7 + 2 * i, 0.0);",
                  "    pts[2 * i + 1] := d;", "  end;"]
     elif name == "Add_Rope":
-        body += ["  i := 5;", "  while Lua.LType(L, i) = LUA_TNUMBER do", "  begin",
-                 "    d := Lua.ToNumber(L, i);", "    Inc(i);", "  end;"]
+        body += ["  n := 0;", "  i := 5;", "  while (Lua.LType(L, i) = LUA_TNUMBER) and (n < 64) do",
+                 "  begin", "    ang[n] := Lua.ToNumber(L, i);", "    Inc(n);", "    Inc(i);",
+                 "  end;"]
 
     ret = row["ret"]
     cnt = int(row["ret_count"] or "0")

@@ -410,19 +410,23 @@ var
   v4: Double;
   n, i: Integer;
   d: Double;
+  ang: array[0..63] of Double;
 begin
   LuaLogBegin(L, 'Add_Rope');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
+  n := 0;
   i := 5;
-  while Lua.LType(L, i) = LUA_TNUMBER do
+  while (Lua.LType(L, i) = LUA_TNUMBER) and (n < 64) do
   begin
-    d := Lua.ToNumber(L, i);
+    ang[n] := Lua.ToNumber(L, i);
+    Inc(n);
     Inc(i);
   end;
   id := NextId('Add_Rope');
+  PhysAddRope(id, v2, v3, v4, n, @ang[0]);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -2231,6 +2235,7 @@ begin
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptInt(L, 2, 0);
   id := NextId('Get_RopePhysItem');
+  id := PhysGetRopeItemId(v1, v2);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);

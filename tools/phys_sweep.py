@@ -19,7 +19,8 @@
   * 录制是单次游玩会话，可能含 init 之后的动态对象；截断在首次 Step 后这些不参与。
   * 对话关 Introduction / Meet the Shaman / The End 共用一份录制，只有第一关可判。
   * 宿主 A/A 已在 F282 量到 0（同一 build 两次运行）。
-  * 宿主侧只跑 Lua init（HOST_LUA_SELFTEST=5），不步进、不渲染。
+  * 宿主侧只跑 Lua init（HOST_LUA_SELFTEST=5 + HOST_HEADLESS=1），不建窗、不建 GL、
+    不步进、不渲染；无头/有头的 b2 调用序列已对拍一致（F290）。
 
 失效条件:
   * `tools/b2_sites.py` 的 def 布局解码或 B2FFI02 magic 变动；
@@ -113,6 +114,7 @@ def run_host(level, host_dir, data, lua_dir, out_log, timeout):
         'HOST_PHYS': '1',
         'HOST_LUA_SELFTEST': '5',
         'HOST_LUA_LEVEL': str(level),
+        'HOST_HEADLESS': '1',
         'B2PROXY_LOG': str(out_log),
     })
     env.pop('HOST_PHYS_MOVE', None)

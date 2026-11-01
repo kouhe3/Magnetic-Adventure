@@ -130,6 +130,11 @@ function PhysAddMetallScrew(Id: Integer; X, Y, Angle, Style: Double): Pointer;
 function PhysAddMetallGear(Id: Integer; X, Y, Angle, Style: Double): Pointer;
 procedure PhysAttachShapePolygon(Id: Integer; Fric, Rest, Dens: Double;
   Count: Integer; Verts: PDouble);
+// Add_Rope：N 个 Box 链节 + N-1 个 Revolute（几何与 style 表见 F289）。
+function PhysAddRope(Id: Integer; X, Y, Style: Double; Count: Integer;
+  Angles: PDouble): Pointer;
+// Get_RopePhysItem 的句柄（0 基；越界返回 0；rope id 本身指向第 0 节）。
+function PhysGetRopeItemId(RopeId, Index: Integer): Integer;
 
 implementation
 
@@ -167,10 +172,25 @@ type
     Joint: Pointer;
   end;
 
+  // 一根绳 = N 个链节对象；Set_PhysParams 对 rope id 要逐链节生效（F289 的录制序列：
+  // 密度×N（每节 SetMass）→ 摩擦×N → 弹性×N，全按链节顺序）。
+  TPhysRope = record
+    Id: Integer;
+    Count: Integer;
+    Items: array[0..63] of Integer;
+  end;
+
 const
   MAX_OBJECTS = 2048;
   kGearRadius: array[1..6] of Single = (1.6, 1.8, 2.0, 2.2, 2.4, 4.33);
   kMetalGearRadius: array[1..6] of Single = (1.6, 1.8, 2.0, 2.2, 2.4, 4.33);
+  // Add_Rope 的 style 表（10 个 rope 关的录制逐 style 读出，F289）：
+  // 链节 Box 半宽/半高、密度；摩擦恒 0.3、弹性恒 0。
+  kRopeHalfW: array[0..3] of Single = (0.77, 0.77, 0.275, 0.77);
+  kRopeHalfH: array[0..3] of Single = (0.2, 0.2, 0.2, 0.5);
+  kRopeDensity: array[0..3] of Single = (0.5, 0.5, 3.0, 0.2);
+  // 链节 id 派生基数：rope id（1e3 量级）* 100 + 索引 ⇒ 与 Lua 的 Add_* id 不重叠。
+  kRopeItemBase = 1000000;
   // MetallScrew 的六边形（level 1 录制：r=1.4，顶点 = 1.4·cos30° = 1.212435565）。
   kScrewVerts: array[0..11] of Single =
     (-1.4, 0.0, -0.7, -1.2124355652982142, 0.7, -1.2124355652982142,
@@ -213,6 +233,10 @@ var
   g_objCount: Integer;
   g_joints: array[0..MAX_OBJECTS - 1] of TPhysJoint;
   g_jointCount: Integer;
+  g_ropes: array[0..63] of TPhysRope;
+  g_ropeCount: Integer;
+
+function RopeIndex(Id: Integer): Integer; forward;
 
 function PhysActive: Boolean;
 begin
@@ -223,16 +247,31 @@ procedure PhysResetObjects;
 begin
   g_objCount := 0;
   g_jointCount := 0;
+  g_ropeCount := 0;
 end;
 
 function PhysBodyOf(Id: Integer): Pointer;
 var
-  i: Integer;
+  i, r: Integer;
 begin
   for i := 0 to g_objCount - 1 do
     if g_objs[i].Id = Id then
       Exit(g_objs[i].Body);
+  // rope id 指向第 0 节（F289：录制里 `Add_JointNail(null, rope, …)` 连的是 link[0]）。
+  r := RopeIndex(Id);
+  if r >= 0 then
+    Exit(PhysBodyOf(g_ropes[r].Items[0]));
   Result := nil;
+end;
+
+function RopeIndex(Id: Integer): Integer;
+var
+  i: Integer;
+begin
+  for i := 0 to g_ropeCount - 1 do
+    if g_ropes[i].Id = Id then
+      Exit(i);
+  Result := -1;
 end;
 
 procedure RegBody(Id: Integer; Body: Pointer);
@@ -257,6 +296,13 @@ begin
     if g_objs[i].Id = Id then
       Exit(i);
   Result := -1;
+end;
+
+// 工厂内部子对象的 id（rope 链节、HammerParts 的锤头）：rope id*100 + 索引，
+// 与 Lua 的 Add_* id（1e3 量级）不重叠（F289）。
+function SubItemId(Id, Index: Integer): Integer;
+begin
+  Result := kRopeItemBase + Id * 100 + Index;
 end;
 
 procedure NoteShape(Body, Shape: Pointer; Dens, Fric, Rest: Single);
@@ -653,9 +699,41 @@ begin
   Result := BuildFromStyle(Id, X, Y, Angle, kWoodDetail[st]);
 end;
 
+// Add_HammerParts(x, y, angle, style)：**两个** body——手柄（style 表）+ 锤头，中间一个
+// 0..0 限位的 Revolute（lvl29 录制 seq 569–597：手柄 Box 3.2/0.594，锤头在 +3.76 处
+// Box 0.56/1.82（fric 0 / rest 0.7 / dens 1），锚点在 +3.2 处）。Set_PhysParams 只作用于
+// 手柄（录制的 setter 只有一条链），锤头用派生 id 单独登记。
 function PhysAddHammerParts(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  head: Pointer;
+  hx, hy, ax, ay: Single;
+  d: TPhysRevolute;
+  j: Pointer;
 begin
+  if not g_active then
+    Exit(nil);
   Result := BuildFromStyle(Id, X, Y, Angle, kHammerParts[1]);
+  hx := X + 3.76 * Cos(Angle);
+  hy := Y + 3.76 * Sin(Angle);
+  head := NewBody(SubItemId(Id, 1), hx, hy, Angle, True);
+  if head <> nil then
+    AttachBox(head, 0.0, 0.7, 1.0, 0.0, 0.0, 0.56, 1.82);
+  if (Result = nil) or (head = nil) then
+    Exit;
+  ax := X + 3.2 * Cos(Angle);
+  ay := Y + 3.2 * Sin(Angle);
+  FillChar(d, SizeOf(d), 0);
+  d.world := g_world;
+  d.body1 := Result;
+  d.body2 := head;
+  d.anchor.x := ax;
+  d.anchor.y := ay;
+  j := g_jointRev(@d);
+  if j <> nil then
+  begin
+    g_jointEnableLimit(j, 1);
+    g_jointSetLimits(j, 0.0, 0.0);
+  end;
 end;
 
 // Add_PhysicObjectWithAdvGraph(x, y, angle, …)：两个多边形（形状取自录制，F285）。
@@ -746,6 +824,92 @@ begin
   sh := g_shapePoly(@d);
   NoteShape(b, sh, Dens, Fric, Rest);
   g_mass(b);
+end;
+
+// ---- Add_Rope（T6.3d / F289）--------------------------------------------
+// 几何：首节在 (x,y)、angle_i = a_i；相邻两节共享锚点
+//   anchor_i = p_i + h·u(a_i)，p_{i+1} = anchor_i + h·u(a_{i+1})，h = halfW/1.1。
+// 每步都落 Single 才能与录制的 float32 位置对上（`work/probe_rope5.py` 复核：
+// 47 个链节 + 64 步递推，误差 ≤1 float32 ulp）。相邻链节是一个无 id、
+// 无 limit/motor、collide=0 的 Revolute。
+function PhysAddRope(Id: Integer; X, Y, Style: Double; Count: Integer;
+  Angles: PDouble): Pointer;
+var
+  i, st, n, itemId: Integer;
+  hw, hh, dens, h: Single;
+  px, py, ax, ay, a1, a2: Single;
+  bodies: array[0..63] of Pointer;
+  anchorX, anchorY: array[0..63] of Single;
+  d: TPhysRevolute;
+begin
+  if not g_active then
+    Exit(nil);
+  n := Count;
+  if n <= 0 then
+    Exit(nil);
+  if n > 64 then
+    n := 64;
+  st := Round(Style);
+  if (st < 0) or (st > 3) then
+    st := 0;
+  hw := kRopeHalfW[st];
+  hh := kRopeHalfH[st];
+  dens := kRopeDensity[st];
+  h := hw / 1.1;
+
+  px := X;
+  py := Y;
+  for i := 0 to n - 1 do
+  begin
+    a1 := Angles[i];
+    itemId := SubItemId(Id, i);
+    bodies[i] := NewBody(itemId, px, py, a1, True);
+    if bodies[i] <> nil then
+      AttachBox(bodies[i], 0.3, 0.0, dens, 0.0, 0.0, hw, hh);
+    if i < n - 1 then
+    begin
+      ax := px + h * Cos(a1);
+      ay := py + h * Sin(a1);
+      anchorX[i] := ax;
+      anchorY[i] := ay;
+      a2 := Angles[i + 1];
+      px := ax + h * Cos(a2);
+      py := ay + h * Sin(a2);
+    end;
+  end;
+
+  for i := 0 to n - 2 do
+  begin
+    if (bodies[i] = nil) or (bodies[i + 1] = nil) then
+      Continue;
+    FillChar(d, SizeOf(d), 0);
+    d.world := g_world;
+    d.body1 := bodies[i];
+    d.body2 := bodies[i + 1];
+    d.anchor.x := anchorX[i];
+    d.anchor.y := anchorY[i];
+    g_jointRev(@d);
+  end;
+
+  if g_ropeCount < 64 then
+  begin
+    g_ropes[g_ropeCount].Id := Id;
+    g_ropes[g_ropeCount].Count := n;
+    for i := 0 to n - 1 do
+      g_ropes[g_ropeCount].Items[i] := SubItemId(Id, i);
+    Inc(g_ropeCount);
+  end;
+  Result := bodies[0];
+end;
+
+function PhysGetRopeItemId(RopeId, Index: Integer): Integer;
+var
+  r: Integer;
+begin
+  r := RopeIndex(RopeId);
+  if (r < 0) or (Index < 0) or (Index >= g_ropes[r].Count) then
+    Exit(0);
+  Result := g_ropes[r].Items[Index];
 end;
 
 function PhysAttachShapeCircle(Id: Integer; Fric, Rest, Dens, LX, LY, Radius: Double): Pointer;
@@ -896,11 +1060,54 @@ begin
   Angle := xf.angle;
 end;
 
+// rope id 的 Set_PhysParams 逐链节生效：录制里是 密度×N（每节 SetMass）→ 摩擦×N →
+// 弹性×N，全按链节顺序（lvl08 seq 339–417，F289）。不是"一个 body 多形状"那条路径。
+function ApplyRopePhysParams(Id: Integer; Density, Friction, Restitution: Double): Boolean;
+var
+  r, i, idx: Integer;
+begin
+  Result := False;
+  r := RopeIndex(Id);
+  if r < 0 then
+    Exit;
+  Result := True;
+  for i := 0 to g_ropes[r].Count - 1 do
+  begin
+    idx := ObjIndex(g_ropes[r].Items[i]);
+    if idx < 0 then
+      Continue;
+    if g_objs[idx].ShapeCount > 0 then
+      g_shapeSetDensity(g_objs[idx].Shapes[g_objs[idx].ShapeCount - 1], Density);
+    g_mass(g_objs[idx].Body);
+    g_objs[idx].Density := Density;
+  end;
+  for i := 0 to g_ropes[r].Count - 1 do
+  begin
+    idx := ObjIndex(g_ropes[r].Items[i]);
+    if (idx >= 0) and (g_objs[idx].ShapeCount > 0) then
+    begin
+      g_shapeSetFriction(g_objs[idx].Shapes[g_objs[idx].ShapeCount - 1], Friction);
+      g_objs[idx].Friction := Friction;
+    end;
+  end;
+  for i := 0 to g_ropes[r].Count - 1 do
+  begin
+    idx := ObjIndex(g_ropes[r].Items[i]);
+    if (idx >= 0) and (g_objs[idx].ShapeCount > 0) then
+    begin
+      g_shapeSetRestitution(g_objs[idx].Shapes[g_objs[idx].ShapeCount - 1], Restitution);
+      g_objs[idx].Restitution := Restitution;
+    end;
+  end;
+end;
+
 procedure PhysSetPhysParams(Id: Integer; Density, Friction, Restitution: Double);
 var
   i, idx: Integer;
 begin
   if not g_active then
+    Exit;
+  if ApplyRopePhysParams(Id, Density, Friction, Restitution) then
     Exit;
   idx := ObjIndex(Id);
   if idx < 0 then

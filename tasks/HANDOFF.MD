@@ -25,6 +25,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T6.3d 收口（F285–F288）**：52 关物理 init 覆盖 **5 → 35 PASS**（`tools/phys_sweep.py`，46 s）。新增 `tools/gen_phys_shapes.py` 从录制按 style 生成形状常量表（`phys_shapes_gen.inc`/`wfw_table.inc`），`physworld.pas` 用 `BuildFromStyle` 统一建体，共 18 个工厂；`SetFriction/Restitution` 只写最后一个形状，`SetFilter`/`SetDensity` 形状号从大到小，`TPhysObj.Shapes` 上限 8→64（lvl38 的 body 8 有 10 个形状）。剩 15 关：绳索 10（kind=1 的链节规律已读出）、父图局部坐标/视觉角度 4、录制不可用 2。
 
+- **2026-11-01 T6.3d 绳索 + 无头模式（F289/F290）**：`Add_Rope` 按「锚点链式」实现（`anchor_i = p_i + h·u(a_i)`、`p_{i+1} = anchor_i + h·u(a_{i+1})`，两步都落 Single；style 表 0/1:(0.77,0.2) dens .5、2:(0.275,0.2) dens 3、3:(0.77,0.5) dens .2；相邻链节无 id Revolute），`Get_RopePhysItem` 0 基、rope id 的 `Set_PhysParams` 逐链节；`Add_HammerParts` 补第二个 body（锤头）。⇒ 52 关物理 init **35 → 45 PASS**（剩 5/36/42 视觉角度、9 录制不可用、28 待归因）。**新增 `HOST_HEADLESS=1`**：不建窗、不建 GLScene/GL 上下文，只跑 pak/Lua/物理自检；有头 vs 无头 b2 日志 `compare` 0 差异，单关 0.92 s → 0.12 s、52 关 sweep 36.7 s → **9.6 s**（`tools/phys_sweep.py` 已默认无头）。**无头用法**：`HOST_HEADLESS=1 HOST_PHYS=1 HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=8 B2PROXY_LOG=... build/host_lcl/magnet.exe`（`HOST_DUMP_FRAME` 仍必须有头）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

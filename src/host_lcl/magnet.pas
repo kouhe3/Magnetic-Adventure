@@ -625,6 +625,73 @@ begin
   Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + Name;
 end;
 
+// 纹理自检（HOST_TEX_SELFTEST=1）：只解码 pak 里的 37 张启动纹理，不需要 GL 上下文。
+procedure RunTexSelfTest(Pak: TPakFile);
+var
+  n: Integer;
+  log: string;
+  tf: TextFile;
+begin
+  n := SelfTestTextures(Pak, log);
+  AssignFile(tf, ExePath('host_tex_selftest.log'));
+  Rewrite(tf);
+  WriteLn(tf, 'loaded=', n, '/', Length(kTextureAssets));
+  Write(tf, log);
+  CloseFile(tf);
+end;
+
+// HOST_PHYS + HOST_LUA_SELFTEST：有头/无头共用。跑过自检就 ExitProcess（原行为），
+// 无头模式下也靠它退出，不进入 LCL 事件循环。
+procedure RunPhysAndSelfTests;
+var
+  log: string;
+  tf: TextFile;
+begin
+  if EnvFlag('HOST_PHYS') then
+  begin
+    AssignFile(tf, ExePath('phys_init.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'active=', PhysStart);
+    CloseFile(tf);
+  end;
+
+  if EnvStr('HOST_LUA_SELFTEST') = '' then
+    Exit;
+
+  try
+    AssignFile(tf, 'C:\tmp\magnet_lua_selftest.log');
+    Rewrite(tf);
+    if EnvStr('HOST_LUA_SELFTEST') = '2' then
+    begin
+      WriteLn(tf, LuaBindSelfTest(log));
+      Write(tf, log);
+    end
+    else if EnvStr('HOST_LUA_SELFTEST') = '3' then
+    begin
+      WriteLn(tf, LuaBindRunE0(log));
+      Write(tf, log);
+    end
+    else if EnvStr('HOST_LUA_SELFTEST') = '4' then
+    begin
+      WriteLn(tf, LuaBindRunAll(log));
+      Write(tf, log);
+    end
+    else if EnvStr('HOST_LUA_SELFTEST') = '5' then
+    begin
+      WriteLn(tf, LuaBindRunLevel(StrToIntDef(EnvStr('HOST_LUA_LEVEL'), 48), log));
+      Write(tf, log);
+    end
+    else
+      WriteLn(tf, 'ok=', LuaSelfTest('return 2+3', log), ' ', log);
+    CloseFile(tf);
+  except
+    on E: Exception do
+      // 日志写失败也要把结论带出来：退出码 1 = 自检异常
+      ExitProcess(1);
+  end;
+  ExitProcess(0);
+end;
+
 var
   F: TForm;
   S: TGLScene;
@@ -640,8 +707,24 @@ var
   MouseX, MouseY: Single;
   DumpVp: array[0..3] of Integer;
   StateInit: TGLStateInit;
+  Headless, PakOpened: Boolean;
 begin
   Application.Initialize;
+  Headless := EnvFlag('HOST_HEADLESS');
+
+  // pak 与纹理自检不需要窗口（有头/无头共用）。
+  Pak := TPakFile.Create;
+  PakOpened := Pak.Open(DataPath);
+  if PakOpened and EnvFlag('HOST_TEX_SELFTEST') then
+    RunTexSelfTest(Pak);
+
+  // 无头模式（HOST_HEADLESS=1）：不建窗、不建 GLScene/GL 上下文，只跑物理与 Lua 自检。
+  // 用于 phys_sweep 这类纯初始化跑关：没有窗口、没有渲染、没有消息循环。
+  if Headless then
+  begin
+    RunPhysAndSelfTests;
+    ExitProcess(0);
+  end;
 
   F := TForm.CreateNew(nil, 0);
   F.Caption := 'A Magnetic Adventure';
@@ -658,18 +741,8 @@ begin
   Cam.CameraStyle := csCustom;
   Cam.OnCustomPerspective := @CamEvents.Ortho;
   S.Objects.AddChild(Cam);
-  Pak := TPakFile.Create;
-  if Pak.Open(DataPath) then
+  if PakOpened then
   begin
-    if EnvFlag('HOST_TEX_SELFTEST') then
-    begin
-      n := SelfTestTextures(Pak, log);
-      AssignFile(tf, ExePath('host_tex_selftest.log'));
-      Rewrite(tf);
-      WriteLn(tf, 'loaded=', n, '/', Length(kTextureAssets));
-      Write(tf, log);
-      CloseFile(tf);
-    end;
     // 鼠标位置（设计像素，左上原点）：默认停在 glidle 抓包那一帧的位置
     // (884,684)-(916,716) 的中心 (900,700)，这样 A/B 是同状态（F188/F189）。
     MouseX := 900;
@@ -739,53 +812,9 @@ begin
     CloseFile(tf);
   end;
 
-  // T6.3c：HOST_PHYS=1 时加载 b2Physics.dll 并建 world + 4 面世界墙；
-  // 绑定壳里的 Phys* 钩子只在 active 时生效（DLL 缺失不影响宿主启动）。
-  if EnvFlag('HOST_PHYS') then
-  begin
-    AssignFile(tf, ExePath('phys_init.log'));
-    Rewrite(tf);
-    WriteLn(tf, 'active=', PhysStart);
-    CloseFile(tf);
-  end;
-
-  if EnvStr('HOST_LUA_SELFTEST') <> '' then
-  begin
-    try
-      AssignFile(tf, 'C:\tmp\magnet_lua_selftest.log');
-      Rewrite(tf);
-      if EnvStr('HOST_LUA_SELFTEST') = '2' then
-      begin
-        WriteLn(tf, LuaBindSelfTest(log));
-        Write(tf, log);
-      end
-      else if EnvStr('HOST_LUA_SELFTEST') = '3' then
-      begin
-        WriteLn(tf, LuaBindRunE0(log));
-        Write(tf, log);
-      end
-      else if EnvStr('HOST_LUA_SELFTEST') = '4' then
-      begin
-        WriteLn(tf, LuaBindRunAll(log));
-        Write(tf, log);
-      end
-      else if EnvStr('HOST_LUA_SELFTEST') = '5' then
-      begin
-        WriteLn(tf, LuaBindRunLevel(StrToIntDef(EnvStr('HOST_LUA_LEVEL'), 48), log));
-        Write(tf, log);
-      end
-      else
-        WriteLn(tf, 'ok=', LuaSelfTest('return 2+3', log), ' ', log);
-      CloseFile(tf);
-    except
-      on E: Exception do
-      begin
-        // 日志写失败也要把结论带出来：退出码 1 = 自检异常
-        ExitProcess(1);
-      end;
-    end;
-    ExitProcess(0);
-  end;
+  // T6.3c：HOST_PHYS=1 → 建 world（4 面世界墙）；HOST_LUA_SELFTEST → 跑自检后退出。
+  // 有头/无头共用同一个入口（无头分支在上面已经调用过它）。
+  RunPhysAndSelfTests;
 
   Application.Run;
 end.
