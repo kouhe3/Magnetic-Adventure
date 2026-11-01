@@ -62,6 +62,7 @@
 - [x] T6.2 场景/渲染 + 菜单层（21/21 draw 零差） 依据：F225–F231
 - [ ] T6.3 Lua 144 绑定 + 事件 + 真实物理（a0–a2/b1/b2 已完成） 依据：F239–F243、F273、F274、F276
 - [ ] T6.3c 真实物理接触：world + 14 个对象 body/shape → joint → `OnAddContact` 依据：F276、F277（oracle：The Teleport 14/14 建体逐项对齐，20 个 shape 常量已读出）
+- [ ] T6.3d 工厂覆盖扩展（52 关扫描：5 PASS / 45 MISMATCH / 2 SKIP） 依据：F283、F284（`python tools/phys_sweep.py` 一键出图；队首 `Add_GraphSprite` 49 关、`Add_Key`/`Add_Lock`/`Add_BarDoor` 24–26 关、`Add_WoodFormWall` 17 关、`Add_Rope` 10 关）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入） 依据：F204、F213
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196
 

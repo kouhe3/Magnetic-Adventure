@@ -88,7 +88,7 @@ function PhysBodyOf(Id: Integer): Pointer;
 
 // 工厂语义（参数与原版 Lua 绑定实参一致；F276/F277）。
 function PhysAddSimplePhysicObject(Id: Integer; X, Y, Angle: Double): Pointer;
-function PhysAddSimplePhysCircle(Id: Integer; Dens, Angle, X, Y, Radius: Double): Pointer;
+function PhysAddSimplePhysCircle(Id: Integer; Fric, Dens, Rest, X, Y, Radius: Double): Pointer;
 function PhysAddWoodGear(Id: Integer; X, Y, Angle, Size: Double): Pointer;
 function PhysAddWoodWall(Id: Integer; X, Y, Angle: Double): Pointer;
 function PhysAddSwitchArm(Id: Integer; X, Y, Angle: Double): Pointer;
@@ -359,15 +359,17 @@ begin
   Result := NewBody(Id, X, Y, Angle, True);
 end;
 
-function PhysAddSimplePhysCircle(Id: Integer; Dens, Angle, X, Y, Radius: Double): Pointer;
+{ Add_SimplePhysCircle(fric, dens, rest, x, y, radius)：录制 F283 证明第 2/3 个实参是
+  密度/弹性，不是角度——body angle 恒 0（The Old Clock 两个实例的 shape 与 xform 逐项相同）。 }
+function PhysAddSimplePhysCircle(Id: Integer; Fric, Dens, Rest, X, Y, Radius: Double): Pointer;
 var
   b: Pointer;
 begin
   if not g_active then
     Exit(nil);
-  b := NewBody(Id, X, Y, Angle, True);
+  b := NewBody(Id, X, Y, 0.0, True);
   if b <> nil then
-    AttachCircle(b, 0.0, 0.0, Dens, 0.0, 0.0, Radius);
+    AttachCircle(b, Fric, Rest, Dens, 0.0, 0.0, Radius);
   Result := b;
 end;
 

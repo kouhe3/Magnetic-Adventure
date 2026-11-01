@@ -19,6 +19,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 台账 **248 条**（F01–F248，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
+- **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

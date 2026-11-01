@@ -7,6 +7,7 @@
   python tools/b2_sites.py <log> shapes
   python tools/b2_sites.py <log> joints
   python tools/b2_sites.py <logA> compare <logB>
+      [--stop-at-step]    # 只比首次 b2_World_Step 之前（关卡 init）的调用
       [--joint-limit N]   # 只比前 N 个关节（录制的动态接触会追加关节）
       [--setter-limit N]  # 只比前 N 个 shape/body setter（一次关卡 init 的条数）
       [--body-limit N]    # 只比前 N 个 body / 设位组（录制可能含后续关卡）
@@ -29,6 +30,8 @@
                第二条 angle；shapes 比名称与全部数值。PASS = 逐项 |Δ| <= 1e-6。
                setters 比 SetDensity/Friction/Restitution/Filter/ReFilter/SetMass 的
                顺序与实参（body/形状槽位归一）。录制的后续关卡 init 会追加，故用 limit。
+               `--stop-at-step` 把两侧都截断在首次 `b2_World_Step` 之前：录制里 init 之后
+               的动态建体（接触/触发）不参与比较，宿主自检只跑 init 时可直接对拍。
   * joints  —— `World_Joint_Revolute|Prismatic|Gear` 的 def（body1/body2、anchor/axis、
                limits/motor/collide 或 joint1/joint2/ratio），按日志顺序。
 
@@ -212,7 +215,7 @@ SETTER_EXPORTS = ('b2_Shape_SetDensity', 'b2_Shape_SetFriction', 'b2_Shape_SetRe
                   'b2_Shape_SetFilter', 'b2_World_ReFilter', 'b2_Body_SetMassFromShapes')
 
 
-def collect_seq(path):
+def collect_seq(path, stop_at_step=False):
     """建体/设位/形状/关节四类序列；关节与 body 指针都归一成创建顺序号。"""
     ffi.load_names()
     bodies, shapes, raw_joints = [], [], []
@@ -225,6 +228,8 @@ def collect_seq(path):
             v = rec[1]
             eid, seq, args, m0, m1 = v[1], v[5], v[6:38], v[38], v[39]
             name = ffi.NAMES[eid]
+            if stop_at_step and name == 'b2_World_Step':
+                break
             if name == 'b2_World_CreateBody':
                 ad = f32(struct.unpack('<I', m0[4:8])[0])
                 ld = f32(struct.unpack('<I', m0[8:12])[0])
@@ -349,8 +354,8 @@ def cmp_list(label, a, b, tol=1e-6):
 
 
 def cmd_compare(a):
-    ba, xa, sa, ja, ta = collect_seq(a.log)
-    bb, xb, sb, jb, tb = collect_seq(a.compare)
+    ba, xa, sa, ja, ta = collect_seq(a.log, a.stop_at_step)
+    bb, xb, sb, jb, tb = collect_seq(a.compare, a.stop_at_step)
     if a.joint_limit:
         ja, jb = ja[:a.joint_limit], jb[:a.joint_limit]
     if a.setter_limit:
@@ -415,6 +420,8 @@ def main():
     ap.add_argument('--site', help='逗号分隔的返回地址（0x…），仅 xforms')
     ap.add_argument('--lua', help='lvlNN.jsonl，仅 xforms：按顺序对齐建体绑定')
     ap.add_argument('--joint-limit', type=int, default=0, help='compare：只比前 N 个关节')
+    ap.add_argument('--stop-at-step', action='store_true',
+                    help='compare：只比首次 b2_World_Step 之前（关卡 init）的调用')
     ap.add_argument('--setter-limit', type=int, default=0, help='compare：只比前 N 个 setter')
     ap.add_argument('--body-limit', type=int, default=0, help='compare：只比前 N 个 body/xform 组')
     ap.add_argument('--shape-limit', type=int, default=0, help='compare：只比前 N 个 shape')

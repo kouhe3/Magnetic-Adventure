@@ -1403,7 +1403,7 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   id := NextId('Add_SimplePhysCircle');
-  PhysAddSimplePhysCircle(id, v2, v3, v4, v5, v6);
+  PhysAddSimplePhysCircle(id, v1, v2, v3, v4, v5, v6);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);

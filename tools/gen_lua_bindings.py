@@ -37,7 +37,7 @@ DYN_RE = re.compile(r"^(\d+)\.\.([^:]*):(\w+)=(\S+)$")
 # 钩子放在 NextId 之后、返回值 push 之前；只写 b2 状态，不改 JSONL 与返回值。
 HOOKS = {
     "Add_SimplePhysicObject": ["  PhysAddSimplePhysicObject(id, v1, v2, v3);"],
-    "Add_SimplePhysCircle": ["  PhysAddSimplePhysCircle(id, v2, v3, v4, v5, v6);"],
+    "Add_SimplePhysCircle": ["  PhysAddSimplePhysCircle(id, v1, v2, v3, v4, v5, v6);"],
     "Add_WoodGear": ["  PhysAddWoodGear(id, v2, v3, v4, v5);"],
     "Add_WoodWall": ["  PhysAddWoodWall(id, v2, v3, v4);"],
     "Add_SwitchArm": ["  PhysAddSwitchArm(id, v2, v3, v4);"],

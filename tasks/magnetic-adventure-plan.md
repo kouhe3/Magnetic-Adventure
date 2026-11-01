@@ -2,6 +2,7 @@
 
 依据：`docs/facts.md`；需求：`docs/requirements.md`。
 规则：任务必须有 `依据：`；依据缺失或指向不存在的事实 → 不开工。
+闸门（premise-gate，2026-11-01，T6.3d）：`mode=直接做` —— oracle = 原版 b2 代理录制（B2FFI02，L2/L4；宿主 A/A=0，F282）；criteria = `python tools/phys_sweep.py`（逐关 `b2_sites compare --stop-at-step` 的 `TOTAL mismatches=0`）。
 
 ## M0 事实闭环（探针，不进主干）
 
@@ -82,7 +83,7 @@
 - [x] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak （复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187、F225–F230（**完成（菜单层）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 19 个 `TGLHUDSprite`（设计空间 1018×739，顺序=原版 draw 顺序），纹理走 GLFilePNG + 自持 32 位 RGBA（LCL 的 TPicture 丢 alpha，F226）。判据：新仪器 `tools/menu_draw_ab.py`（按素材名对齐）比原版 `glidle.bin` frame 10 vs 宿主 frame 2 ⇒ **19/19 draw 零差（dbbox=0/duv=0/dα=0）**，未配对的只有文本层；像素 `HOST_DUMP_FRAME` 自读帧 mean|Δ| 2.46/255（缺文本 + 光标不旋转为主，F230）。三个库级坑已记账：TextureMode 默认 decal（F227）、ObjectsSorting 默认重排（F228）、GLScene 不发 glBlendFunc（F229）。**剩**：关卡场景模型（归 T6.4 应用层））
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201、F239–F243、F267–F274（**b0/a0–a2/b1/b2 已完成**：144 绑定参数表与壳、52/52 关 `call+args` 与 `lua_probe` 逐条相同（F239–F243）；对象采集改走进程内 `objlog` thunk（F270），单进程一次采齐 **52/52 关**，**51 关**与原版绑定序列逐项一致（F271）；**接触回调的登记与派发已落地**（F273/F274：`Attach_ScriptToObject` → `luaevents.pas` → `HOST_LUA_FIRE` 注入，lvl49 追加的 2 个工厂调用与 objlog 同名同序，52 关 init 零回归）。**剩**：把注入换成真实物理接触（b2 建体序）；工厂语义（274 pending / 65 KB）；其余事件回调接物理层（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`））
 - [ ] T6.3c 真实物理接触（T6.3 切片）：`host_lcl` 动态加载 `b2Physics.dll`，按工厂语义建 world/bodies/shapes/joints（`dt=0.01`、`vi=pi=20`），接触回调经 `luaevents.pas` 派发 `OnAddContact` 依据：F276–F281、F273、F274（**body/shape + 关节 + 接触管道 + 位置 getter/setter + phys params/filters 已完成**：原版录制 vs 宿主 ⇒ bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16、一次 init 的 56 个 setter 全 0；WoodWall 密度 0 变静态与原版一致（F281）；接触（`HOST_PHYS_MOVE` 诊断输入）触发 OnAddContact，尾段 5 条与 objlog 同名同序；A/A 0；**剩**：真实玩法输入/力驱动接触（T6.4））
-- [ ] T6.3d 工厂覆盖扩展（逐个建体绑定，按关卡录制对拍）依据：F282、F276–F281（**level 1 已完成**：`Add_MetallScrew`/`Add_MetallGear`/`Attach_ShapePolygon` ⇒ 13 bodies / 19 shapes / 39 setters 全 0；**剩**：`CloseButton`/`AnimateSmoke` 等其它建体绑定、MetallScrew 非 style 1、MetallGear style 2/4/5/6，以及逐关扩展 `--body/shape/setter-limit` 对拍）
+- [ ] T6.3d 工厂覆盖扩展（逐个建体绑定，按关卡录制对拍）依据：F282、F276–F281、F283、F284（**仪器已落地**：`tools/phys_sweep.py` 逐关跑宿主 init + `b2_sites compare --stop-at-step` ⇒ **5 PASS / 45 MISMATCH / 2 SKIP**，PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；`Add_SimplePhysCircle` 实参语义已修（fric/dens/rest/x/y/radius，F283）。**队列按录制 body 数量差排序**：`Add_GraphSprite`（49 关）、`Add_Key`/`Add_Lock`/`Add_BarDoor`（24–26 关）、`Add_WoodFormWall`（17 关）、`Add_Rope`（10 关，单次 ~12 body）、`Add_Lamp`/`Add_ToothGear`/`Add_WoodDetail`/`Add_ShankBody`/`Add_PushButton`/`Add_WoodBox`；**剩**：MetallScrew 非 style 1、MetallGear style 2/4/5/6）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据；单元判据与工作台见 M7 依据：F204、F213
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
@@ -103,6 +104,8 @@
 
 
 ## 变更记录
+
+- 2026-11-01 依据 F283/F284（**T6.3d 覆盖图落地：52 关一次扫完，5 PASS / 45 MISMATCH / 2 SKIP**）：① 新仪器 `tools/phys_sweep.py`：逐关跑宿主 `HOST_PHYS=1 HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=N`（b2 代理写日志）→ 与 `mapping/levels.csv` 的录制做 `b2_sites.py compare --stop-at-step`（两侧截断在首次 `b2_World_Step`），判据 `TOTAL mismatches=0`；46.9 s 跑完 52 关，明细 `work/phys_sweep.json`。② `tools/b2_sites.py` 增 `--stop-at-step`：关卡 init 与「init 之后的动态建体」分开（The Old Clock 由 16 bodies 降到 15，正好等于宿主 init）。③ 首修：`Add_SimplePhysCircle` 的 arg2/arg3 是密度/弹性而非角度（F283）⇒ The Old Clock 从 4 个差异变 0，PASS 5 关。④ 回归：无物理 52 关绑定 JSONL 52/52 `mismatches=0`；`verify.py` 6/6（含 window 15 字段 diffs=0）。⑤ T6.3d 队列改为按「录制 body 数量差」排序（`Add_GraphSprite` 49 关 > `Add_Key`/`Add_Lock`/`Add_BarDoor` 24–26 关 > `Add_WoodFormWall` 17 关 > `Add_Rope` 10 关），每条按 F276 的「录制 body 坐标 ↔ Lua 实参」对齐定位。
 
 - 2026-11-01 依据 F282（**T6.3d 第一关：工厂覆盖扩到 level 1**）：① `physworld.pas` 增 `Add_MetallScrew`（六边形 polygon，r=1.4/1.212435565、fric=1/rest=.1/dens=.3）、`Add_MetallGear`（圆，半径表 1.6/1.8/2.0…，style 1/3 由录制验证）、`Attach_ShapePolygon`（动态顶点）；生成器保存 polygon 变参 `pts` 并传入。② 判据：`b2_sites compare --body-limit 13 --shape-limit 19 --setter-limit 39` ⇒ bodies/xforms/shapes/joints/setters 全 0；A/A JSONL 149/149 0、b2 0；lvl49 仍 0/PASS；无物理 52 关不变；wincompare 15/15。③ 新增 T6.3d 队列：其它建体绑定（CloseButton/AnimateSmoke…）与 style 表按同法扩展。
 
