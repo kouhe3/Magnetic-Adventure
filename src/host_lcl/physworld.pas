@@ -157,7 +157,8 @@ type
     Id: Integer;
     Body: Pointer;
     ShapeCount: Integer;
-    Shapes: array[0..7] of Pointer;
+    // 一个 body 可能挂很多形状（lvl38 的 body 8 有 10 个，ToothGear 单条 12 个）。
+    Shapes: array[0..63] of Pointer;
     Density, Friction, Restitution: Single;
   end;
 
@@ -265,7 +266,7 @@ begin
   for i := 0 to g_objCount - 1 do
     if g_objs[i].Body = Body then
     begin
-      if g_objs[i].ShapeCount < 8 then
+      if g_objs[i].ShapeCount < 64 then
       begin
         g_objs[i].Shapes[g_objs[i].ShapeCount] := Shape;
         Inc(g_objs[i].ShapeCount);

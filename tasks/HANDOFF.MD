@@ -23,6 +23,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T6.3d 覆盖图收口（F285/F286）**：`tools/phys_sweep.py` 打 52 关物理 init 覆盖，从 **5 PASS 提到 34 PASS**（46 s）。新增 `tools/gen_phys_shapes.py`：从录制按 style 生成形状常量表（`phys_shapes_gen.inc` / `wfw_table.inc`），`physworld.pas` 用 `BuildFromStyle` 统一建体，共接 18 个工厂。关键语义：`SetFriction/Restitution` 只写最后一个形状、filter/density 形状号从大到小、Rack 半径是 π 的倍数、Key 常量是 1/128 倍数、`Add_PhysicObjectWithAdvGraph` 只建 body。剩 16 关：绳索 10、父图局部坐标/视觉角度 4、`Set_PhysFilterData` 按 body 形状链 1、录制不可用 2。
 
+- **2026-11-01 T6.3d 收口（F285–F288）**：52 关物理 init 覆盖 **5 → 35 PASS**（`tools/phys_sweep.py`，46 s）。新增 `tools/gen_phys_shapes.py` 从录制按 style 生成形状常量表（`phys_shapes_gen.inc`/`wfw_table.inc`），`physworld.pas` 用 `BuildFromStyle` 统一建体，共 18 个工厂；`SetFriction/Restitution` 只写最后一个形状，`SetFilter`/`SetDensity` 形状号从大到小，`TPhysObj.Shapes` 上限 8→64（lvl38 的 body 8 有 10 个形状）。剩 15 关：绳索 10（kind=1 的链节规律已读出）、父图局部坐标/视觉角度 4、录制不可用 2。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
