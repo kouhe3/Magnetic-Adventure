@@ -146,6 +146,11 @@ def cmd_capture(args):
         fx, fy = (float(v) for v in frac.split(","))
         clicks.append((float(t_str), fx, fy))
     clicks.sort()
+    keys = []
+    for spec in getattr(args, "key_at", None) or []:
+        t_str, vk = spec.split(":", 1)
+        keys.append((float(t_str), int(vk, 0)))
+    keys.sort()
     print("pid=%d" % p.pid)
     os.makedirs(args.out, exist_ok=True)
     meta = open(os.path.join(args.out, "meta.jsonl"), "w", encoding="utf-8")
@@ -170,14 +175,25 @@ def cmd_capture(args):
             now = time.time() - t0
             while clicks and now >= clicks[0][0]:
                 _, fx, fy = clicks.pop(0)
+                # 与 tools/click_play.py 同一套（已证）：SW_RESTORE + 前台 + 150 ms 按住
+                u.ShowWindow(win[0], 9)
                 u.SetForegroundWindow(win[0])
-                time.sleep(0.2)
+                time.sleep(0.3)
                 u.SetCursorPos(int(rect[0] + rect[2] * fx), int(rect[1] + rect[3] * fy))
-                time.sleep(0.15)
+                time.sleep(0.2)
                 u.mouse_event(0x0002, 0, 0, 0, 0)
-                time.sleep(0.1)
+                time.sleep(0.15)
                 u.mouse_event(0x0004, 0, 0, 0, 0)
-                print("click at t=%.1f -> %s" % (now, (fx, fy)))
+                time.sleep(0.2)
+                print("click at t=%.1f -> %s fg=%d" % (now, (fx, fy), u.GetForegroundWindow() == win[0]))
+            while keys and now >= keys[0][0]:
+                _, vk = keys.pop(0)
+                u.SetForegroundWindow(win[0])
+                time.sleep(0.15)
+                u.keybd_event(vk, 0, 0, 0)
+                time.sleep(0.08)
+                u.keybd_event(vk, 0, 2, 0)
+                print("key at t=%.1f -> vk=0x%02X" % (now, vk))
             img = gr.grab(rect)
             t = time.time() - t0
             cpu = cpu_seconds(p.pid) - c0
@@ -349,6 +365,8 @@ def main():
     c.add_argument("--every", type=float, default=0.4)
     c.add_argument("--click-at", nargs="*", default=None,
                    help="t:fx,fy —— 采集途中按真实输入点一下（如 20:0.35,0.41 进关）")
+    c.add_argument("--key-at", action="append", default=[],
+                   help="t:vk —— 采集途中向前台窗口发按键（ESC=27，可重复）")
     c.set_defaults(func=cmd_capture)
 
     lb = sub.add_parser("label")
