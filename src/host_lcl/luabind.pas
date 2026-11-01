@@ -69,6 +69,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_WoodBox');
+  PhysAddWoodBox(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -178,6 +179,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_WoodFormWall');
+  PhysAddWoodFormWall(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -221,6 +223,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Lock');
+  PhysAddLock(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -242,6 +245,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Key');
+  PhysAddKey(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -284,6 +288,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_HammerParts');
+  PhysAddHammerParts(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -305,6 +310,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_BarDoor');
+  PhysAddBarDoor(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -389,6 +395,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_ScrewDriver');
+  PhysAddScrewDriver(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -437,6 +444,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Cork');
+  PhysAddCork(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -458,6 +466,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_TestTube');
+  PhysAddTestTube(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -479,6 +488,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Rack');
+  PhysAddRack(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -563,6 +573,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Laser');
+  PhysAddLaser(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -605,6 +616,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Lamp');
+  PhysAddLamp(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -647,6 +659,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Magnet');
+  PhysAddMagnet(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -668,6 +681,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_WoodDetail');
+  PhysAddWoodDetail(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -689,6 +703,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_ToothGear');
+  PhysAddToothGear(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -710,6 +725,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_ShankBody');
+  PhysAddShankBody(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -752,6 +768,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_PushButton');
+  PhysAddPushButton(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -2091,6 +2108,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_PhysicObjectWithAdvGraph');
+  PhysAddPhysicObjectWithAdvGraph(id, v1, v2, v3);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);

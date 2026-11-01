@@ -21,6 +21,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
 
+- **2026-11-01 T6.3d 覆盖图收口（F285/F286）**：`tools/phys_sweep.py` 打 52 关物理 init 覆盖，从 **5 PASS 提到 34 PASS**（46 s）。新增 `tools/gen_phys_shapes.py`：从录制按 style 生成形状常量表（`phys_shapes_gen.inc` / `wfw_table.inc`），`physworld.pas` 用 `BuildFromStyle` 统一建体，共接 18 个工厂。关键语义：`SetFriction/Restitution` 只写最后一个形状、filter/density 形状号从大到小、Rack 半径是 π 的倍数、Key 常量是 1/128 倍数、`Add_PhysicObjectWithAdvGraph` 只建 body。剩 16 关：绳索 10、父图局部坐标/视觉角度 4、`Set_PhysFilterData` 按 body 形状链 1、录制不可用 2。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

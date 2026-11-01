@@ -92,6 +92,24 @@ function PhysAddSimplePhysCircle(Id: Integer; Fric, Dens, Rest, X, Y, Radius: Do
 function PhysAddWoodGear(Id: Integer; X, Y, Angle, Size: Double): Pointer;
 function PhysAddWoodWall(Id: Integer; X, Y, Angle: Double): Pointer;
 function PhysAddSwitchArm(Id: Integer; X, Y, Angle: Double): Pointer;
+function PhysAddBarDoor(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddLock(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddKey(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddWoodBox(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddWoodFormWall(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddPushButton(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddLaser(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddRack(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddMagnet(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddScrewDriver(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddShankBody(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddLamp(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddCork(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddTestTube(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddToothGear(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddWoodDetail(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddHammerParts(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddPhysicObjectWithAdvGraph(Id: Integer; X, Y, Angle: Double): Pointer;
 function PhysAttachShapeCircle(Id: Integer; Fric, Rest, Dens, LX, LY, Radius: Double): Pointer;
 function PhysAddJointNail(Id, B1, B2: Integer; X, Y: Double): Pointer;
 function PhysAddJointSimpleRevolute(Id, B1, B2: Integer; X, Y: Double): Pointer;
@@ -158,6 +176,9 @@ const
      1.4, 0.0, 0.7, 1.2124355652982142, -0.7, 1.2124355652982142);
   kWallX = 31.305818557739258;  // 原版 float32 = 0xC1FA7251（F276 的录制值）
   kWallY = 23.0;
+
+{$I wfw_table.inc}
+{$I phys_shapes_gen.inc}
 
 var
   g_dll: HMODULE;
@@ -352,6 +373,9 @@ begin
     Result := kGearRadius[1];
 end;
 
+function BuildFromStyle(Id: Integer; X, Y: Double; Angle: Double;
+  const info: TGenStyleInfo): Pointer; forward;
+
 function PhysAddSimplePhysicObject(Id: Integer; X, Y, Angle: Double): Pointer;
 begin
   if not g_active then
@@ -410,6 +434,237 @@ begin
     AttachBox(b, 0.7, 0.4, 0.3, 0.0, -0.54, 0.42, 0.976);
   end;
   Result := b;
+end;
+
+// 内联多边形（顶点顺序照抄原版 def；Key 的钥匙齿从录制读出，F285）。
+function AttachPolyBody(Body: Pointer; Fric, Rest, Dens: Single;
+  Count: Integer; const Verts: array of Double): Pointer;
+var
+  d: TPhysPolyDef;
+  i: Integer;
+begin
+  FillChar(d, SizeOf(d), 0);
+  d.body := Body;
+  d.friction := Fric;
+  d.restitution := Rest;
+  d.density := Dens;
+  d.vertexCount := Count;
+  for i := 0 to Count - 1 do
+  begin
+    d.vertices[2 * i] := Verts[2 * i];
+    d.vertices[2 * i + 1] := Verts[2 * i + 1];
+  end;
+  Result := g_shapePoly(@d);
+  NoteShape(Body, Result, Dens, Fric, Rest);
+  if Assigned(g_mass) then
+    g_mass(Body);
+end;
+
+// 以下六个工厂的常量全部来自 52 关录制的 body def（F284 的聚合表）：
+// 每个绑定在 16–26 个关卡里形状完全一致（Rack 按 style 两档）。
+function PhysAddBarDoor(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 2) or (kBarDoor[st].n < 0) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kBarDoor[st]);
+end;
+
+function PhysAddLock(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 5) or (kLock[st].n < 0) then
+    st := 4;
+  Result := BuildFromStyle(Id, X, Y, Angle, kLock[st]);
+end;
+
+function PhysAddKey(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 2) or (st > 5) or (kKey[st].n < 0) then
+    st := 2;
+  Result := BuildFromStyle(Id, X, Y, Angle, kKey[st]);
+end;
+
+function PhysAddWoodBox(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  b: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b <> nil then
+    AttachBox(b, 0.7, 0.1, 0.3, 0.0, 0.0, 1.8, 1.8);
+  Result := b;
+end;
+
+// WoodFormWall：11 个 style 的形状表在 wfw_table.inc（逐 style 从录制读出，F285）。
+function PhysAddWoodFormWall(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  b: Pointer;
+  st, i, j: Integer;
+  spec: TWFWShape;
+  verts: array[0..9] of Double;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b = nil then
+    Exit(nil);
+  st := Round(Style);
+  if (st < 1) or (st > 11) then
+    st := 1;
+  for i := 0 to kWFW[st].n - 1 do
+  begin
+    spec := kWFW[st].sh[i];
+    if spec.kind = 1 then
+      AttachBox(b, 0.7, 0.4, 0.6, spec.d[0], spec.d[1], spec.d[2], spec.d[3])
+    else if spec.n > 0 then
+    begin
+      for j := 0 to 2 * spec.n - 1 do
+        verts[j] := spec.d[j];
+      AttachPolyBody(b, 0.7, 0.4, 0.6, spec.n, verts);
+    end;
+  end;
+  Result := b;
+end;
+
+function PhysAddPushButton(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kPushButton[1]);
+end;
+
+function PhysAddLaser(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kLaser[1]);
+end;
+
+function PhysAddRack(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 2) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kRack[st]);
+end;
+
+// 通用建体：形状来自 physics_shapes_gen.inc（由 tools/gen_phys_shapes.py 从录制生成）。
+function BuildFromStyle(Id: Integer; X, Y, Angle: Double;
+  const info: TGenStyleInfo): Pointer;
+var
+  b: Pointer;
+  i, j: Integer;
+  spec: TGenShape;
+  verts: array[0..15] of Double;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b = nil then
+    Exit(nil);
+  for i := 0 to info.n - 1 do
+  begin
+    spec := kGenShapes[info.off + i];
+    case spec.kind of
+      1: AttachBox(b, spec.f, spec.r, spec.d, spec.v[0], spec.v[1], spec.v[2], spec.v[3]);
+      2: AttachCircle(b, spec.f, spec.r, spec.d, spec.v[0], spec.v[1], spec.v[2]);
+    else
+      if spec.n > 0 then
+      begin
+        for j := 0 to 2 * spec.n - 1 do
+          verts[j] := spec.v[j];
+        AttachPolyBody(b, spec.f, spec.r, spec.d, spec.n, verts);
+      end;
+    end;
+  end;
+  Result := b;
+end;
+
+function PhysAddMagnet(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 3) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kMagnet[st]);
+end;
+
+function PhysAddScrewDriver(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kScrewDriver[1]);
+end;
+
+function PhysAddShankBody(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 2) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kShankBody[st]);
+end;
+
+function PhysAddLamp(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 3) or (st > 4) then
+    st := 3;
+  Result := BuildFromStyle(Id, X, Y, Angle, kLamp[st]);
+end;
+
+function PhysAddCork(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 4) or (kCork[st].n < 0) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kCork[st]);
+end;
+
+function PhysAddTestTube(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kTestTube[1]);
+end;
+
+function PhysAddToothGear(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kToothGear[1]);
+end;
+
+function PhysAddWoodDetail(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  st: Integer;
+begin
+  st := Round(Style);
+  if (st < 1) or (st > 3) then
+    st := 1;
+  Result := BuildFromStyle(Id, X, Y, Angle, kWoodDetail[st]);
+end;
+
+function PhysAddHammerParts(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+begin
+  Result := BuildFromStyle(Id, X, Y, Angle, kHammerParts[1]);
+end;
+
+// Add_PhysicObjectWithAdvGraph(x, y, angle, …)：两个多边形（形状取自录制，F285）。
+// Add_PhysicObjectWithAdvGraph(x, y, angle, …)：只建 body，两块多边形由随后的
+// Attach_ShapePolygon 挂上（录制里那 2 个 shape 就来自这两条调用，F285）。
+function PhysAddPhysicObjectWithAdvGraph(Id: Integer; X, Y, Angle: Double): Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  Result := NewBody(Id, X, Y, Angle, True);
 end;
 
 function MetalGearRadius(Style: Integer): Single;
@@ -649,13 +904,16 @@ begin
   idx := ObjIndex(Id);
   if idx < 0 then
     Exit;
-  for i := 0 to g_objs[idx].ShapeCount - 1 do
+  // 形状遍历同样按 body 形状链头→尾（= 形状号从大到小，F285）。
+  for i := g_objs[idx].ShapeCount - 1 downto 0 do
     g_shapeSetDensity(g_objs[idx].Shapes[i], Density);
   g_mass(g_objs[idx].Body);
-  for i := 0 to g_objs[idx].ShapeCount - 1 do
-    g_shapeSetFriction(g_objs[idx].Shapes[i], Friction);
-  for i := 0 to g_objs[idx].ShapeCount - 1 do
-    g_shapeSetRestitution(g_objs[idx].Shapes[i], Restitution);
+  // 摩擦/弹性只写**最后一个**形状（原版取形状链头；52 关 69 个多形状 body 全部如此，F285）。
+  if g_objs[idx].ShapeCount > 0 then
+  begin
+    g_shapeSetFriction(g_objs[idx].Shapes[g_objs[idx].ShapeCount - 1], Friction);
+    g_shapeSetRestitution(g_objs[idx].Shapes[g_objs[idx].ShapeCount - 1], Restitution);
+  end;
   g_objs[idx].Density := Density;
   g_objs[idx].Friction := Friction;
   g_objs[idx].Restitution := Restitution;
@@ -691,7 +949,9 @@ begin
   f.category := Word(Category);
   f.mask := Word(Mask);
   f.group := SmallInt(Group);
-  for i := 0 to g_objs[idx].ShapeCount - 1 do
+  // 原版按 body 形状链的头部顺序（新形状前插）遍历 ⇒ 形状号从大到小（F285：录制里
+  // `SetFilter` 的 slot 是 1,0 / 9,8,7…；正向会逐条对不上）。
+  for i := g_objs[idx].ShapeCount - 1 downto 0 do
     g_shapeSetFilter(g_objs[idx].Shapes[i], @f);
 end;
 
@@ -704,7 +964,7 @@ begin
   idx := ObjIndex(Id);
   if idx < 0 then
     Exit;
-  for i := 0 to g_objs[idx].ShapeCount - 1 do
+  for i := g_objs[idx].ShapeCount - 1 downto 0 do
     g_reFilter(g_objs[idx].Shapes[i]);
 end;
 
