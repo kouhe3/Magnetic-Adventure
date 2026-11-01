@@ -5,7 +5,9 @@
   python tools/b2_sites.py <log> bodies
   python tools/b2_sites.py <log> xforms [--lua <lvlNN.jsonl>]
   python tools/b2_sites.py <log> shapes
+  python tools/b2_sites.py <log> joints
   python tools/b2_sites.py <logA> compare <logB>
+      [--joint-limit N]   # 只比前 N 个关节（录制的动态接触会追加关节）
 
 判据:
   * sites   —— 每个 (export, 返回地址) 的调用数。返回地址 = 宿主里的调用点，
@@ -22,6 +24,8 @@
   * compare —— 两份日志的建体/设位/形状序列逐项比较（指针不参与）：
                bodies 比 allowSleep/fixedRot/bullet/damping；xforms 比每组首条 (x,y) 与
                第二条 angle；shapes 比名称与全部数值。PASS = 逐项 |Δ| <= 1e-6。
+  * joints  —— `World_Joint_Revolute|Prismatic|Gear` 的 def（body1/body2、anchor/axis、
+               limits/motor/collide 或 joint1/joint2/ratio），按日志顺序。
 
 覆盖边界:
   * 只解码 `SetXForm` / `World_CreateBody` / `CreateShape_Circle|Box` 的已知布局
@@ -198,28 +202,80 @@ def cmd_shapes(a):
     return 0
 
 
+JOINT_EXPORTS = ('b2_World_Joint_Revolute', 'b2_World_Joint_Prismatic', 'b2_World_Joint_Gear')
+
+
 def collect_seq(path):
+    """建体/设位/形状/关节四类序列；关节与 body 指针都归一成创建顺序号。"""
     ffi.load_names()
-    bodies, shapes = [], []
+    bodies, shapes, raw_joints = [], [], []
     groups = collections.OrderedDict()
-    for eid, ret, seq, args, m0, m1, m2 in pre_records(path):
-        name = ffi.NAMES[eid]
-        if name == 'b2_World_CreateBody':
-            ad = f32(struct.unpack('<I', m0[4:8])[0])
-            ld = f32(struct.unpack('<I', m0[8:12])[0])
-            bodies.append((m0[12], m0[13], m0[14], ad, ld))
-        elif name == 'b2_Body_SetXForm':
-            x, y, ang = struct.unpack('<3f', m1[:12])
-            groups.setdefault(args[0], []).append((x, y, ang))
-        elif name in SHAPE_EXPORTS:
-            fric, rest, dens = struct.unpack('<3f', m0[4:16])
-            av, bv, cv, dv = struct.unpack('<4f', m0[20:36])
-            # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
-            shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
-                           dv if name.endswith('_Box') else None))
+    body_index, joint_index = {}, {}   # ptr -> [(seq, 创建序号)]，指针会复用
+    pending_body = pending_joint = None
+    for rec in ffi.records(path):
+        if rec[0] == 'pre':
+            v = rec[1]
+            eid, seq, args, m0, m1 = v[1], v[5], v[6:38], v[38], v[39]
+            name = ffi.NAMES[eid]
+            if name == 'b2_World_CreateBody':
+                ad = f32(struct.unpack('<I', m0[4:8])[0])
+                ld = f32(struct.unpack('<I', m0[8:12])[0])
+                bodies.append((m0[12], m0[13], m0[14], ad, ld))
+                pending_body = (seq, len(bodies) - 1)
+            elif name == 'b2_Body_SetXForm':
+                x, y, ang = struct.unpack('<3f', m1[:12])
+                groups.setdefault(args[0], []).append((x, y, ang))
+            elif name in SHAPE_EXPORTS:
+                fric, rest, dens = struct.unpack('<3f', m0[4:16])
+                av, bv, cv, dv = struct.unpack('<4f', m0[20:36])
+                # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
+                shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
+                               dv if name.endswith('_Box') else None))
+            elif name in JOINT_EXPORTS:
+                raw_joints.append((name, seq, m0))
+                pending_joint = (seq, len(raw_joints) - 1)
+        elif rec[0] == 'post':
+            v = rec[1]
+            name = ffi.NAMES[v[1]]
+            ptr = v[2]
+            if name == 'b2_World_CreateBody' and pending_body is not None:
+                body_index.setdefault(ptr, []).append(pending_body)
+                pending_body = None
+            elif name in JOINT_EXPORTS and pending_joint is not None:
+                joint_index.setdefault(ptr, []).append(pending_joint)
+                pending_joint = None
     xforms = [(recs[0][0], recs[0][1], recs[1][2] if len(recs) > 1 else None)
               for recs in groups.values()]
-    return bodies, xforms, shapes
+    def at(mapping, ptr, seq):
+        """取 seq 之前最近一次创建的序号（指针被 Destroy 后会复用）。"""
+        best, best_seq = -1, -1
+        for s, idx in mapping.get(ptr, ()):
+            if s < seq and s > best_seq:
+                best, best_seq = idx, s
+        return best
+
+    joints = []
+    for name, seq, m0 in raw_joints:
+        if name.endswith('Gear'):
+            b1, b2, j1, j2 = struct.unpack_from('<4I', m0, 4)
+            ratio, = struct.unpack_from('<f', m0, 20)
+            joints.append(('Gear', at(body_index, b1, seq), at(body_index, b2, seq),
+                           at(joint_index, j1, seq), at(joint_index, j2, seq), ratio))
+        elif name.endswith('Revolute'):
+            b1, b2 = struct.unpack_from('<2I', m0, 4)
+            ax, ay = struct.unpack_from('<2f', m0, 12)
+            lo, up = struct.unpack_from('<2f', m0, 24)
+            ms, mt = struct.unpack_from('<2f', m0, 36)
+            joints.append(('Revolute', at(body_index, b1, seq), at(body_index, b2, seq),
+                           ax, ay, m0[20], lo, up, m0[32], ms, mt, m0[44]))
+        else:
+            b1, b2 = struct.unpack_from('<2I', m0, 4)
+            ax, ay, vx, vy = struct.unpack_from('<4f', m0, 12)
+            lo, up = struct.unpack_from('<2f', m0, 32)
+            ms, mf = struct.unpack_from('<2f', m0, 44)
+            joints.append(('Prismatic', at(body_index, b1, seq), at(body_index, b2, seq),
+                           ax, ay, vx, vy, m0[28], lo, up, m0[40], ms, mf, m0[52]))
+    return bodies, xforms, shapes, joints
 
 
 def cmp_list(label, a, b, tol=1e-6):
@@ -249,30 +305,71 @@ def cmp_list(label, a, b, tol=1e-6):
 
 
 def cmd_compare(a):
-    ba, xa, sa = collect_seq(a.log)
-    bb, xb, sb = collect_seq(a.compare)
+    ba, xa, sa, ja = collect_seq(a.log)
+    bb, xb, sb, jb = collect_seq(a.compare)
+    if a.joint_limit:
+        ja, jb = ja[:a.joint_limit], jb[:a.joint_limit]
     bad = cmp_list('bodies', ba, bb)
     bad += cmp_list('xforms', xa, xb)
     bad += cmp_list('shapes', sa, sb)
+    bad += cmp_list('joints', ja, jb)
     print(f'TOTAL mismatches={bad}')
     return 0 if bad == 0 else 1
+
+
+def cmd_joints(a):
+    ffi.load_names()
+    n = 0
+    for eid, ret, seq, args, m0, m1, m2 in pre_records(a.log):
+        name = ffi.NAMES[eid]
+        if name not in JOINT_EXPORTS:
+            continue
+        n += 1
+        if name.endswith('Gear'):
+            b1, b2, j1, j2 = struct.unpack_from('<4I', m0, 4)
+            ratio, = struct.unpack_from('<f', m0, 20)
+            print(f'{n:3d} Gear      seq={seq:6d} site=0x{ret:08X} '
+                  f'b1=0x{b1:08X} b2=0x{b2:08X} j1=0x{j1:08X} j2=0x{j2:08X} ratio={ratio:g}')
+        elif name.endswith('Revolute'):
+            b1, b2 = struct.unpack_from('<2I', m0, 4)
+            ax, ay = struct.unpack_from('<2f', m0, 12)
+            lim = m0[20]
+            lo, up = struct.unpack_from('<2f', m0, 24)
+            mot = m0[32]
+            ms, mt = struct.unpack_from('<2f', m0, 36)
+            print(f'{n:3d} Revolute  seq={seq:6d} site=0x{ret:08X} '
+                  f'b1=0x{b1:08X} b2=0x{b2:08X} anchor=({ax:g},{ay:g}) '
+                  f'lim={lim} lo={lo:g} up={up:g} mot={mot} ms={ms:g} mt={mt:g} col={m0[44]}')
+        else:
+            b1, b2 = struct.unpack_from('<2I', m0, 4)
+            ax, ay, vx, vy = struct.unpack_from('<4f', m0, 12)
+            lim = m0[28]
+            lo, up = struct.unpack_from('<2f', m0, 32)
+            mot = m0[40]
+            ms, mf = struct.unpack_from('<2f', m0, 44)
+            print(f'{n:3d} Prismatic seq={seq:6d} site=0x{ret:08X} '
+                  f'b1=0x{b1:08X} b2=0x{b2:08X} anchor=({ax:g},{ay:g}) axis=({vx:g},{vy:g}) '
+                  f'lim={lim} lo={lo:g} up={up:g} mot={mot} ms={ms:g} mf={mf:g} col={m0[52]}')
+    print(f'joints={n}')
+    return 0
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('log')
-    ap.add_argument('mode', choices=['sites', 'bodies', 'xforms', 'shapes', 'compare'])
+    ap.add_argument('mode', choices=['sites', 'bodies', 'xforms', 'shapes', 'joints', 'compare'])
     ap.add_argument('compare', nargs='?', help='compare 模式的第二份日志')
     ap.add_argument('--export')
     ap.add_argument('--site', help='逗号分隔的返回地址（0x…），仅 xforms')
     ap.add_argument('--lua', help='lvlNN.jsonl，仅 xforms：按顺序对齐建体绑定')
+    ap.add_argument('--joint-limit', type=int, default=0, help='compare：只比前 N 个关节')
     ap.add_argument('--top', type=int, default=0)
     a = ap.parse_args()
     if a.site:
         a.site = {int(s, 0) for s in a.site.split(',') if s.strip()}
     try:
         return {'sites': cmd_sites, 'bodies': cmd_bodies, 'xforms': cmd_xforms,
-                'shapes': cmd_shapes, 'compare': cmd_compare}[a.mode](a)
+                'shapes': cmd_shapes, 'joints': cmd_joints, 'compare': cmd_compare}[a.mode](a)
     except OSError as exc:      # Windows 上 `| head` 关管道会报 OSError(22)
         if getattr(exc, 'errno', None) == 22:
             return 0

@@ -42,6 +42,12 @@ HOOKS = {
     "Add_WoodWall": ["  PhysAddWoodWall(id, v2, v3, v4);"],
     "Add_SwitchArm": ["  PhysAddSwitchArm(id, v2, v3, v4);"],
     "Attach_ShapeCircle": ["  PhysAttachShapeCircle(v1, v2, v3, v4, v5, v6, v7);"],
+    "Add_JointNail": ["  PhysAddJointNail(id, v2, v3, v4, v5);"],
+    "Add_JointSimpleRevolute": ["  PhysAddJointSimpleRevolute(id, v1, v2, v3, v4);"],
+    "Add_JointSimpleGear": ["  PhysAddJointSimpleGear(id, v1, v2, v3, v4, v5);"],
+    "Add_JointSimplePrismatic": ["  PhysAddJointSimplePrismatic(id, v1, v2, v3, v4, v5, v6);"],
+    "Set_JointLimits": ["  PhysSetJointLimits(v1, v2 <> 0.0, v3, v4);"],
+    "Set_JointMotors": ["  PhysSetJointMotors(v1, v2 <> 0.0, v3, v4);"],
 }
 
 

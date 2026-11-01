@@ -41,6 +41,34 @@ type
     userData1, userData2: Pointer;
     kind: Integer;
   end;
+  TPhysRevolute = packed record
+    world, body1, body2: Pointer;
+    anchor: TPhysVec2;
+    enableLimit: Byte;
+    pad1: array[0..2] of Byte;
+    lower, upper: Single;
+    enableMotor: Byte;
+    pad2: array[0..2] of Byte;
+    motorSpeed, maxMotorTorque: Single;
+    collide: Byte;
+    pad3: array[0..2] of Byte;
+  end;
+  TPhysPrismatic = packed record
+    world, body1, body2: Pointer;
+    anchor, axis: TPhysVec2;
+    enableLimit: Byte;
+    pad1: array[0..2] of Byte;
+    lower, upper: Single;
+    enableMotor: Byte;
+    pad2: array[0..2] of Byte;
+    motorSpeed, maxMotorForce: Single;
+    collide: Byte;
+    pad3: array[0..2] of Byte;
+  end;
+  TPhysGear = packed record
+    world, body1, body2, joint1, joint2: Pointer;
+    ratio: Single;
+  end;
 
 // 加载 DLL、建 world（AABB ±100，重力 0）与 4 面世界墙；失败返回 False。
 function PhysStart: Boolean;
@@ -58,6 +86,14 @@ function PhysAddWoodGear(Id: Integer; X, Y, Angle, Size: Double): Pointer;
 function PhysAddWoodWall(Id: Integer; X, Y, Angle: Double): Pointer;
 function PhysAddSwitchArm(Id: Integer; X, Y, Angle: Double): Pointer;
 function PhysAttachShapeCircle(Id: Integer; Fric, Rest, Dens, LX, LY, Radius: Double): Pointer;
+function PhysAddJointNail(Id, B1, B2: Integer; X, Y: Double): Pointer;
+function PhysAddJointSimpleRevolute(Id, B1, B2: Integer; X, Y: Double): Pointer;
+function PhysAddJointSimpleGear(Id, B1, B2, J1, J2: Integer; Ratio: Double): Pointer;
+function PhysAddJointSimplePrismatic(Id, B1, B2: Integer; AX, AY, VX, VY: Double): Pointer;
+procedure PhysSetJointLimits(Id: Integer; Enable: Boolean; Lower, Upper: Double);
+procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double);
+// 诊断用：把对象瞬移到指定位置（HOST_PHYS_MOVE 自检，不参与正式语义）。
+procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 
 implementation
 
@@ -70,6 +106,10 @@ type
   TUserDataFn = function(Body, Data: Pointer): Pointer; cdecl;
   TStepFn = procedure(World: Pointer; Dt: Single; Vi, Pi: Integer); cdecl;
   TContactCbFn = procedure(World, Cb: Pointer); cdecl;
+  TJointFn = function(Def: Pointer): Pointer; cdecl;
+  TJointBoolFn = procedure(J: Pointer; Enable: Integer); cdecl;
+  TJointLimitsFn = procedure(J: Pointer; Lower, Upper: Single); cdecl;
+  TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
 
 type
   TPhysObj = record
@@ -96,8 +136,18 @@ var
   g_setUserData: TUserDataFn;
   g_step: TStepFn;
   g_contactCb: TContactCbFn;
+  g_jointRev: TJointFn;
+  g_jointPri: TJointFn;
+  g_jointGear: TJointFn;
+  g_jointEnableLimit: TJointBoolFn;
+  g_jointEnableMotor: TJointBoolFn;
+  g_jointSetLimits: TJointLimitsFn;
+  g_jointSetMotorSpeed: TJointFloatFn;
+  g_jointSetMaxTorque: TJointFloatFn;
   g_objs: array[0..MAX_OBJECTS - 1] of TPhysObj;
   g_objCount: Integer;
+  g_joints: array[0..MAX_OBJECTS - 1] of TPhysObj;
+  g_jointCount: Integer;
 
 function PhysActive: Boolean;
 begin
@@ -107,6 +157,7 @@ end;
 procedure PhysResetObjects;
 begin
   g_objCount := 0;
+  g_jointCount := 0;
 end;
 
 function PhysBodyOf(Id: Integer): Pointer;
@@ -127,6 +178,26 @@ begin
     g_objs[g_objCount].Body := Body;
     Inc(g_objCount);
   end;
+end;
+
+procedure RegJoint(Id: Integer; Joint: Pointer);
+begin
+  if g_jointCount < MAX_OBJECTS then
+  begin
+    g_joints[g_jointCount].Id := Id;
+    g_joints[g_jointCount].Body := Joint;
+    Inc(g_jointCount);
+  end;
+end;
+
+function JointOf(Id: Integer): Pointer;
+var
+  i: Integer;
+begin
+  for i := 0 to g_jointCount - 1 do
+    if g_joints[i].Id = Id then
+      Exit(g_joints[i].Body);
+  Result := nil;
 end;
 
 procedure SetXForm(Body: Pointer; X, Y, Angle: Single);
@@ -273,6 +344,123 @@ begin
   Result := AttachCircle(b, Fric, Rest, Dens, LX, LY, Radius);
 end;
 
+function PhysAddJointNail(Id, B1, B2: Integer; X, Y: Double): Pointer;
+var
+  d: TPhysRevolute;
+  pb1, pb2: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  pb1 := PhysBodyOf(B1);
+  pb2 := PhysBodyOf(B2);
+  if (pb1 = nil) or (pb2 = nil) then
+    Exit(nil);
+  FillChar(d, SizeOf(d), 0);
+  d.world := g_world;
+  d.body1 := pb1;
+  d.body2 := pb2;
+  d.anchor.x := X;
+  d.anchor.y := Y;
+  Result := g_jointRev(@d);
+  RegJoint(Id, Result);
+end;
+
+function PhysAddJointSimpleRevolute(Id, B1, B2: Integer; X, Y: Double): Pointer;
+begin
+  Result := PhysAddJointNail(Id, B1, B2, X, Y);
+end;
+
+function PhysAddJointSimpleGear(Id, B1, B2, J1, J2: Integer; Ratio: Double): Pointer;
+var
+  d: TPhysGear;
+  pb1, pb2: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  pb1 := PhysBodyOf(B1);
+  pb2 := PhysBodyOf(B2);
+  if (pb1 = nil) or (pb2 = nil) then
+    Exit(nil);
+  FillChar(d, SizeOf(d), 0);
+  d.world := g_world;
+  d.body1 := pb1;
+  d.body2 := pb2;
+  d.joint1 := JointOf(J1);
+  d.joint2 := JointOf(J2);
+  d.ratio := Ratio;
+  Result := g_jointGear(@d);
+  RegJoint(Id, Result);
+end;
+
+function PhysAddJointSimplePrismatic(Id, B1, B2: Integer; AX, AY, VX, VY: Double): Pointer;
+var
+  d: TPhysPrismatic;
+  pb1, pb2: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  pb1 := PhysBodyOf(B1);
+  pb2 := PhysBodyOf(B2);
+  if (pb1 = nil) or (pb2 = nil) then
+    Exit(nil);
+  FillChar(d, SizeOf(d), 0);
+  d.world := g_world;
+  d.body1 := pb1;
+  d.body2 := pb2;
+  d.anchor.x := AX;
+  d.anchor.y := AY;
+  d.axis.x := VX;
+  d.axis.y := VY;
+  // 原版 def 里 motorSpeed=100（enableMotor=0，无行为影响；F276 录制观测）。
+  d.motorSpeed := 100.0;
+  Result := g_jointPri(@d);
+  RegJoint(Id, Result);
+end;
+
+procedure PhysSetJointLimits(Id: Integer; Enable: Boolean; Lower, Upper: Double);
+var
+  j: Pointer;
+begin
+  if not g_active then
+    Exit;
+  j := JointOf(Id);
+  if j = nil then
+    Exit;
+  if Enable then
+    g_jointEnableLimit(j, 1)
+  else
+    g_jointEnableLimit(j, 0);
+  g_jointSetLimits(j, Lower, Upper);
+end;
+
+procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double);
+var
+  j: Pointer;
+begin
+  if not g_active then
+    Exit;
+  j := JointOf(Id);
+  if j = nil then
+    Exit;
+  if Enable then
+    g_jointEnableMotor(j, 1)
+  else
+    g_jointEnableMotor(j, 0);
+  g_jointSetMotorSpeed(j, Speed);
+  g_jointSetMaxTorque(j, Torque);
+end;
+
+procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
+var
+  b: Pointer;
+begin
+  if not g_active then
+    Exit;
+  b := PhysBodyOf(Id);
+  if b <> nil then
+    SetXForm(b, X, Y, Angle);
+end;
+
 procedure PhysStep(Dt: Single; Vi, Pi: Integer);
 begin
   if g_active and (g_world <> nil) then
@@ -346,9 +534,21 @@ begin
   g_setUserData := TUserDataFn(GetProcAddress(g_dll, 'b2_Body_SetUserData'));
   g_step := TStepFn(GetProcAddress(g_dll, 'b2_World_Step'));
   g_contactCb := TContactCbFn(GetProcAddress(g_dll, 'b2_World_SetContactListenerCallBack'));
+  g_jointRev := TJointFn(GetProcAddress(g_dll, 'b2_World_Joint_Revolute'));
+  g_jointPri := TJointFn(GetProcAddress(g_dll, 'b2_World_Joint_Prismatic'));
+  g_jointGear := TJointFn(GetProcAddress(g_dll, 'b2_World_Joint_Gear'));
+  g_jointEnableLimit := TJointBoolFn(GetProcAddress(g_dll, 'b2_Joint_EnableLimit'));
+  g_jointEnableMotor := TJointBoolFn(GetProcAddress(g_dll, 'b2_Joint_EnableMotor'));
+  g_jointSetLimits := TJointLimitsFn(GetProcAddress(g_dll, 'b2_Joint_SetLimits'));
+  g_jointSetMotorSpeed := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMotorSpeed'));
+  g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
   if not (Assigned(g_createWorld) and Assigned(g_createBody) and Assigned(g_setXForm) and
     Assigned(g_shapeCircle) and Assigned(g_shapeBox) and Assigned(g_mass) and
-    Assigned(g_setUserData) and Assigned(g_step) and Assigned(g_contactCb)) then
+    Assigned(g_setUserData) and Assigned(g_step) and Assigned(g_contactCb) and
+    Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
+    Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
+    Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
+    Assigned(g_jointSetMaxTorque)) then
     Exit(False);
   aabb.lo.x := -100.0;
   aabb.lo.y := -100.0;

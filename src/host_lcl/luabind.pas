@@ -826,6 +826,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_JointNail');
+  PhysAddJointNail(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -984,6 +985,7 @@ begin
   v4 := LuaOptInt(L, 4, 0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_JointSimpleGear');
+  PhysAddJointSimpleGear(id, v1, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1044,6 +1046,7 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   id := NextId('Add_JointSimplePrismatic');
+  PhysAddJointSimplePrismatic(id, v1, v2, v3, v4, v5, v6);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1063,6 +1066,7 @@ begin
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Add_JointSimpleRevolute');
+  PhysAddJointSimpleRevolute(id, v1, v2, v3, v4);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1810,6 +1814,7 @@ begin
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Set_JointLimits');
+  PhysSetJointLimits(v1, v2 <> 0.0, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1843,6 +1848,7 @@ begin
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Set_JointMotors');
+  PhysSetJointMotors(v1, v2 <> 0.0, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;

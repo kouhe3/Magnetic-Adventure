@@ -157,6 +157,65 @@ begin
     Result := '';
 end;
 
+// T6.3c：b2 接触 → Lua 事件（OnAddContact）。回调在 World_Step 内同步执行，
+// 与 Lua 同一线程；g_lua 只在步进循环期间非空。
+var
+  g_lua: TLuaState = nil;
+  g_contacts: Integer = 0;
+  g_contactTrace: string = '';
+
+procedure PhysContactCb(Rec: Pointer); cdecl;
+var
+  r: TContactRec;
+  a, b, calls: Integer;
+begin
+  Move(Rec^, r, SizeOf(r));
+  if (r.userData1 = nil) or (r.userData2 = nil) then
+    Exit;
+  a := PtrInt(r.userData1);
+  b := PtrInt(r.userData2);
+  Inc(g_contacts);
+  if Length(g_contactTrace) < 400 then
+    g_contactTrace := g_contactTrace + IntToStr(a) + '-' + IntToStr(b) + ':' +
+      IntToStr(r.kind) + ' ';
+  if (r.kind = 0) and (g_lua <> nil) then
+  begin
+    EventsFire(g_lua, a, 'OnAddContact', b, calls);
+    EventsFire(g_lua, b, 'OnAddContact', a, calls);
+  end;
+end;
+
+// HOST_PHYS_MOVE=<objId>:<x>:<y>[:<angle>]：把对象瞬移到位（接触管道自检用）。
+procedure ApplyPhysMove(const Spec: string);
+var
+  p1, p2, p3, id: Integer;
+  s: string;
+  x, y, a: Double;
+begin
+  p1 := Pos(':', Spec);
+  if p1 = 0 then
+    Exit;
+  id := StrToIntDef(Copy(Spec, 1, p1 - 1), -1);
+  s := Copy(Spec, p1 + 1, MaxInt);
+  p2 := Pos(':', s);
+  if p2 = 0 then
+    Exit;
+  x := StrToFloatDef(Copy(s, 1, p2 - 1), 0.0);
+  s := Copy(s, p2 + 1, MaxInt);
+  p3 := Pos(':', s);
+  if p3 = 0 then
+  begin
+    y := StrToFloatDef(s, 0.0);
+    a := 0.0;
+  end
+  else
+  begin
+    y := StrToFloatDef(Copy(s, 1, p3 - 1), 0.0);
+    a := StrToFloatDef(Copy(s, p3 + 1, MaxInt), 0.0);
+  end;
+  PhysSetBodyPos(id, x, y, a);
+end;
+
 // T6.3/a0 判据：新建 state → 跑 `return 2+3` → 读回 5。
 function LuaSelfTest(const Code: string; out Log: string): Boolean;
 var
@@ -376,6 +435,21 @@ begin
       end
       else
         Log := Log + 'fire_error=bad spec ' + FireSpec + #13#10;
+    end;
+    // T6.3c：物理步进。接触回调在同一次 step 内派发 OnAddContact；
+    // 步数由 HOST_PHYS_STEPS 指定（dt/迭代数取自 F276 的录制：0.01 / 20 / 20）。
+    if (EnvStr('HOST_PHYS_STEPS') <> '') and PhysActive then
+    begin
+      g_lua := L;
+      g_contacts := 0;
+      g_contactTrace := '';
+      PhysSetContactCallback(@PhysContactCb);
+      ApplyPhysMove(EnvStr('HOST_PHYS_MOVE'));
+      for i := 1 to StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0) do
+        PhysStep(0.01, 20, 20);
+      g_lua := nil;
+      Log := Log + 'steps=' + EnvStr('HOST_PHYS_STEPS') + ' contacts=' +
+        IntToStr(g_contacts) + ' trace=' + g_contactTrace + #13#10;
     end;
     Result := 'ok';
   finally
