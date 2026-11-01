@@ -4,6 +4,22 @@
 规则：任务必须有 `依据：`；依据缺失或指向不存在的事实 → 不开工。
 闸门（premise-gate，2026-11-01，T6.3d）：`mode=直接做` —— oracle = 原版 b2 代理录制（B2FFI02，L2/L4；宿主 A/A=0，F282）；criteria = `python tools/phys_sweep.py`（逐关 `b2_sites compare --stop-at-step` 的 `TOTAL mismatches=0`）。
 
+### 路线图闸门（premise-gate，2026-11-01 全线过闸）
+
+判定三件：oracle 等级、判据能写成二值命令、判据延迟（秒级优先）。任一条写不出的不进队列——进 `tasks/backlog.md`，带回流条件。
+
+| 任务线 | 判定 | oracle | 判据（二值命令） | 延迟 |
+|---|---|---|---|---|
+| T6.3d 物理 init 覆盖 | 直接做 | B2FFI02 录制（L2/L4；A/A=0，F282） | `python tools/phys_sweep.py` → `PASS=50 / SKIP=2 / MISMATCH=0`（9 关须先重录） | 9.6 s / 52 关（实测，F290） |
+| T6.4a 关卡渲染 | 改造后做：先造仪器 | GLFFI02 逐帧绘制列表（L2；A/A 0 bad_frames，F215/F222） | 新仪器 `level_draw_ab`（口径照 `tools/menu_draw_ab.py`：逐 draw 比 tex/bbox/UV）→ `mismatches=0` | 有头，单关 ≈20–40 s（估） |
+| T6.4b 输入/拖拽 | 改造后做：先录轨迹 | 鼠标轨迹 + B2FFI02（L2/L4） | 轨迹重放后 `python tools/b2_sites.py compare` → `TOTAL mismatches=0` | 秒级（无头） |
+| T6.4c 存档/配置 | 直接做 | 原版存档 + `tools/profile.py` 解码（L2） | 逐键解码 diff → `diffs=0` | 秒级 |
+| T6.4d 循环/状态机 | 改造后做：先定锚点 | `uistate` 状态序列（L3；F169/F172） | 状态序列与切换时刻逐项相同（A/A 先量） | ≈40 s（有头） |
+| T7.2a 竖切 → T7.3–T7.5 应用层 | 待竖切裁决 | 原版进程内 pre/post 记录（L2） | 同输入同调用序 post-state 摘要逐位相同 + 一条负例 | 亚秒（注入后） |
+| M3 / T0.3 / T0.4 / T2.5 / T4.8 / T4.9 | 冻结或拒绝 | — | 见 `tasks/backlog.md` 的回流条件 | — |
+
+延迟列只有 9.6 s 是实测（F290），其余是估计；估计在第一次跑通时被实测替换。
+
 ## M0 事实闭环（探针，不进主干）
 
 - [x] T0.1 用调试器跟踪 `game.exe` 的 pak 读取循环，写出记录字段规格（消除第 33 条起的 1 字节漂移） 依据：F05、F13
@@ -39,6 +55,8 @@
 > 下面任务里的像素差值（如 T3.2 的 1.088/255）是 **C++ 宿主**的实测，不是最终口径；
 > 换成 M6 后渲染由同一份 GLScene 库产出，判据改为逐调用（GL 序列）+ 逐指令（库层 sim）。
 
+> **2026-11-01 冻结**：T3.1 / T3.2 / T3.3 / T3.4 是 C++ 路线的实现任务，已被 T6.1 / T6.2 / T6.3 / T6.4 逐项取代，**不再执行**（复选框保留作档案，`[x]` 只增不减）。T3.5（文本排版）与 T3.6（配置/存档）是行为任务、与实现路线无关，新落点见 T6.4e / T6.4c。
+
 - [ ] T3.1 Win32 窗口/消息/输入（参数对照原 exe） 依据：F153–F159、F164、F166、F167（**脚手架已落地并通过窗口门禁**：`src/host/main.cpp` + CMake target `host`→`build/Release/magnethost.exe`，`tools/wincompare.py` 报 `fields=15 diffs=0`，外框/边框厚度也逐字相同（F166：PE 子系统版本 5.01）；全屏分支参数已实测（F167：`bsNone`+`wsMaximized`+`WS_EX_TOPMOST`，整屏无边框，实现留给 T3.6 接配置）；剩余：输入分发只做了消息日志，接场景属 T3.4）
 - [ ] T3.2 OpenGL 上下文 + GLScene 等价渲染层 依据：F03、F158、F177、F178、F184、F187、F190（**里程碑 A + 纹理 + 布局全部落地**：WGL 上下文（F183）、纹理直读 pak（F187）、菜单布局宿主现算 + 二态悬停（F190）；原版 vs 宿主截屏 mean\|Δ\| **1.088/255**、p99 20、>16 1.346%（鼠标停同一设计像素，A/A 地板 0.00）。**剩**：关卡渲染（26–27 draw/帧的场景模型））
 - [x] T3.2c 纹理直接读 pak（PNG/JPG 解码进宿主，替掉预烘焙的 `menu_tex.bin`） 依据：F183、F185、F187（**已落地**：`src/host/pak.{h,cpp}` + `src/host/wic_decode.{h,cpp}`（WIC，系统自带，不必 vendor）+ 生成物 `src/host/texture_table.h`（源 `mapping/textures.csv`）。判据：`HOST_TEX_CRC` 的 37 条 vs 原版上传 CRC **diffs=0/37**（含 5 张 JPG，F185），截图 mean|Δ| **1.375/255**、>16 2.105%（删掉 `menu_tex.bin` 仍能画）。边界：level 0 一致 ≠ mipmap 一致；800×600 的 `logo_1.JPG` 被 glu 扩到 1024×512）
@@ -54,6 +72,8 @@
 - [x] T3.7 用同版工具链测出宿主的"库/应用"分界 + 库层版本（L2-B 度量前置） 依据：F202–F211（**已完成**：① 尺寸分界 `.text` `0x521000`，应用 ≤389,815 B（F204）；② 工具链开关全对——LCL 逐指令 99.9–100%（F210）；③ **版本夹逼（F211）**：`tools/ver_bisect.py` 扫 r4700→r5025，跳变点 r4850/r4900/r4980/r5002 ⇒ GLScene = **v1.1 / trunk r5000 一带**（v1.1 发布包与 r5002–r5025 数字完全相同：100/100/98.8/84.9/84.6/99.7）；④ 残余：11 个单元 1,043 个函数里 **只有 12 个（2,448 B）sim<0.95**，全在文本/HUD/视口（`RenderTextAtPosition`、`RenderString` 助手、`DoRender`、`CalcStringWidth`、`SetHSpace/SetVSpace`、`LMPaint`、`LMEraseBkgnd`、`TGLPictureImage.Assign`、`DestroyRC`）；`SetHSpace` 的下限钳位在 trunk r4600–r6150 **不存在** ⇒ 这 12 个是**原版本地补丁**；⑤ F208 的"r4700 最 fit"被 F211 取代（glX 名字在 Win32 下被编掉，指纹假差异）。**下一步**：把 12 个补丁函数从反汇编复原（2.4 KB），再评估应用代码的复原形态）
 
 ## M4 行为对齐验收
+
+> **2026-11-01 口径说明**：本节判据都跑在**当前宿主**上（现为 `build/host_lcl/magnet.exe`）；T4.2 的「同状态对 + 16×16 窗口最大计数」、T4.10 的四层（窗口 / DLL 调用 / 存档 / 输出）本来就与实现无关，措辞里的 `src/host` 只是当时的被测物。T4.5（映射覆盖率）是 `requirements.md` 的 **L1** 验收项，依赖 T7.5。
 
 - [ ] T4.1 确定性输入回放 harness 依据：F03、F169、F172、F174（**自动化驱动已可用**：`uistate` 状态机 + `uitemplate` 模板定位 + `e2e_tutorial` 无人值守跑关（38 s）+ `e2e_record` 自走录制并直接过门禁（40 s）。剩余：输入**回放**（按键/鼠标事件逐帧记录再重放）尚未做——现在是脚本化操作，同一脚本两次运行日志字节数相同（F174），但还没到「录一次输入、任意次重放」）
 - [ ] T4.2 GL 调用序列 diff + 像素 diff 依据：F03、F194（**口径**：同状态对 + 16×16 窗口最大计数 + A/A 地板；`orig_menu` vs `host_menu` 这类跨状态对作废。已定位两个紧凑差异区：悬停 Play（205/256）与光标（120/256），归因见 F196）
@@ -82,9 +102,17 @@
 - [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214、F154、F155、F157、F158、F166（**完成**：`src/host_lcl/magnet.pas` 40 行 —— bsNone 建窗 + 手工补 caption 位 + `SWP_FRAMECHANGED` + 按外框居中 + 视口用真实客户区；`wincompare --ours build/host_lcl --ours-exe magnet.exe` **fields=15 diffs=0**。坑：原版 style 带 `WS_POPUP`（切 BorderStyle 会丢）、LCL 的 `ClientWidth` 缓存改 style 后是旧的、`uses GLFilePNG` 需要 `libpng13.dll`/`zlib1.dll`）
 - [x] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak （复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187、F225–F230（**完成（菜单层）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 19 个 `TGLHUDSprite`（设计空间 1018×739，顺序=原版 draw 顺序），纹理走 GLFilePNG + 自持 32 位 RGBA（LCL 的 TPicture 丢 alpha，F226）。判据：新仪器 `tools/menu_draw_ab.py`（按素材名对齐）比原版 `glidle.bin` frame 10 vs 宿主 frame 2 ⇒ **19/19 draw 零差（dbbox=0/duv=0/dα=0）**，未配对的只有文本层；像素 `HOST_DUMP_FRAME` 自读帧 mean|Δ| 2.46/255（缺文本 + 光标不旋转为主，F230）。三个库级坑已记账：TextureMode 默认 decal（F227）、ObjectsSorting 默认重排（F228）、GLScene 不发 glBlendFunc（F229）。**剩**：关卡场景模型（归 T6.4 应用层））
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201、F239–F243、F267–F274（**b0/a0–a2/b1/b2 已完成**：144 绑定参数表与壳、52/52 关 `call+args` 与 `lua_probe` 逐条相同（F239–F243）；对象采集改走进程内 `objlog` thunk（F270），单进程一次采齐 **52/52 关**，**51 关**与原版绑定序列逐项一致（F271）；**接触回调的登记与派发已落地**（F273/F274：`Attach_ScriptToObject` → `luaevents.pas` → `HOST_LUA_FIRE` 注入，lvl49 追加的 2 个工厂调用与 objlog 同名同序，52 关 init 零回归）。**剩**：把注入换成真实物理接触（b2 建体序）；工厂语义（274 pending / 65 KB）；其余事件回调接物理层（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`））
-- [ ] T6.3c 真实物理接触（T6.3 切片）：`host_lcl` 动态加载 `b2Physics.dll`，按工厂语义建 world/bodies/shapes/joints（`dt=0.01`、`vi=pi=20`），接触回调经 `luaevents.pas` 派发 `OnAddContact` 依据：F276–F281、F273、F274（**body/shape + 关节 + 接触管道 + 位置 getter/setter + phys params/filters 已完成**：原版录制 vs 宿主 ⇒ bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16、一次 init 的 56 个 setter 全 0；WoodWall 密度 0 变静态与原版一致（F281）；接触（`HOST_PHYS_MOVE` 诊断输入）触发 OnAddContact，尾段 5 条与 objlog 同名同序；A/A 0；**剩**：真实玩法输入/力驱动接触（T6.4））
+- [x] T6.3c 真实物理接触（T6.3 切片）：`host_lcl` 动态加载 `b2Physics.dll`，按工厂语义建 world/bodies/shapes/joints（`dt=0.01`、`vi=pi=20`），接触回调经 `luaevents.pas` 派发 `OnAddContact` 依据：F276–F281、F273、F274（**body/shape + 关节 + 接触管道 + 位置 getter/setter + phys params/filters 已完成**：原版录制 vs 宿主 ⇒ bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16、一次 init 的 56 个 setter 全 0；WoodWall 密度 0 变静态与原版一致（F281）；接触（`HOST_PHYS_MOVE` 诊断输入）触发 OnAddContact，尾段 5 条与 objlog 同名同序；A/A 0；**剩**：真实玩法输入/力驱动接触（T6.4））
 - [ ] T6.3d 工厂覆盖扩展（逐个建体绑定，按关卡录制对拍）依据：F282、F276–F281、F283–F290（**覆盖图 45/52 PASS**：`tools/phys_sweep.py` 逐关 `b2_sites compare --stop-at-step`，已默认 `HOST_HEADLESS=1`（F290，52 关 9.6 s）；`tools/gen_phys_shapes.py` 生成形状表；`Add_Rope` 10 关与 `Add_HammerParts` 双 body 已接（F289）。**剩余 5 关**：视觉角度/父图局部坐标（5/36/42）、录制不可用（9）、待归因（28 Looking for Keys）)
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据；单元判据与工作台见 M7 依据：F204、F213
+
+> **2026-11-01 切片**：原文只有「分块」和「用 GL 调用序列与窗口消息做判据」，没有命令也没有 PASS 条件 ⇒ 按闸门拆成 T6.4a–e，每片自带 oracle、二值判据与改造项（见头部「路线图闸门」）。T6.4 本身不再单独开工。
+
+- [ ] T6.4a 关卡渲染：Lua 对象 → 场景模型 → 逐 draw 绘制列表（26–27 draw/帧） 依据：F179、F181、F182、F231（**判据**：新仪器 `level_draw_ab` 按 `tools/menu_draw_ab.py` 的口径逐 draw 比 tex/bbox/UV，宿主 vs `GLFFI02` 录制同一状态帧 ⇒ `mismatches=0`；**改造项**：① 造仪器；② 定「哪一帧算同一状态」（`uistate` 锚点）；③ 关卡自检入口（`HOST_LUA_SELFTEST=5` 那条链）建场景后渲染一帧 + `HOST_DUMP_FRAME`，不依赖 T6.4d 的完整玩法路径；**边界**：只覆盖录到的关卡与状态，未录关卡不外推）
+- [ ] T6.4b 输入/拖拽（磁铁） 依据：F159、F189、F263（**判据**：录制鼠标轨迹重放 ⇒ `python tools/b2_sites.py compare`（不截断）`TOTAL mismatches=0`；**改造项**：先录一份带轨迹的会话（`tools/click_play.py` / e2e 驱动），轨迹成为新的 L2 语料；**边界**：只覆盖录到的那条轨迹）
+- [ ] T6.4c 存档/配置写入（T3.6 的新落点） 依据：F01、F171（**判据**：`python tools/profile.py` 解码后逐键 diff ⇒ `diffs=0`；**改造项**：给 `profile.py` 加 `diff` 子命令）
+- [ ] T6.4d 游戏循环/状态机（loading→intro→menu→level→win/exit） 依据：F169、F171、F172、F177（**判据**：`uistate` 的状态序列 + 切换时刻逐项相同；**改造项**：把状态序列写成可 diff 的 JSONL，并先量两次运行的地板）
+- [ ] T6.4e 关卡文本（T3.5 的新落点：`pt_sans*.dat` 3176 B 非 32 B 对齐、`gulim2.dat`） 依据：F11、F192、F231（**判据**：同 T6.4a 的 draw 列表（字形 quad 的 UV/advance）；像素只作验收）
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
 
@@ -93,6 +121,8 @@
 > 目的：在黑盒输入输出之外建**逐函数判据**——记录未导出函数每次调用的 pre/post 状态，再用同工具链编出的实现顶替原函数入口，按 `(rva, call_seq)` 比对。
 > 判据：**逐 call 的 post-state 摘要逐位相等 + 不崩溃 + 零调用函数清零**。「不崩溃」只是 harness 的运行条件，不是判据。
 > 与 M6 的关系：M7 是 T6.4 的工作台与判据；T7.0/T7.1 可立即并行，不改变 M6 的 T6.3→T6.4→T6.5 顺序，T7.6 并入 T6.5 整机门禁。
+
+- [ ] T7.2a **竖切（先裁决应用层形态）**：取一个纯函数（`mapping/app-functions.csv` 里无对象、无分配、无导入的叶子），跑通「注入 → pre/post 摘要 → 我方实现 A/B」全链 依据：F233、F234、F244–F248（**判据**：同一输入同调用序的 post-state 摘要，两次记录逐位相同（A/A），且翻转一个输入 bit ⇒ 摘要变（负例）；**过** ⇒ 应用层按逐函数替换推进（T7.3–T7.5）；**不过** ⇒ 应用层退回 T6.4 行为切片，M7 只兜底不可观测函数。**边界**：只覆盖选中的那一个函数；注入与跨模块约束照 F244–F248（宿主线程、模块内 try/except、共享 `TMemoryManager`））
 
 - [x] T7.0 跨模块 RTL 实测：双向分配/释放 10 万次、`ReallocMem`、异常跨模块 unwind 依据：F235、F233（**完成（F244–F248）**：默认 RTL 的双向交叉 10 万次都在首 5000 次内崩/挂，交叉 `ReAllocMem` 挂死；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。工作台 `tools/rtlprobe/` + `tools/rtlprobe_build.py`；F235 的"进程堆直通"推论已证伪）
 - [x] T7.1 应用层清单减法：用 patch 后 GLScene+LCL 骨架（F213）对 `game.exe` 跑 `code_match.py funcs`，sim≥0.95 标为「库，继承」、其余为待复原；输出 RVA/大小/sim/调用点数 依据：F236、F237、F238（**完成**：`tools/app_inventory.py` + `tools/glskel9.pas`（48 单元）⇒ 待复原 **1,012 函数 / 196,597 B / 60,868 指令**；清单 `mapping/app-functions.csv`，1,030 行含 18 个导入桩）
@@ -104,6 +134,8 @@
 
 
 ## 变更记录
+
+- 2026-11-01 依据 F213、F204、F236–F238、F282、F290、F150（**路线图按 premise-gate 全线过闸：闸门落到任务，不再只有 T6.3d 一行**）：① 头部新增「路线图闸门」表——每条任务线写 oracle 等级 + 二值判据命令 + 判据延迟；写不出的一律不进队列。② **M3 冻结**：T3.1/T3.2/T3.3/T3.4 已被 T6.1/T6.2/T6.3/T6.4 取代（F213 拍板），不再执行；T3.5/T3.6 与路线无关，改挂 T6.4e/T6.4c。③ **T6.4 切片**（原文写不出判据）：拆成 T6.4a 关卡渲染 / b 输入拖拽 / c 存档配置 / d 循环状态机 / e 关卡文本，每片带 oracle、二值命令、改造项；T6.4 本体不再单独开工。④ **新增 T7.2a 竖切**作为应用层形态的裁决点（一个纯函数的 A/A + 负例）：它决定 1,012 个待复原函数走逐函数替换还是行为重写，且不依赖宿主完成度（oracle 在原版进程内，F233/F234/F244–F248）。⑤ **移出队列进 backlog**：PCM 逐位（T2.5/T4.9——`requirements.md` L2-A 的字面是「音频 PCM 差分」，F150 已给 corr 0.9998–0.9999；F147 三条逐位路线均否、F195 环回 A/A 自身不逐位）、残余 1 ULP（T4.8）、T0.3/T0.4、M3 遗留。⑥ **同步**：T6.3c 补勾（正文已完成，剩项已归 T6.4）；新建 `tasks/backlog.md`；`tasks/magnetic-adventure-todo.md` 补 T4.7/T6.3c 勾与切片行。
 
 - 2026-11-01 依据 F289/F290（**T6.3d 绳索 10 关归零 + 宿主无头模式**）：① `Add_Rope` 按「锚点链式」实现——`anchor_i = p_i + h·u(a_i)`、`p_{i+1} = anchor_i + h·u(a_{i+1})`（两步都落 Single，h = halfW/1.1），style 常量表 {0,1:(0.77,0.2) dens 0.5；2:(0.275,0.2) dens 3；3:(0.77,0.5) dens 0.2}，相邻链节建无 id 的 Revolute；`Get_RopePhysItem` 改 0 基返回链节 id，rope id 的 `Set_PhysParams` 逐链节（密度×N 每节 SetMass → 摩擦×N → 弹性×N）。顺带补 `Add_HammerParts` 的**第二个 body**（锤头 +3.76、0..0 限位 Revolute）。② 判据：`python tools/phys_sweep.py --levels 8,10,16,17,19,26,29,33,41,44` ⇒ **10/10 PASS**；全量 52 关 **35 → 45 PASS**（剩 5：5/36/42 的视觉角度/父图局部坐标、9 录制不可用、28 待归因）。③ 新增 `HOST_HEADLESS=1`：不建窗、不建 GLScene/GL 上下文，只跑 pak/Lua/物理自检；有头 vs 无头的 b2 日志 `b2_sites compare --stop-at-step` = 0 差异，52 关 sweep 36.7 s → 9.6 s（F290）。`tools/phys_sweep.py` 已默认无头；`verify.py` 6/6、window 15/15。
 
