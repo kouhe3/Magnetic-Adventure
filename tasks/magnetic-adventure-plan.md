@@ -81,6 +81,7 @@
 - [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214、F154、F155、F157、F158、F166（**完成**：`src/host_lcl/magnet.pas` 40 行 —— bsNone 建窗 + 手工补 caption 位 + `SWP_FRAMECHANGED` + 按外框居中 + 视口用真实客户区；`wincompare --ours build/host_lcl --ours-exe magnet.exe` **fields=15 diffs=0**。坑：原版 style 带 `WS_POPUP`（切 BorderStyle 会丢）、LCL 的 `ClientWidth` 缓存改 style 后是旧的、`uses GLFilePNG` 需要 `libpng13.dll`/`zlib1.dll`）
 - [x] T6.2 场景/渲染接入：TGLScene + 相机（±26.862 正交，F179）+ 纹理直读 pak （复用 F187 的 37 张表与 WIC/或改用 GLFilePNG） 依据：F179、F181、F182、F187、F225–F230（**完成（菜单层）**：`src/host_lcl/menuscene.pas` 把主菜单重建为 19 个 `TGLHUDSprite`（设计空间 1018×739，顺序=原版 draw 顺序），纹理走 GLFilePNG + 自持 32 位 RGBA（LCL 的 TPicture 丢 alpha，F226）。判据：新仪器 `tools/menu_draw_ab.py`（按素材名对齐）比原版 `glidle.bin` frame 10 vs 宿主 frame 2 ⇒ **19/19 draw 零差（dbbox=0/duv=0/dα=0）**，未配对的只有文本层；像素 `HOST_DUMP_FRAME` 自读帧 mean|Δ| 2.46/255（缺文本 + 光标不旋转为主，F230）。三个库级坑已记账：TextureMode 默认 decal（F227）、ObjectsSorting 默认重排（F228）、GLScene 不发 glBlendFunc（F229）。**剩**：关卡场景模型（归 T6.4 应用层））
 - [ ] T6.3 Lua 144 绑定 + 状态机（T3.3 的内容迁到本路线） 依据：F180、F191、F201、F239–F243、F267–F274（**b0/a0–a2/b1/b2 已完成**：144 绑定参数表与壳、52/52 关 `call+args` 与 `lua_probe` 逐条相同（F239–F243）；对象采集改走进程内 `objlog` thunk（F270），单进程一次采齐 **52/52 关**，**51 关**与原版绑定序列逐项一致（F271）；**接触回调的登记与派发已落地**（F273/F274：`Attach_ScriptToObject` → `luaevents.pas` → `HOST_LUA_FIRE` 注入，lvl49 追加的 2 个工厂调用与 objlog 同名同序，52 关 init 零回归）。**剩**：把注入换成真实物理接触（b2 建体序）；工厂语义（274 pending / 65 KB）；其余事件回调接物理层（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`））
+- [ ] T6.3c 真实物理接触（T6.3 切片）：`host_lcl` 动态加载 `b2Physics.dll`，按工厂语义建 world/bodies/shapes/joints（`dt=0.01`、`vi=pi=20`），接触回调经 `luaevents.pas` 派发 `OnAddContact` 依据：F276、F277、F273、F274（**oracle 已建**：The Teleport 录制 18 个 `CreateBody` = 4 墙 + 14 对象；body 顺序/坐标/角度 14/14 相同，20 个 shape 的半径/密度/摩擦/弹性已读出；判据：先量 A/A——同一宿主两次运行的 b2 序列按调用点/实参比较、指针不参与，再与原版录制同调用点逐项对拍；先 body/shape 后 joint/接触）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入；≤390 KB，本就没有源）：先按"窗口层→菜单→关卡→存档"分块，用 GL 调用序列与窗口消息做判据；单元判据与工作台见 M7 依据：F204、F213
 - [ ] T6.5 整机 A/B：`tools/gl_ffi.py` 抓新宿主的 GL 序列 vs 原版（F181），存档 diff（profile），像素作验收 依据：F181、F194、F196
 
@@ -101,6 +102,8 @@
 
 
 ## 变更记录
+
+- 2026-11-01 依据 F276（**T6.3c：工厂语义的逐调用 oracle 已建立，真实物理接触可以开工**）：① 新增仪器 `tools/b2_sites.py`（按返回地址归因 b2 调用；解码 `CreateBody` def / `SetXForm` 的 x,y,angle / 形状 def；`xforms --lua` 与建体绑定实参对齐）。② 判据：The Teleport 录制 `work/rec_20261029_133859/ffi.bin` 的 18 个 `CreateBody` = 4 个世界墙（site `0x58EB37`）+ 14 个关卡对象（site `0x59CFE1`）；14 个 body 与 `work/lua_probe/lvl49.jsonl` 的 14 个建体调用顺序/坐标/角度 **14/14 相同**；同录制给出 `dt=0.01`、`vi=pi=20` 与关节工厂 site。③ 决定：T6.3 的「工厂语义」不再按 274 个 pending 函数逐个反编译推进，改为**录制驱动的逐对象实现 + 调用点对拍**（L1 反编译只用来解释差异）；新增切片 **T6.3c**：宿主加载 `b2Physics.dll`，先实现 world + 14 个对象的 body/shape 构造，判据是宿主侧录制与 `work/rec_20261029_133859/ffi.bin` 的同调用点序列逐项相同（先 body/shape，后 joint/接触）。④ 未改动生产代码与既有判据。
 
 - 2026-10-31 依据 F122/F213（**清两条与事实不符的未勾选项**）：① T3.9 标完成——2026-10-30 已拍板选 B（FPC/LCL + GLScene 重建），M6 已按该路线开工（T6.1/T6.2 完成），C++ 宿主保留作对照物（HANDOFF §11）。② T4.7 标关闭——真实根因是 `b2Distance` 早退阈值（F122 已修），"扫误判边界"的路线作废，不再执行。两条只在复选框与备注上收敛，判据与结论不变；`[x]` 只增不减。
 

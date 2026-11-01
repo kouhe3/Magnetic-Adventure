@@ -386,6 +386,6 @@ HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR='C:\tmp\magne
   build/host_lcl/magnet.exe               # 期望 levels=52 ok=52 fail=0
 ```
 
-**下一步（T6.3 剩项）**：把注入事件换成 b2 世界的真实接触（工厂语义 274 pending / 65 KB → b2 建体序 → `OnAddContact` 由物理层触发）；其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
+**下一步（T6.3 剩项 → T6.3c）**：把注入事件换成 b2 世界的真实接触。**F276 已建好 oracle**：The Teleport 录制里 18 个 `CreateBody`（4 世界墙 + 14 对象）、14 个 body 与 Lua 建体调用顺序/坐标/角度 **14/14 相同**；`python tools/b2_sites.py work/rec_20261029_133859/ffi.bin xforms --site 0x59d5bb,0x59d61d --lua work/lua_probe/lvl49.jsonl` ⇒ `pairs=14 mismatches=0`。实现顺序：宿主加载 `b2Physics.dll` → world + body/shape（site `0x59CFE1`/`0x59D072`，`dt=0.01`、`vi=pi=20`）→ joint（`0x59DBE8`/`0x59DF10`/`0x59DD63`）→ 接触回调派发 `OnAddContact`；判据是对同一组调用点逐调用对拍 `work/rec_20261029_133859/ffi.bin`。其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
 
 **坑**：生成器里登记调用必须写在参数读取**之后**（放在前面会读到 0，`EventsFire` 报 `no binding for 1016/...`）；`luaevents.pas` 是新增文件，记得 CRLF。
