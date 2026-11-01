@@ -9,6 +9,8 @@
   python tools/b2_sites.py <logA> compare <logB>
       [--joint-limit N]   # 只比前 N 个关节（录制的动态接触会追加关节）
       [--setter-limit N]  # 只比前 N 个 shape/body setter（一次关卡 init 的条数）
+      [--body-limit N]    # 只比前 N 个 body / 设位组（录制可能含后续关卡）
+      [--shape-limit N]   # 只比前 N 个 shape
 
 判据:
   * sites   —— 每个 (export, 返回地址) 的调用数。返回地址 = 宿主里的调用点，
@@ -233,10 +235,20 @@ def collect_seq(path):
                 groups.setdefault(args[0], []).append((x, y, ang))
             elif name in SHAPE_EXPORTS:
                 fric, rest, dens = struct.unpack('<3f', m0[4:16])
-                av, bv, cv, dv = struct.unpack('<4f', m0[20:36])
-                # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
-                shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
-                               dv if name.endswith('_Box') else None))
+                if name.endswith('_Polygon'):
+                    cnt = struct.unpack_from('<I', m0, 20)[0]
+                    vals = []
+                    for i in range(8):
+                        if i < cnt:
+                            vals += list(struct.unpack_from('<2f', m0, 24 + 8 * i))
+                        else:
+                            vals += [0.0, 0.0]
+                    shapes.append((name, fric, rest, dens, cnt) + tuple(vals))
+                else:
+                    av, bv, cv, dv = struct.unpack('<4f', m0[20:36])
+                    # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
+                    shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
+                                   dv if name.endswith('_Box') else None))
                 pending_shape = (seq, struct.unpack('<I', m0[0:4])[0])
             elif name in JOINT_EXPORTS:
                 raw_joints.append((name, seq, m0))
@@ -343,6 +355,11 @@ def cmd_compare(a):
         ja, jb = ja[:a.joint_limit], jb[:a.joint_limit]
     if a.setter_limit:
         ta, tb = ta[:a.setter_limit], tb[:a.setter_limit]
+    if a.body_limit:
+        ba, bb = ba[:a.body_limit], bb[:a.body_limit]
+        xa, xb = xa[:a.body_limit], xb[:a.body_limit]
+    if a.shape_limit:
+        sa, sb = sa[:a.shape_limit], sb[:a.shape_limit]
     bad = cmp_list('bodies', ba, bb)
     bad += cmp_list('xforms', xa, xb)
     bad += cmp_list('shapes', sa, sb)
@@ -399,6 +416,8 @@ def main():
     ap.add_argument('--lua', help='lvlNN.jsonl，仅 xforms：按顺序对齐建体绑定')
     ap.add_argument('--joint-limit', type=int, default=0, help='compare：只比前 N 个关节')
     ap.add_argument('--setter-limit', type=int, default=0, help='compare：只比前 N 个 setter')
+    ap.add_argument('--body-limit', type=int, default=0, help='compare：只比前 N 个 body/xform 组')
+    ap.add_argument('--shape-limit', type=int, default=0, help='compare：只比前 N 个 shape')
     ap.add_argument('--top', type=int, default=0)
     a = ap.parse_args()
     if a.site:

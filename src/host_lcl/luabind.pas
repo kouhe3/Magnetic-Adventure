@@ -90,6 +90,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_MetallScrew');
+  PhysAddMetallScrew(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -111,6 +112,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_MetallGear');
+  PhysAddMetallGear(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -2031,6 +2033,7 @@ var
   v5: Integer;
   n, i: Integer;
   d: Double;
+  pts: array[0..15] of Double;
 begin
   LuaLogBegin(L, 'Attach_ShapePolygon');
   v1 := LuaOptInt(L, 1, 0);
@@ -2042,9 +2045,12 @@ begin
   for i := 0 to n - 1 do
   begin
     d := LuaOptNumber(L, 6 + 2 * i, 0.0);
+    pts[2 * i] := d;
     d := LuaOptNumber(L, 7 + 2 * i, 0.0);
+    pts[2 * i + 1] := d;
   end;
   id := NextId('Attach_ShapePolygon');
+  PhysAttachShapePolygon(v1, v2, v3, v4, v5, @pts[0]);
   Result := 0;
   LuaLogEnd(id);
 end;

@@ -69,6 +69,13 @@ type
     world, body1, body2, joint1, joint2: Pointer;
     ratio: Single;
   end;
+  TPhysPolyDef = packed record
+    body: Pointer;
+    friction, restitution, density: Single;
+    userData: Pointer;
+    vertexCount: Integer;
+    vertices: array[0..15] of Single;
+  end;
 
 // 加载 DLL、建 world（AABB ±100，重力 0）与 4 面世界墙；失败返回 False。
 function PhysStart: Boolean;
@@ -101,6 +108,10 @@ procedure PhysSetPhysParams(Id: Integer; Density, Friction, Restitution: Double)
 procedure PhysGetPhysParams(Id: Integer; out Density, Friction, Restitution: Double);
 procedure PhysSetPhysFilter(Id: Integer; Category, Mask, Group: Integer);
 procedure PhysReFilter(Id: Integer);
+function PhysAddMetallScrew(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+function PhysAddMetallGear(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+procedure PhysAttachShapePolygon(Id: Integer; Fric, Rest, Dens: Double;
+  Count: Integer; Verts: PDouble);
 
 implementation
 
@@ -121,6 +132,7 @@ type
   TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
+  TPolyShapeFn = function(Def: Pointer): Pointer; cdecl;
 
 type
   TPhysObj = record
@@ -139,6 +151,11 @@ type
 const
   MAX_OBJECTS = 2048;
   kGearRadius: array[1..6] of Single = (1.6, 1.8, 2.0, 2.2, 2.4, 4.33);
+  kMetalGearRadius: array[1..6] of Single = (1.6, 1.8, 2.0, 2.2, 2.4, 4.33);
+  // MetallScrew 的六边形（level 1 录制：r=1.4，顶点 = 1.4·cos30° = 1.212435565）。
+  kScrewVerts: array[0..11] of Single =
+    (-1.4, 0.0, -0.7, -1.2124355652982142, 0.7, -1.2124355652982142,
+     1.4, 0.0, 0.7, 1.2124355652982142, -0.7, 1.2124355652982142);
   kWallX = 31.305818557739258;  // 原版 float32 = 0xC1FA7251（F276 的录制值）
   kWallY = 23.0;
 
@@ -151,6 +168,7 @@ var
   g_setXForm: TSetXFormFn;
   g_shapeCircle: TShapeFn;
   g_shapeBox: TShapeFn;
+  g_shapePoly: TPolyShapeFn;
   g_mass: TMassFn;
   g_setUserData: TUserDataFn;
   g_step: TStepFn;
@@ -390,6 +408,86 @@ begin
     AttachBox(b, 0.7, 0.4, 0.3, 0.0, -0.54, 0.42, 0.976);
   end;
   Result := b;
+end;
+
+function MetalGearRadius(Style: Integer): Single;
+begin
+  if (Style >= 1) and (Style <= 6) then
+    Result := kMetalGearRadius[Style]
+  else
+    Result := kMetalGearRadius[1];
+end;
+
+function PhysAddMetallScrew(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  b: Pointer;
+  d: TPhysPolyDef;
+  i: Integer;
+  sh: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b = nil then
+    Exit(nil);
+  FillChar(d, SizeOf(d), 0);
+  d.body := b;
+  d.friction := 1.0;
+  d.restitution := 0.1;
+  d.density := 0.3;
+  d.vertexCount := 6;
+  for i := 0 to 11 do
+    d.vertices[i] := kScrewVerts[i];
+  sh := g_shapePoly(@d);
+  NoteShape(b, sh, 0.3, 1.0, 0.1);
+  g_mass(b);
+  Result := b;
+end;
+
+function PhysAddMetallGear(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  b: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b <> nil then
+    AttachCircle(b, 1.0, 0.1, 0.3, 0.0, 0.0, MetalGearRadius(Round(Style)));
+  Result := b;
+end;
+
+procedure PhysAttachShapePolygon(Id: Integer; Fric, Rest, Dens: Double;
+  Count: Integer; Verts: PDouble);
+var
+  b: Pointer;
+  d: TPhysPolyDef;
+  i, n: Integer;
+  sh: Pointer;
+begin
+  if not g_active then
+    Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then
+    Exit;
+  n := Count;
+  if n < 3 then
+    Exit;
+  if n > 8 then
+    n := 8;
+  FillChar(d, SizeOf(d), 0);
+  d.body := b;
+  d.friction := Fric;
+  d.restitution := Rest;
+  d.density := Dens;
+  d.vertexCount := n;
+  for i := 0 to n - 1 do
+  begin
+    d.vertices[2 * i] := Verts[2 * i];
+    d.vertices[2 * i + 1] := Verts[2 * i + 1];
+  end;
+  sh := g_shapePoly(@d);
+  NoteShape(b, sh, Dens, Fric, Rest);
+  g_mass(b);
 end;
 
 function PhysAttachShapeCircle(Id: Integer; Fric, Rest, Dens, LX, LY, Radius: Double): Pointer;
@@ -677,6 +775,7 @@ begin
   g_setXForm := TSetXFormFn(GetProcAddress(g_dll, 'b2_Body_SetXForm'));
   g_shapeCircle := TShapeFn(GetProcAddress(g_dll, 'b2_Body_CreateShape_Circle'));
   g_shapeBox := TShapeFn(GetProcAddress(g_dll, 'b2_Body_CreateShape_Box'));
+  g_shapePoly := TPolyShapeFn(GetProcAddress(g_dll, 'b2_Body_CreateShape_Polygon'));
   g_mass := TMassFn(GetProcAddress(g_dll, 'b2_Body_SetMassFromShapes'));
   g_setUserData := TUserDataFn(GetProcAddress(g_dll, 'b2_Body_SetUserData'));
   g_step := TStepFn(GetProcAddress(g_dll, 'b2_World_Step'));
@@ -697,6 +796,7 @@ begin
   g_reFilter := TReFilterFn(GetProcAddress(g_dll, 'b2_World_ReFilter'));
   if not (Assigned(g_createWorld) and Assigned(g_createBody) and Assigned(g_setXForm) and
     Assigned(g_shapeCircle) and Assigned(g_shapeBox) and Assigned(g_mass) and
+    Assigned(g_shapePoly) and
     Assigned(g_setUserData) and Assigned(g_step) and Assigned(g_contactCb) and
     Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and

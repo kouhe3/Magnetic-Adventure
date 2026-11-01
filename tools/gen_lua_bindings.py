@@ -52,6 +52,9 @@ HOOKS = {
     "Set_PhysParams": ["  PhysSetPhysParams(v1, v2, v3, v4);"],
     "Set_PhysFilterData": ["  PhysSetPhysFilter(v1, v2, v3, v4);"],
     "Re_Filter": ["  PhysReFilter(v1);"],
+    "Add_MetallScrew": ["  PhysAddMetallScrew(id, v2, v3, v4, v5);"],
+    "Add_MetallGear": ["  PhysAddMetallGear(id, v2, v3, v4, v5);"],
+    "Attach_ShapePolygon": ["  PhysAttachShapePolygon(v1, v2, v3, v4, v5, @pts[0]);"],
 }
 
 # 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
@@ -110,6 +113,8 @@ def gen_binding(row):
             var_lines.append("  v%d: Double;" % idx)
     if dyn:
         var_lines += ["  n, i: Integer;", "  d: Double;"]
+    if name == "Attach_ShapePolygon":
+        var_lines += ["  pts: array[0..15] of Double;"]
     if name in CUSTOM_RET:
         var_lines += CUSTOM_RET[name][0]
 
@@ -128,7 +133,9 @@ def gen_binding(row):
     elif name == "Attach_ShapePolygon":
         body += ["  n := v5;", "  for i := 0 to n - 1 do", "  begin",
                  "    d := LuaOptNumber(L, 6 + 2 * i, 0.0);",
-                 "    d := LuaOptNumber(L, 7 + 2 * i, 0.0);", "  end;"]
+                 "    pts[2 * i] := d;",
+                 "    d := LuaOptNumber(L, 7 + 2 * i, 0.0);",
+                 "    pts[2 * i + 1] := d;", "  end;"]
     elif name == "Add_Rope":
         body += ["  i := 5;", "  while Lua.LType(L, i) = LUA_TNUMBER do", "  begin",
                  "    d := Lua.ToNumber(L, i);", "    Inc(i);", "  end;"]
