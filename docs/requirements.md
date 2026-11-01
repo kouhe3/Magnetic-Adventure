@@ -12,7 +12,7 @@
 | 级别 | 适用对象 | 判定方式 |
 |---|---|---|
 | **L0 行为等价** | 宿主 exe | 场景矩阵回放：GL 调用序列 diff、帧缓冲像素 diff、音频 PCM diff、存档字节 diff |
-| **L1 函数映射** | 自写单元 | `mapping/functions.csv`：原 RVA / 大小 / C++ 符号 / 伪代码 hash / 状态；自写单元覆盖率 100%（RTL/GLScene/Box2D/Lua 白名单排除） |
+| **L1 函数映射** | 自写单元 | `mapping/functions.csv`：原 RVA / 大小 / 符号 / 伪代码 hash / 状态；自写单元覆盖率 100%（RTL/GLScene/Box2D/Lua 白名单排除）。**2026-11-01 注记（F292）**：原版非确定性编译 ⇒「状态」按**行为判据**记（`verified` = 有 A/B pre/post；`covered` = 仅被语料执行；`uncovered` = 未执行且无扫描），字节/指令 sim 只作分诊 |
 | **L2-A DLL ABI** | b2Physics、Squall | 导出名+序号+调用约定逐项相等；原 `game.exe` 直接加载新 DLL 可运行；物理状态/音频 PCM 差分 |
 | **L2-B 整 exe 字节级** | 宿主 exe | **改为目标（2026-10-30 拍板；原"明确不做"的唯一理由"跨语言不可达（F01）"已被 F153/F202 证伪）**：原版是 FPC 2.2.4 + LCL 0.9.28.3 + GLScene（F202），**库层已 100% 复原**——GLScene v1.1 + `patches/glscene-v11-game.patch`，12 个单元 1,054 个函数残差 0（F213）；LCL 单元逐指令 99.9–100%（F210）。⇒ 宿主改走 **FPC/LCL + GLScene 重建**，判据从"像素 diff"转为**逐调用（GL 序列）+ 逐指令（库层）+ 像素验收**。剩余未知只有应用层（≤390 KB，本就没有源） |
 
