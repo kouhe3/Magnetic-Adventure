@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(entryprobe C)
+add_library(entryprobe SHARED entryprobe.c entryprobe.def)
+target_compile_options(entryprobe PRIVATE /Od)
+target_link_libraries(entryprobe PRIVATE user32)
+set_target_properties(entryprobe PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+target_include_directories(entryprobe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
