@@ -11,7 +11,9 @@
 用法:
   python tools/replay_ffi.py <log> [--dll PATH] [--start N] [--max N] [--quiet]
 
-`work/replay_progress.txt` 每次调用更新，原生崩溃后用它定位是第几条。
+`work/replay_progress.txt` 每 `PROGRESS_EVERY` 条更新一次（默认 5000），原生崩溃后用它定位是第几条；
+要精确到个位数就 `PROGRESS_EVERY=8 --start <附近的 N>` 重跑一小段。**别把默认值调回去**：
+原先默认 8，97k 调用的录制要开 1.2 万次文件，占掉 28% 的重放时间（F312）。
 退出码 0 = 无差异；1 = 有差异；-1 = 中途异常/崩溃。
 """
 import argparse
@@ -34,6 +36,12 @@ import ffi  # noqa: E402
 
 REC_CAP = 256
 PROGRESS = ROOT / 'work' / 'replay_progress.txt'
+
+# body 状态读取：一次 memcpy + C 层 unpack，代替逐个 c_float.from_address
+# （偏移 0 flags(u16)、8 px、12 py、60 angle、68 vx、72 vy、76 w、
+#   124 mass、128 invMass、132 I、136 invI、148 sleepTime；F312）
+_F36 = struct.Struct('<36f')
+_U16 = struct.Struct('<H')
 
 
 DLL_OBJECTS = ('b2World', 'b2Body', 'b2Shape', 'b2Joint')
@@ -87,6 +95,23 @@ class Replayer:
     def __init__(self, dll, protos, quiet=False, max_report=25):
         self.lib = ctypes.CDLL(str(dll))
         self.protos = protos
+        # 参数翻译计划表：每导出一份，避免每条调用重复做字符串/类型判断（F312）
+        self.plans = {}
+        self.rets = {}
+        for _name, (_rt, _params) in protos.items():
+            _cb = 'CallBack' in _name
+            _plan = []
+            for _isptr, _tstr in _params:
+                if not _isptr:
+                    _plan.append('raw')
+                elif _cb:
+                    _plan.append('zero')
+                elif '*' in _tstr and is_dll_object(_tstr):
+                    _plan.append('dll')
+                else:
+                    _plan.append('host')
+            self.plans[_name] = _plan
+            self.rets[_name] = restype_of(_rt)
         self.quiet = quiet
         self.max_report = max_report
         self.ptrmap = {}
@@ -155,7 +180,7 @@ class Replayer:
             return 0, True
         if use_map and v in self.ptrmap:
             return self.ptrmap[v], True
-        mem = {0: pre[38], 1: pre[39], 2: pre[40]}.get(idx)
+        mem = pre[38 + idx] if idx < 3 else None
         if mem is not None:
             self.call_mem[idx] = mem
             buf = self.scratch_for((name, idx, v), mem)
@@ -274,13 +299,11 @@ class Replayer:
                 self.stats['bodies_bad'] = self.stats.get('bodies_bad', 0) + 1
                 continue
             try:
-                f = ctypes.c_float.from_address
-                i16 = ctypes.c_uint16.from_address
-                got = (i16(ours).value, f(ours + 148).value, f(ours + 68).value,
-                       f(ours + 72).value, f(ours + 76).value, f(ours + 8).value,
-                       f(ours + 12).value, f(ours + 60).value,
-                       f(ours + 124).value, f(ours + 128).value,
-                       f(ours + 132).value, f(ours + 136).value)
+                raw = ctypes.string_at(ours, 152)
+                b36 = _F36.unpack_from(raw, 8)
+                got = (_U16.unpack_from(raw, 0)[0], b36[35], b36[15], b36[16],
+                       b36[17], b36[0], b36[1], b36[13],
+                       b36[29], b36[30], b36[31], b36[32])
             except Exception as ex:  # noqa: BLE001
                 self.note_digest(seq, ptr, 'read', str(ex), 0)
                 self.stats['bodies_bad'] = self.stats.get('bodies_bad', 0) + 1
@@ -359,6 +382,12 @@ class Replayer:
         """日志是**嵌套**的：原版在 CreateJoint / Step 里会触发宿主回调，宿主再调我们的导出，
         所以 pre/post 必须按栈（LIFO）配对，不能假设相邻。
         """
+        # 环境变量与常量一律提到循环外：原先是每条调用都查 os.environ（F312）
+        progress_every = int(os.environ.get('PROGRESS_EVERY', '5000') or 0)
+        trace_first = int(os.environ.get('TRACE_FIRST', '0') or 0)
+        dbg_anchor = bool(os.environ.get('DEBUG_ANCHOR'))
+        step_vi = os.environ.get('B2_STEP_VI')
+        step_pi = os.environ.get('B2_STEP_PI')
         stack = []
         for kind, v in ffi.records(log):
             if kind == 'hdr':
@@ -380,7 +409,7 @@ class Replayer:
                     self.stats['pair_mismatch'] = self.stats.get('pair_mismatch', 0) + 1
                 want = v[2]
                 self.compare_out(n, name, buf, v[4])
-                rt = restype_of(ret_t)
+                rt = self.rets[name]
                 if rt is None:
                     self.stats['void'] += 1
                 elif rt is ctypes.c_float:
@@ -424,51 +453,53 @@ class Replayer:
                 continue
             if maxcalls and self.n - start >= maxcalls:
                 break
-            ret_t, params = self.protos[name]
+            ret_t = self.protos[name][0]
+            plan = self.plans[name]
             self.call_mem = {}
             call_args = []
             if name == 'b2_World_Step':
-                _vi = os.environ.get('B2_STEP_VI')
-                _pi = os.environ.get('B2_STEP_PI')
-                if _vi:
-                    args = list(args); args[2] = int(_vi)
-                if _pi:
-                    args = list(args); args[3] = int(_pi)
+                if step_vi:
+                    args = list(args); args[2] = int(step_vi)
+                if step_pi:
+                    args = list(args); args[3] = int(step_pi)
             ok = True
             buf0 = None
-            for i in range(len(params)):
-                if not params[i][0]:
+            for i, kind in enumerate(plan):
+                if kind == 'raw':
                     call_args.append(args[i])
                     continue
-                if 'CallBack' in name:
+                if kind == 'zero':
                     call_args.append(0)
                     continue
-                if params[i][1].find('*') >= 0 and is_dll_object(params[i][1]) \
-                        and args[i] and args[i] not in self.ptrmap:
-                    ok = False
-                    self.stats['unmapped'] = self.stats.get('unmapped', 0) + 1
-                    break
-                # 只有 DLL 对象指针才走映射；def 结构体/缓冲区这类宿主内存永远用 scratch，
-                # 否则宿主曾返回过的同地址指针会把 def 解成垃圾。
-                _obj = is_dll_object(params[i][1])
-                val, good = self.translate(name, args[i], i, v, use_map=_obj)
+                a = args[i]
+                if kind == 'dll':
+                    if a and a not in self.ptrmap:
+                        ok = False
+                        self.stats['unmapped'] = self.stats.get('unmapped', 0) + 1
+                        break
+                    # DLL 对象指针：地址必须来自 ptrmap 映射
+                    val, good = self.translate(name, a, i, v, True)
+                else:
+                    # def 结构体/缓冲区这类宿主内存永远用 scratch，
+                    # 否则宿主曾返回过的同地址指针会把 def 解成垃圾。
+                    val, good = self.translate(name, a, i, v, False)
                 if not good:
                     ok = False
                     break
                 call_args.append(val)
-                if i == 0 and (name, 0, args[0]) in self.scratch:
-                    buf0 = self.scratch[(name, 0, args[0])]
+                if i == 0 and (name, 0, a) in self.scratch:
+                    buf0 = self.scratch[(name, 0, a)]
             if not ok:
                 self.skipped[name] = self.skipped.get(name, 0) + 1
                 stack.append(None)
                 continue
-            restype = restype_of(ret_t)
-            f = self.fn(name, restype, len(params))
-            if self.n % int(os.environ.get('PROGRESS_EVERY', '8')) == 0:
+            restype = self.rets[name]
+            f = self.fn(name, restype, len(plan))
+            if progress_every and self.n % progress_every == 0:
                 PROGRESS.write_text(f'{self.n} {name}', encoding='utf-8')
-            if self.n <= int(os.environ.get('TRACE_FIRST', '0')):
+            if self.n <= trace_first:
                 print(f'  #{self.n} {name} ' + ' '.join(f'{x:#x}' for x in call_args[:6]))
-            if os.environ.get('DEBUG_ANCHOR') and name == 'b2_Joint_GetAnchor1' \
+            if dbg_anchor and name == 'b2_Joint_GetAnchor1' \
                     and self.stats.get('dbg_anchor', 0) < 4:
                 self.stats['dbg_anchor'] = self.stats.get('dbg_anchor', 0) + 1
                 print(f'  [anchor] n={self.n} out={call_args[0]:#x} j={call_args[1]:#x} '

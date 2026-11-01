@@ -5,7 +5,7 @@
 
 用法：
     python tools/verify.py            # 快速集（约 1 分钟，不含全量物理重放）
-    python tools/verify.py --full     # 追加 52 份录制的全量重放（8 路并行，约 17 分钟）
+    python tools/verify.py --full     # 追加 52 份录制的全量重放（8 路并行，约 4 分钟；F312）
     python tools/verify.py --only window,exports
 
 判据（每项都是"能产生反例"的，不是"跑通即通过"）：

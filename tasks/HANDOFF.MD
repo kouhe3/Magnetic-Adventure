@@ -27,7 +27,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T6.3d 绳索 + 无头模式（F289/F290）**：`Add_Rope` 按「锚点链式」实现（`anchor_i = p_i + h·u(a_i)`、`p_{i+1} = anchor_i + h·u(a_{i+1})`，两步都落 Single；style 表 0/1:(0.77,0.2) dens .5、2:(0.275,0.2) dens 3、3:(0.77,0.5) dens .2；相邻链节无 id Revolute），`Get_RopePhysItem` 0 基、rope id 的 `Set_PhysParams` 逐链节；`Add_HammerParts` 补第二个 body（锤头）。⇒ 52 关物理 init **35 → 45 PASS**，终局 **45 PASS / 5 MISMATCH / 2 SKIP**（MISMATCH = 5/36/42 视觉角度、9 录制不可用、28 待归因；SKIP = 13/51 共用录制；`work/phys_sweep_headless.json`）。**新增 `HOST_HEADLESS=1`**：不建窗、不建 GLScene/GL 上下文，只跑 pak/Lua/物理自检；有头 vs 无头 b2 日志 `compare` 0 差异，单关 0.92 s → 0.12 s、52 关 sweep 36.7 s → **9.6 s**（`tools/phys_sweep.py` 已默认无头）。**无头用法**：`HOST_HEADLESS=1 HOST_PHYS=1 HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=8 B2PROXY_LOG=... build/host_lcl/magnet.exe`（`HOST_DUMP_FRAME` 仍必须有头）。
 
-- **2026-11-01 T8 oracle 自动化（F308–F311，详见 §14）**：`sweep.py --floors` 把每份录制的 A/A 地板缓存到 `work/floors.json`（**唯一非零** `rec_20261028_231623`=5,297，与 F125 逐项相同），`report_sweep` 出 `地板` 列、`verify physics:sample` 输出 `bad/floor`（判定口径不变）；`gen_rec_exports` + `rec_pick` 让「改一个导出」只跑 **1–3 份**录制（`rec_pick --exports b2_Body_SetBullet` → 1 份 17.6 s；`verify --changed` 0.3 s）；**14 路并行被证伪**（34.7 min vs 8 路 15–17 min，总重放量 3.6×）⇒ 默认 `min(8, cpu//2)`。
+- **2026-11-01 T8 oracle 自动化（F308–F313，详见 §14）**：`sweep.py --floors` 把每份录制的 A/A 地板缓存到 `work/floors.json`（**唯一非零** `rec_20261028_231623`=5,297，与 F125 逐项相同），`report_sweep` 出 `地板` 列、`verify physics:sample` 输出 `bad/floor`（判定口径不变）；`gen_rec_exports` + `rec_pick` 让「改一个导出」只跑 **1–3 份**录制（`rec_pick --exports b2_Body_SetBullet` → 1 份，现 4.4 s；`verify --changed` 0.3 s）；**14 路并行被证伪**（34.7 min vs 8 路 17 min，总重放量 3.6×）⇒ 默认 `min(8, cpu//2)`；**D4 重放器 5.0×**（真凶是每 8 条调用写一次进度文件）⇒ 全量 57 份 **15–17 min → 3.7 min**、总重放量 7,109→1,421 s（F312/F313）。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
@@ -485,9 +485,9 @@ PosY 46 / 130 / 216 等距 84 ⇒ 纵向按钮列，与 F294 的 `(0.80,0.092)` 
 - 13.2 的否定结论只覆盖 `.text` 内的立即数比较；字符串比较、表索引、别的段都未排除。
 - 本节未改动任何 `bin/`、`work/` 下的既有产物。
 
-## 14. 本轮（2026-11-01，T8 oracle 自动化 D1–D3）
+## 14. 本轮（2026-11-01，T8 oracle 自动化 D1–D4）
 
-**一句话**：A/A 地板落盘、覆盖选样入口化；**并行度提升被证伪**（14 路比 8 路慢一倍）。
+**一句话**：A/A 地板落盘、覆盖选样入口化、**重放器 5.0×**；**并行度提升被证伪**（14 路比 8 路慢一倍）。
 
 ```bash
 # 地板：原版 DLL 重放 57 份，键含原版 md5（不变就不重算）；一次性 ~22 min
@@ -500,9 +500,10 @@ python tools/rec_pick.py --changed HEAD~1 --budget 90     # diff 抓 b2_*，按�
 python tools/verify.py --changed HEAD~1 --only physics:changed
 ```
 
-判据（已跑通）：`work/floors.json` 57 条（54 可判定，**唯一非零** `rec_20261028_231623`=5,297，与 F125 逐项相同）；`rec_pick --exports b2_Body_SetBullet` → 1 份 `rec_20261028_231336`（est 17.6 s）；`verify --changed ca58de5^ --only physics:changed` → PASS（0.3 s）。
+判据（已跑通）：`work/floors.json` 57 条（54 可判定，**唯一非零** `rec_20261028_231623`=5,297，与 F125 逐项相同）；`rec_pick --exports b2_Body_SetBullet` → 1 份 `rec_20261028_231336`（现 4.4 s）；`verify --changed ca58de5^ --only physics:changed` → PASS（0.3 s）；**D4**：全量 57 份 **220.7 s**（原 15–17 min）、单份 135534 5.5→1.5 s、231623 535.7→61.1 s，57 行除 `secs`/`build`/`floor` 逐字段不变（F312）。
 
 坑：
+- **热路径里别写文件、别查环境变量**（F312）：原先每 8 条调用 `PROGRESS.write_text`（97k 调用 → 1.2 万次 `open`，占 28%），外加每条调用查 3 个 `os.environ`（29 万次）。`PROGRESS_EVERY` 默认已改 5,000；要精确定位崩溃点用 `PROGRESS_EVERY=8 --start N` 重跑一小段。
 - **并行不是越大越快**（F309）：14 路 wall **2,080 s**，8 路 15–17 min；总重放量 7,109 → 25,718 s（3.6×）。瓶颈是磁盘/内存带宽（10 核/16 线程/16 GiB）。默认 `min(8, cpu//2)`。
 - 「大日志限 2 并发」用**阻塞信号量**会饿死 worker（14 个 worker 全抢巨日志、12 个阻塞在 `Semaphore(2)`，2m19s 0 行完成）——要限流请用独立 executor。
 - `rec_pick` 的成本取 `sweep.jsonl` 的 `secs`（8 路并发实测；单跑快 2–4×）⇒ 预算偏保守。
