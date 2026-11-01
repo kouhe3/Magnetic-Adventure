@@ -33,6 +33,17 @@ OUT_DEFAULT = os.path.join(ROOT, "src", "host_lcl", "luabind.pas")
 FIXED_RE = re.compile(r"^(\d+):(\w+)=(\S+)$")
 DYN_RE = re.compile(r"^(\d+)\.\.([^:]*):(\w+)=(\S+)$")
 
+# T6.3c：建体/形状绑定的真实语义（PhysWorld 单元）。参数位置见 F276/F277。
+# 钩子放在 NextId 之后、返回值 push 之前；只写 b2 状态，不改 JSONL 与返回值。
+HOOKS = {
+    "Add_SimplePhysicObject": ["  PhysAddSimplePhysicObject(id, v1, v2, v3);"],
+    "Add_SimplePhysCircle": ["  PhysAddSimplePhysCircle(id, v2, v3, v4, v5, v6);"],
+    "Add_WoodGear": ["  PhysAddWoodGear(id, v2, v3, v4, v5);"],
+    "Add_WoodWall": ["  PhysAddWoodWall(id, v2, v3, v4);"],
+    "Add_SwitchArm": ["  PhysAddSwitchArm(id, v2, v3, v4);"],
+    "Attach_ShapeCircle": ["  PhysAttachShapeCircle(v1, v2, v3, v4, v5, v6, v7);"],
+}
+
 
 def parse_args(spec):
     fixed, dyn = [], []
@@ -93,6 +104,7 @@ def gen_binding(row):
     ret = row["ret"]
     cnt = int(row["ret_count"] or "0")
     body.append("  id := NextId('%s');" % name)
+    body += HOOKS.get(name, [])
     if ret == "none" or cnt <= 0:
         body.append("  Result := 0;")
     else:
@@ -134,7 +146,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"

@@ -5,7 +5,7 @@ unit LuaBind;
 // 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。
 interface
 
-uses LuaDll, LuaLog, LuaEvents;
+uses LuaDll, LuaLog, LuaEvents, PhysWorld;
 
 function NextId(const Name: string): Integer;
 procedure ResetIds;
@@ -132,6 +132,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_WoodGear');
+  PhysAddWoodGear(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -153,6 +154,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_WoodWall');
+  PhysAddWoodWall(id, v2, v3, v4);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -195,6 +197,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_SwitchArm');
+  PhysAddSwitchArm(id, v2, v3, v4);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1370,6 +1373,7 @@ begin
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   id := NextId('Add_SimplePhysicObject');
+  PhysAddSimplePhysicObject(id, v1, v2, v3);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1393,6 +1397,7 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   v6 := LuaOptNumber(L, 6, 0.0);
   id := NextId('Add_SimplePhysCircle');
+  PhysAddSimplePhysCircle(id, v2, v3, v4, v5, v6);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1997,6 +2002,7 @@ begin
   v6 := LuaOptNumber(L, 6, 0.0);
   v7 := LuaOptNumber(L, 7, 0.0);
   id := NextId('Attach_ShapeCircle');
+  PhysAttachShapeCircle(v1, v2, v3, v4, v5, v6, v7);
   Result := 0;
   LuaLogEnd(id);
 end;

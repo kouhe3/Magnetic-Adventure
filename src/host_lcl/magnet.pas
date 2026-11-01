@@ -24,7 +24,8 @@ program magnet;
 uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
-  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents;
+  GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents,
+  PhysWorld;
 
 type
   TCameraEvents = class
@@ -314,6 +315,7 @@ begin
       Lua.SetTop(L, 0);
     ResetIds;
     EventsReset;
+    PhysResetObjects;
     RegisterBindings(L);
     Dir := EnvStr('HOST_LUA_DIR');
     if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
@@ -660,6 +662,16 @@ begin
       on E: Exception do
         WriteLn(tf, 'exc=', E.ClassName, ': ', E.Message);
     end;
+    CloseFile(tf);
+  end;
+
+  // T6.3c：HOST_PHYS=1 时加载 b2Physics.dll 并建 world + 4 面世界墙；
+  // 绑定壳里的 Phys* 钩子只在 active 时生效（DLL 缺失不影响宿主启动）。
+  if EnvFlag('HOST_PHYS') then
+  begin
+    AssignFile(tf, ExePath('phys_init.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'active=', PhysStart);
     CloseFile(tf);
   end;
 

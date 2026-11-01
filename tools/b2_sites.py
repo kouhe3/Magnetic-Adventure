@@ -5,6 +5,7 @@
   python tools/b2_sites.py <log> bodies
   python tools/b2_sites.py <log> xforms [--lua <lvlNN.jsonl>]
   python tools/b2_sites.py <log> shapes
+  python tools/b2_sites.py <logA> compare <logB>
 
 判据:
   * sites   —— 每个 (export, 返回地址) 的调用数。返回地址 = 宿主里的调用点，
@@ -18,6 +19,9 @@
                带角度的绑定再比第二组内的 angle。首个分歧打印对象序号与两侧数值。
   * shapes  —— `b2_Body_CreateShape_Circle|Box|Polygon` 的 def（body / 摩擦 / 弹性 /
                密度 / sensor / localPos 或半宽高），按日志顺序；用于读出工厂常量。
+  * compare —— 两份日志的建体/设位/形状序列逐项比较（指针不参与）：
+               bodies 比 allowSleep/fixedRot/bullet/damping；xforms 比每组首条 (x,y) 与
+               第二条 angle；shapes 比名称与全部数值。PASS = 逐项 |Δ| <= 1e-6。
 
 覆盖边界:
   * 只解码 `SetXForm` / `World_CreateBody` / `CreateShape_Circle|Box` 的已知布局
@@ -194,10 +198,71 @@ def cmd_shapes(a):
     return 0
 
 
+def collect_seq(path):
+    ffi.load_names()
+    bodies, shapes = [], []
+    groups = collections.OrderedDict()
+    for eid, ret, seq, args, m0, m1, m2 in pre_records(path):
+        name = ffi.NAMES[eid]
+        if name == 'b2_World_CreateBody':
+            ad = f32(struct.unpack('<I', m0[4:8])[0])
+            ld = f32(struct.unpack('<I', m0[8:12])[0])
+            bodies.append((m0[12], m0[13], m0[14], ad, ld))
+        elif name == 'b2_Body_SetXForm':
+            x, y, ang = struct.unpack('<3f', m1[:12])
+            groups.setdefault(args[0], []).append((x, y, ang))
+        elif name in SHAPE_EXPORTS:
+            fric, rest, dens = struct.unpack('<3f', m0[4:16])
+            av, bv, cv, dv = struct.unpack('<4f', m0[20:36])
+            # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
+            shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
+                           dv if name.endswith('_Box') else None))
+    xforms = [(recs[0][0], recs[0][1], recs[1][2] if len(recs) > 1 else None)
+              for recs in groups.values()]
+    return bodies, xforms, shapes
+
+
+def cmp_list(label, a, b, tol=1e-6):
+    def close(x, y):
+        if isinstance(x, str) or isinstance(y, str):
+            return x == y
+        if x is None:
+            x = 0.0
+        if y is None:
+            y = 0.0
+        return abs(x - y) <= tol
+
+    bad = 0
+    for i in range(min(len(a), len(b))):
+        if isinstance(a[i], tuple):
+            ok = all(close(x, y) for x, y in zip(a[i], b[i]))
+        else:
+            ok = a[i] == b[i]
+        if not ok:
+            bad += 1
+            print(f'{label} MISMATCH {i}: A={a[i]} B={b[i]}')
+    if len(a) != len(b):
+        print(f'{label} COUNT a={len(a)} b={len(b)}')
+        bad += 1
+    print(f'{label} compared={min(len(a), len(b))} mismatches={bad}')
+    return bad
+
+
+def cmd_compare(a):
+    ba, xa, sa = collect_seq(a.log)
+    bb, xb, sb = collect_seq(a.compare)
+    bad = cmp_list('bodies', ba, bb)
+    bad += cmp_list('xforms', xa, xb)
+    bad += cmp_list('shapes', sa, sb)
+    print(f'TOTAL mismatches={bad}')
+    return 0 if bad == 0 else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('log')
-    ap.add_argument('mode', choices=['sites', 'bodies', 'xforms', 'shapes'])
+    ap.add_argument('mode', choices=['sites', 'bodies', 'xforms', 'shapes', 'compare'])
+    ap.add_argument('compare', nargs='?', help='compare 模式的第二份日志')
     ap.add_argument('--export')
     ap.add_argument('--site', help='逗号分隔的返回地址（0x…），仅 xforms')
     ap.add_argument('--lua', help='lvlNN.jsonl，仅 xforms：按顺序对齐建体绑定')
@@ -207,7 +272,7 @@ def main():
         a.site = {int(s, 0) for s in a.site.split(',') if s.strip()}
     try:
         return {'sites': cmd_sites, 'bodies': cmd_bodies, 'xforms': cmd_xforms,
-                'shapes': cmd_shapes}[a.mode](a)
+                'shapes': cmd_shapes, 'compare': cmd_compare}[a.mode](a)
     except OSError as exc:      # Windows 上 `| head` 关管道会报 OSError(22)
         if getattr(exc, 'errno', None) == 22:
             return 0
