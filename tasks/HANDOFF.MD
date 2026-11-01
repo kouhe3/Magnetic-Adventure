@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），`work` 分支。行文时工作树里只有本文这一处未提交改动；台账到 F208。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-01**（§13 整机字节覆盖 + 暂停菜单命令通道）。`work` 分支；未提交改动只有本文；台账到 **F307**。
 
 ## 0. 一句话现状
 
@@ -15,9 +15,9 @@
 Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 111/111 编译通过**、`lvl_info.lvl` 解析出 **52 关**（F191）。
 卡点很明确：**关卡渲染**还没做（只有菜单 + 单帧画像）；Lua 的 **144 个绑定与执行语义**未接（T3.3 剩余）；文本仍是「同一字模格 ×3」的固定串，**宿主自己不会排版字符串**（T3.5）；Squall 的 **PCM 逐位**仍阻塞。
 
-**本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **trunk r4700** 且 `GLLCLViewer.o` **95.6%**（F208）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
+**本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **v1.1 / trunk r5000**、11 个单元 1,043 个函数只剩 **12 个（2,448 B）sim<0.95** 且已证是原版本地补丁（F211–F213，逐单元百分比以 §0.1 为准）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
 
-台账 **248 条**（F01–F248，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
+台账 **307 条**（F001–F307，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
 - **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
 
@@ -25,7 +25,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T6.3d 收口（F285–F288）**：52 关物理 init 覆盖 **5 → 35 PASS**（`tools/phys_sweep.py`，46 s）。新增 `tools/gen_phys_shapes.py` 从录制按 style 生成形状常量表（`phys_shapes_gen.inc`/`wfw_table.inc`），`physworld.pas` 用 `BuildFromStyle` 统一建体，共 18 个工厂；`SetFriction/Restitution` 只写最后一个形状，`SetFilter`/`SetDensity` 形状号从大到小，`TPhysObj.Shapes` 上限 8→64（lvl38 的 body 8 有 10 个形状）。剩 15 关：绳索 10（kind=1 的链节规律已读出）、父图局部坐标/视觉角度 4、录制不可用 2。
 
-- **2026-11-01 T6.3d 绳索 + 无头模式（F289/F290）**：`Add_Rope` 按「锚点链式」实现（`anchor_i = p_i + h·u(a_i)`、`p_{i+1} = anchor_i + h·u(a_{i+1})`，两步都落 Single；style 表 0/1:(0.77,0.2) dens .5、2:(0.275,0.2) dens 3、3:(0.77,0.5) dens .2；相邻链节无 id Revolute），`Get_RopePhysItem` 0 基、rope id 的 `Set_PhysParams` 逐链节；`Add_HammerParts` 补第二个 body（锤头）。⇒ 52 关物理 init **35 → 45 PASS**（剩 5/36/42 视觉角度、9 录制不可用、28 待归因）。**新增 `HOST_HEADLESS=1`**：不建窗、不建 GLScene/GL 上下文，只跑 pak/Lua/物理自检；有头 vs 无头 b2 日志 `compare` 0 差异，单关 0.92 s → 0.12 s、52 关 sweep 36.7 s → **9.6 s**（`tools/phys_sweep.py` 已默认无头）。**无头用法**：`HOST_HEADLESS=1 HOST_PHYS=1 HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=8 B2PROXY_LOG=... build/host_lcl/magnet.exe`（`HOST_DUMP_FRAME` 仍必须有头）。
+- **2026-11-01 T6.3d 绳索 + 无头模式（F289/F290）**：`Add_Rope` 按「锚点链式」实现（`anchor_i = p_i + h·u(a_i)`、`p_{i+1} = anchor_i + h·u(a_{i+1})`，两步都落 Single；style 表 0/1:(0.77,0.2) dens .5、2:(0.275,0.2) dens 3、3:(0.77,0.5) dens .2；相邻链节无 id Revolute），`Get_RopePhysItem` 0 基、rope id 的 `Set_PhysParams` 逐链节；`Add_HammerParts` 补第二个 body（锤头）。⇒ 52 关物理 init **35 → 45 PASS**，终局 **45 PASS / 5 MISMATCH / 2 SKIP**（MISMATCH = 5/36/42 视觉角度、9 录制不可用、28 待归因；SKIP = 13/51 共用录制；`work/phys_sweep_headless.json`）。**新增 `HOST_HEADLESS=1`**：不建窗、不建 GLScene/GL 上下文，只跑 pak/Lua/物理自检；有头 vs 无头 b2 日志 `compare` 0 差异，单关 0.92 s → 0.12 s、52 关 sweep 36.7 s → **9.6 s**（`tools/phys_sweep.py` 已默认无头）。**无头用法**：`HOST_HEADLESS=1 HOST_PHYS=1 HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=8 B2PROXY_LOG=... build/host_lcl/magnet.exe`（`HOST_DUMP_FRAME` 仍必须有头）。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
@@ -207,7 +207,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 
 | 阶段 | 状态 |
 |---|---|
-| **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 菜单层 ✅ 21/21（F225–F231）；T6.3 参数表 ✅ 144/144（F239）、a0 ✅（F240）、a1 ✅（F241）、a2 52/52 关 ✅（F242/F243），剩工厂语义 + 状态机；T6.4 应用层、T6.5 整机 A/B 排队 |
+| **M6 宿主重建（新主线）** | 窗口层 ✅ 15/15 `diffs=0`（F214）；T6.2 菜单层 ✅ 21/21（F225–F231）；T6.3 参数表 ✅ 144/144（F239）、a0 ✅（F240）、a1 ✅（F241）、a2 52/52 关 ✅（F242/F243）、b0 句柄语义 ✅（F249/F250）、b1 采集链路 ✅（F260–F264）、b2 事件派发 ✅（F273/F274）；T6.3d 物理工厂 52 关 init **45 PASS / 5 MISMATCH / 2 SKIP**（F283–F290，`tools/phys_sweep.py` 无头 9.6 s）；整机字节覆盖 **71.0%**（精确 795,218 B，§13）；T6.4 应用层、T6.5 整机 A/B 排队 |
 | **M7 函数级（T6.4 的工作台）** | T7.0 ✅ 跨模块 RTL 实测（F244–F248）：默认 RTL 双向 10 万次首 5000 次内崩/挂、交叉 realloc 挂死、chunk 归还时宿主 120 个空闲块悬垂；共享宿主 `TMemoryManager`+`TMemoryMutexManager` 后真宿主主线程 A/B 10 万 + 2 万 PASS；异常跨模块两向不可捕获。剩 T7.2 注入/日志、T7.3 双跑、T7.4 扫描、T7.5 台账、T7.6 整机 |
 | M0/M1 资源与规格 | pak 格式闭环、Lua 导出、资产索引 ✅；T0.3（IDA 全量导出）/T0.4（oracle 采集）仍是历史遗留项，按需再补 |
 | M2 两个 DLL | b2：87/87、52 关全量 PASS、A/A 地板内；Squall：99/99、17 个宿主导入调用序 0 分歧（含优雅退出）、环回音频逐秒 corr 0.9998；**剩 PCM 逐位（F134，三条路线均否，F147）** 与长时回归（T2.6b） |
@@ -399,3 +399,86 @@ HOST_LUA_SELFTEST=4 HOST_LUA_DIR=work/pak_gametop HOST_LUA_LOG_DIR='C:\tmp\magne
 **下一步（T6.3c 已完成；T6.3d 工厂覆盖已扩到 level 1，见 F278–F282）**：宿主对 lvl49 init 的 bodies 18/18、xforms 18/18、shapes 20/20、init 关节 16/16、一次 init 的 56 个 setter 与原版录制逐项相同；level 1 的 13 bodies/13 设位组/19 shapes/39 setters 也全 0（`--body-limit/--shape-limit/--setter-limit`）。真实接触（`HOST_PHYS_MOVE=1022:8.04:3.16` 诊断输入）触发 `OnAddContact`，JSONL 尾段 5 条与 objlog 同名同序（`tools/lua_event_check.py --init <init-only>` PASS，ratio 0.417959183673）。**剩**：真实玩法输入/力驱动接触（T6.4）；其它建体绑定（CloseButton/AnimateSmoke…）与 style 表；其余事件（`OnMove`/`OnPersistContact`/`OnRotate`/`OnTimer`/`OnClick`）走同一派发接口。
 
 **坑**：生成器里登记调用必须写在参数读取**之后**（放在前面会读到 0，`EventsFire` 报 `no binding for 1016/...`）；`luaevents.pas` 是新增文件，记得 CRLF。
+
+## 13. 本轮（2026-11-01，整机字节覆盖测量 + 暂停菜单命令通道）
+
+**一句话**：`code_match cover` 第一次拿**当前宿主**量了整机字节覆盖（逐字节 795,218 B，含重定位空隙 71.0%），并逐单元定位到缺口；暂停菜单的四个 `Command` **不是** `.text` 里的字面量 switch，下一步应走 `Do_Command`（签名零风险），不要先去猜 UI 函数。
+
+### 13.1 整机字节覆盖（对 `bin/gametop/game.exe`）
+
+```bash
+python tools/code_match.py cover bin/gametop/game.exe build/host_lcl/magnet.exe --tail 0x521000
+# 精确串 4280 段 / 792206 B (52.6%)
+# + 同位空隙 275470 B
+# 归因 1067652/1507136 = 70.8%   目标侧 1067652/1764864 = 60.5%
+# --tail 0x521000 之后：149934/585216 = 25.6%
+
+python tools/code_match.py units bin/gametop/game.exe build/host_lcl/magnet.exe
+# 精确 795218 + 空隙 275470 = 归因 1070688/1507136 = 71.0%
+```
+
+两次跑的口径差 3,012 B（792,206 vs 795,218），来自精确串合并方式，不是测量误差方向的问题；引用时写清是哪一条命令。
+
+逐单元（`units`，只列判断用得上的）：
+
+| unit | size | hit | % |
+|---|---|---|---|
+| translations.o | 22320 | 21213 | **95.0%** |
+| extctrls.o | 20640 | 19036 | 92.2% |
+| intfgraphics.o | 51552 | 46080 | 89.4% |
+| wsfactory.o | 16480 | 14682 | 89.1% |
+| controls.o | 127744 | 113347 | **88.7%** |
+| stdctrls.o | 34768 | 30451 | 87.6% |
+| GLScene.o | 44192 | 36459 | 82.5% |
+| forms.o | 55712 | 41479 | 74.5% |
+| system.o | 54256 | 38329 | 70.6% |
+| classes.o | 62416 | 41392 | 66.3% |
+| **sysutils.o** | 40512 | 19199 | **47.4%** |
+| OpenGLAdapter.o | 33840 | 2086 | 6.2% |
+| OpenGL1x.o | 21776 | 482 | 2.2% |
+| luabind.o / magnet.o | — | 0 | 0.0%（我方代码，应然） |
+
+**读法**：
+
+1. **没有一个单元到 100%**，但也没有一个单元接近 0（除 GL 后端与自有代码）⇒ 尺子已经对到"同一代"，差的是每单元都有的小量。
+2. `sysutils.o` 47.4% 相对 `controls.o` 88.7% 低 41 个点，**不像全局 flag 差异**（那会全体一起掉），更像这个单元单独用了另一组选项或另一个 patch 级。若要把缺口收敛，先查它。
+3. `OpenGLAdapter` / `OpenGL1x` 2–6%：先确认原版到底链没链这两个单元（也可能命中的只是巧合字节），不要当缺口追。
+4. 边界：`cover` 的"同位空隙"带重定位容忍（每 4 B 字不同率 ≤30%），只有"精确串"部分才是逐字节；引用 71.0% 时必须同时写"其中精确 795,218 B"。
+
+### 13.2 暂停菜单：`lmenugui.txt` 的四个 Command
+
+`work/pak_gametop/lmenugui.txt`（`pak_baseline` 同）把暂停面板的按钮写成**数据**：
+
+| Command | PosX | PosY | 备注 |
+|---|---|---|---|
+| 101 | —（默认） | — | 位置默认 ⇒ 最上，候选 Continue |
+| 104 | -160 | 46 | ActionRegionHeightPercent=0.6 |
+| 105 | -150 | 130 | 同上 |
+| 103 | -153 | 216 | 同上 |
+
+PosY 46 / 130 / 216 等距 84 ⇒ 纵向按钮列，与 F294 的 `(0.80,0.092)` Continue 命中一致。
+
+**新发现（否定）**：在 `game.exe` 的 `.text` 里按 8/16/32 位比较编码扫 101/103/104/105（`3C`、`3D`、`66 3D`、`81 F8`、`83 F8`、`81 FA`、`83 FA`、`81 F9`、`83 F9`、`81 FB`、`83 FB`），四个立即数**没有任何 2 KB / 4 KB 窗口内聚在一起**（2 KB 与 4 KB 都试过，簇数 0；各值单独命中 4–7 次，多数应是无关常量）。
+
+⇒ 暂停菜单的命令分派**不是字面量 `switch`**。剩下的可能：字符串 `"101"` → atoi/哈希 → 表索引，或 `.rdata` 跳转表。**别再按"找 cmp 某个数"的思路找下去。**
+
+脚本是一次性的，未入库；要复现就重写这段扫描（十几行）。
+
+### 13.3 建议下一步（按代价排序）
+
+1. **先试 `Do_Command`。** F239 已恢复它的参数形态（`4..3+arg3`），签名零风险。宿主侧：载入任一关 → Lua 里调 `Do_Command(101)` → 用 `tools/draw_ab.py` 或 `uistate` 的暂停判据（F294，`lmenu_1.png` 资产级 NCC）跟暂停帧比。成 ⇒ 结束；不成 ⇒ 第 2 条。
+2. **找 `lmenugui.txt` 的解析点**：谁读 `Command` 字段、怎么转成数、交给谁。这是数据驱动入口，找到等于拿到一张命令表，比猜函数安全。
+3. **真要直调 UI 函数**：签名必须机械恢复（prologue 里 eax/edx/ecx 谁在被写之前被读、结尾 `ret` vs `ret N`、有无 `[esp+N]`），并且**从游戏自己的线程调用**（`CreateRemoteThread` 的新线程里 GL 上下文与当前关卡对象都不对），调用前后各存一次状态摘要。
+   - 理由：约定错**不必然崩**。`ret N` / `ret` 弹栈量不同会让栈歪，或写进错误对象，然后还能跑十几秒 —— 录下来就是一份错基线。F111→F112 就是这么作废的（cdecl 调 `__usercall` 拿到"合理垃圾"）。
+
+### 13.4 输入驱动（备查，暂不施工）
+
+- **Syringe 本体不做输入**：`CreateProcess` 挂起 → 注入 DLL → 打补丁 → 恢复线程。这三步 `tools/inject_dll.py` 已经是同一套（`VirtualAllocEx` → `WriteProcessMemory` → `CreateRemoteThread(LoadLibraryA)`）。
+- 若要走"进程内替换输入源"：游戏只用 user32 的 `GetCursorPos`/`GetAsyncKeyState`/`GetKeyState`/`GetKeyboardState`/`SetCapture`（F159），可 IAT hook，`SetCapture` 要一并接管。**user32 是 KnownDLL，代理同名 DLL 抢不到**（F147 的 ole32 同款坑）⇒ 只能 IAT/inline hook。
+- 现状 `tools/uistate.py:363` 是 `SetCursorPos` + `mouse_event`：受前台窗口、DPI 缩放（F307 的 1.5×）与时序抖动影响，且会抢用户的鼠标。
+
+### 13.5 边界
+
+- 13.1 的数字绑定 `build/host_lcl/magnet.exe`（2026-11-01 14:20 构建）与 `bin/gametop/game.exe`；任一侧重编都要重测。
+- 13.2 的否定结论只覆盖 `.text` 内的立即数比较；字符串比较、表索引、别的段都未排除。
+- 本节未改动任何 `bin/`、`work/` 下的既有产物。
