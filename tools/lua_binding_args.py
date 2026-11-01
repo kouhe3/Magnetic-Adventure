@@ -348,15 +348,17 @@ def main():
         rows.append((x, spec))
 
     os.makedirs(os.path.dirname(OUT_CSV), exist_ok=True)
+    # 换行由 newline="\r\n" 负责（仓库约定 CRLF，见 .gitattributes 的 `* -text`）；
+    # 内容里只写 "\n"，否则文本层会把每个 "\n" 再翻一次，落地成 "\r\r\n"。
     with open(OUT_CSV, "w", encoding="utf-8", newline="\r\n") as fp:
-        fp.write("lua_name,cfunc,size,args,argc,ret,ret_count,factories,status,notes\r\n")
+        fp.write("lua_name,cfunc,size,args,argc,ret,ret_count,factories,status,notes\n")
         for x, s in rows:
             argc = max(s["args"]) if s["args"] else (s["dyn"][0][0] - 1 if s["dyn"] else 0)
             fp.write(",".join([
                 x["name"], x["ea"], str(x["size"]), fmt_spec(s), str(argc), s["ret"],
                 str(s["ret_count"]), ";".join(s["facs"]), s["status"],
                 ";".join(s["conflicts"]),
-            ]) + "\r\n")
+            ]) + "\n")
 
     payload = []
     for x, s in rows:
