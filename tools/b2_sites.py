@@ -8,6 +8,7 @@
   python tools/b2_sites.py <log> joints
   python tools/b2_sites.py <logA> compare <logB>
       [--joint-limit N]   # 只比前 N 个关节（录制的动态接触会追加关节）
+      [--setter-limit N]  # 只比前 N 个 shape/body setter（一次关卡 init 的条数）
 
 判据:
   * sites   —— 每个 (export, 返回地址) 的调用数。返回地址 = 宿主里的调用点，
@@ -24,6 +25,8 @@
   * compare —— 两份日志的建体/设位/形状序列逐项比较（指针不参与）：
                bodies 比 allowSleep/fixedRot/bullet/damping；xforms 比每组首条 (x,y) 与
                第二条 angle；shapes 比名称与全部数值。PASS = 逐项 |Δ| <= 1e-6。
+               setters 比 SetDensity/Friction/Restitution/Filter/ReFilter/SetMass 的
+               顺序与实参（body/形状槽位归一）。录制的后续关卡 init 会追加，故用 limit。
   * joints  —— `World_Joint_Revolute|Prismatic|Gear` 的 def（body1/body2、anchor/axis、
                limits/motor/collide 或 joint1/joint2/ratio），按日志顺序。
 
@@ -203,15 +206,18 @@ def cmd_shapes(a):
 
 
 JOINT_EXPORTS = ('b2_World_Joint_Revolute', 'b2_World_Joint_Prismatic', 'b2_World_Joint_Gear')
+SETTER_EXPORTS = ('b2_Shape_SetDensity', 'b2_Shape_SetFriction', 'b2_Shape_SetRestitution',
+                  'b2_Shape_SetFilter', 'b2_World_ReFilter', 'b2_Body_SetMassFromShapes')
 
 
 def collect_seq(path):
     """建体/设位/形状/关节四类序列；关节与 body 指针都归一成创建顺序号。"""
     ffi.load_names()
     bodies, shapes, raw_joints = [], [], []
+    raw_setters, shape_entries = [], []
     groups = collections.OrderedDict()
     body_index, joint_index = {}, {}   # ptr -> [(seq, 创建序号)]，指针会复用
-    pending_body = pending_joint = None
+    pending_body = pending_joint = pending_shape = None
     for rec in ffi.records(path):
         if rec[0] == 'pre':
             v = rec[1]
@@ -231,9 +237,12 @@ def collect_seq(path):
                 # 圆的 def.d 不参与语义（原版这里是栈残渣）；只对盒比 d。
                 shapes.append((name, fric, rest, dens, m0[16], av, bv, cv,
                                dv if name.endswith('_Box') else None))
+                pending_shape = (seq, struct.unpack('<I', m0[0:4])[0])
             elif name in JOINT_EXPORTS:
                 raw_joints.append((name, seq, m0))
                 pending_joint = (seq, len(raw_joints) - 1)
+            elif name in SETTER_EXPORTS:
+                raw_setters.append((name, seq, args, m1))
         elif rec[0] == 'post':
             v = rec[1]
             name = ffi.NAMES[v[1]]
@@ -244,6 +253,9 @@ def collect_seq(path):
             elif name in JOINT_EXPORTS and pending_joint is not None:
                 joint_index.setdefault(ptr, []).append(pending_joint)
                 pending_joint = None
+            elif name in SHAPE_EXPORTS and pending_shape is not None:
+                shape_entries.append((ptr, pending_shape[0], pending_shape[1]))
+                pending_shape = None
     xforms = [(recs[0][0], recs[0][1], recs[1][2] if len(recs) > 1 else None)
               for recs in groups.values()]
     def at(mapping, ptr, seq):
@@ -253,6 +265,13 @@ def collect_seq(path):
             if s < seq and s > best_seq:
                 best, best_seq = idx, s
         return best
+
+    shape_map = {}
+    shape_slots = {}
+    for ptr, seq, body_ptr in shape_entries:
+        slot = shape_slots.get(body_ptr, 0)
+        shape_slots[body_ptr] = slot + 1
+        shape_map[ptr] = (at(body_index, body_ptr, seq), slot)
 
     joints = []
     for name, seq, m0 in raw_joints:
@@ -275,7 +294,20 @@ def collect_seq(path):
             ms, mf = struct.unpack_from('<2f', m0, 44)
             joints.append(('Prismatic', at(body_index, b1, seq), at(body_index, b2, seq),
                            ax, ay, vx, vy, m0[28], lo, up, m0[40], ms, mf, m0[52]))
-    return bodies, xforms, shapes, joints
+    setters = []
+    for name, seq, args, m1 in raw_setters:
+        if name == 'b2_Body_SetMassFromShapes':
+            setters.append((name, at(body_index, args[0], seq)))
+            continue
+        bidx, slot = shape_map.get(args[0], (-1, -1))
+        if name == 'b2_Shape_SetFilter':
+            cat, mask, grp = struct.unpack('<HHh', m1[:6])
+            setters.append((name, bidx, slot, cat, mask, grp))
+        elif name == 'b2_World_ReFilter':
+            setters.append((name, bidx, slot))
+        else:
+            setters.append((name, bidx, slot, f32(args[1])))
+    return bodies, xforms, shapes, joints, setters
 
 
 def cmp_list(label, a, b, tol=1e-6):
@@ -305,14 +337,17 @@ def cmp_list(label, a, b, tol=1e-6):
 
 
 def cmd_compare(a):
-    ba, xa, sa, ja = collect_seq(a.log)
-    bb, xb, sb, jb = collect_seq(a.compare)
+    ba, xa, sa, ja, ta = collect_seq(a.log)
+    bb, xb, sb, jb, tb = collect_seq(a.compare)
     if a.joint_limit:
         ja, jb = ja[:a.joint_limit], jb[:a.joint_limit]
+    if a.setter_limit:
+        ta, tb = ta[:a.setter_limit], tb[:a.setter_limit]
     bad = cmp_list('bodies', ba, bb)
     bad += cmp_list('xforms', xa, xb)
     bad += cmp_list('shapes', sa, sb)
     bad += cmp_list('joints', ja, jb)
+    bad += cmp_list('setters', ta, tb)
     print(f'TOTAL mismatches={bad}')
     return 0 if bad == 0 else 1
 
@@ -363,6 +398,7 @@ def main():
     ap.add_argument('--site', help='逗号分隔的返回地址（0x…），仅 xforms')
     ap.add_argument('--lua', help='lvlNN.jsonl，仅 xforms：按顺序对齐建体绑定')
     ap.add_argument('--joint-limit', type=int, default=0, help='compare：只比前 N 个关节')
+    ap.add_argument('--setter-limit', type=int, default=0, help='compare：只比前 N 个 setter')
     ap.add_argument('--top', type=int, default=0)
     a = ap.parse_args()
     if a.site:

@@ -49,6 +49,9 @@ HOOKS = {
     "Set_JointLimits": ["  PhysSetJointLimits(v1, v2 <> 0.0, v3, v4);"],
     "Set_JointMotors": ["  PhysSetJointMotors(v1, v2 <> 0.0, v3, v4);"],
     "Set_ScrObjPos": ["  PhysSetBodyPos(v1, v2, v3, v4);"],
+    "Set_PhysParams": ["  PhysSetPhysParams(v1, v2, v3, v4);"],
+    "Set_PhysFilterData": ["  PhysSetPhysFilter(v1, v2, v3, v4);"],
+    "Re_Filter": ["  PhysReFilter(v1);"],
 }
 
 # 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
@@ -56,6 +59,14 @@ CUSTOM_RET = {
     "Get_ScrObjPos": (
         ["  gx, gy, ga: Double;"],
         ["  PhysGetBodyPos(v1, gx, gy, ga);",
+         "  Lua.PushNumber(L, gx);",
+         "  Lua.PushNumber(L, gy);",
+         "  Lua.PushNumber(L, ga);",
+         "  Result := 3;"],
+    ),
+    "Get_PhysParams": (
+        ["  gx, gy, ga: Double;"],
+        ["  PhysGetPhysParams(v1, gx, gy, ga);",
          "  Lua.PushNumber(L, gx);",
          "  Lua.PushNumber(L, gy);",
          "  Lua.PushNumber(L, ga);",

@@ -96,6 +96,11 @@ procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 // Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+// Set_PhysParams / Get_PhysParams / Set_PhysFilterData / Re_Filter。
+procedure PhysSetPhysParams(Id: Integer; Density, Friction, Restitution: Double);
+procedure PhysGetPhysParams(Id: Integer; out Density, Friction, Restitution: Double);
+procedure PhysSetPhysFilter(Id: Integer; Category, Mask, Group: Integer);
+procedure PhysReFilter(Id: Integer);
 
 implementation
 
@@ -113,11 +118,22 @@ type
   TJointLimitsFn = procedure(J: Pointer; Lower, Upper: Single); cdecl;
   TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
   TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
+  TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
+  TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
+  TReFilterFn = procedure(Shape: Pointer); cdecl;
 
 type
   TPhysObj = record
     Id: Integer;
     Body: Pointer;
+    ShapeCount: Integer;
+    Shapes: array[0..7] of Pointer;
+    Density, Friction, Restitution: Single;
+  end;
+
+  TPhysJoint = record
+    Id: Integer;
+    Joint: Pointer;
   end;
 
 const
@@ -148,9 +164,14 @@ var
   g_jointSetMotorSpeed: TJointFloatFn;
   g_jointSetMaxTorque: TJointFloatFn;
   g_getXForm: TGetXFormFn;
+  g_shapeSetDensity: TShapeFloatFn;
+  g_shapeSetFriction: TShapeFloatFn;
+  g_shapeSetRestitution: TShapeFloatFn;
+  g_shapeSetFilter: TSetFilterFn;
+  g_reFilter: TReFilterFn;
   g_objs: array[0..MAX_OBJECTS - 1] of TPhysObj;
   g_objCount: Integer;
-  g_joints: array[0..MAX_OBJECTS - 1] of TPhysObj;
+  g_joints: array[0..MAX_OBJECTS - 1] of TPhysJoint;
   g_jointCount: Integer;
 
 function PhysActive: Boolean;
@@ -180,8 +201,41 @@ begin
   begin
     g_objs[g_objCount].Id := Id;
     g_objs[g_objCount].Body := Body;
+    g_objs[g_objCount].ShapeCount := 0;
+    g_objs[g_objCount].Density := 0.0;
+    g_objs[g_objCount].Friction := 0.0;
+    g_objs[g_objCount].Restitution := 0.0;
     Inc(g_objCount);
   end;
+end;
+
+function ObjIndex(Id: Integer): Integer;
+var
+  i: Integer;
+begin
+  for i := 0 to g_objCount - 1 do
+    if g_objs[i].Id = Id then
+      Exit(i);
+  Result := -1;
+end;
+
+procedure NoteShape(Body, Shape: Pointer; Dens, Fric, Rest: Single);
+var
+  i: Integer;
+begin
+  for i := 0 to g_objCount - 1 do
+    if g_objs[i].Body = Body then
+    begin
+      if g_objs[i].ShapeCount < 8 then
+      begin
+        g_objs[i].Shapes[g_objs[i].ShapeCount] := Shape;
+        Inc(g_objs[i].ShapeCount);
+      end;
+      g_objs[i].Density := Dens;
+      g_objs[i].Friction := Fric;
+      g_objs[i].Restitution := Rest;
+      Exit;
+    end;
 end;
 
 procedure RegJoint(Id: Integer; Joint: Pointer);
@@ -189,7 +243,7 @@ begin
   if g_jointCount < MAX_OBJECTS then
   begin
     g_joints[g_jointCount].Id := Id;
-    g_joints[g_jointCount].Body := Joint;
+    g_joints[g_jointCount].Joint := Joint;
     Inc(g_jointCount);
   end;
 end;
@@ -200,7 +254,7 @@ var
 begin
   for i := 0 to g_jointCount - 1 do
     if g_joints[i].Id = Id then
-      Exit(g_joints[i].Body);
+      Exit(g_joints[i].Joint);
   Result := nil;
 end;
 
@@ -248,6 +302,7 @@ begin
   sd.b := LY;
   sd.c := Radius;
   Result := g_shapeCircle(@sd);
+  NoteShape(Body, Result, Dens, Fric, Rest);
   if Assigned(g_mass) then
     g_mass(Body);
 end;
@@ -266,6 +321,7 @@ begin
   sd.c := HalfW;
   sd.d := HalfH;
   Result := g_shapeBox(@sd);
+  NoteShape(Body, Result, Dens, Fric, Rest);
   if Assigned(g_mass) then
     g_mass(Body);
 end;
@@ -484,6 +540,74 @@ begin
   Angle := xf.angle;
 end;
 
+procedure PhysSetPhysParams(Id: Integer; Density, Friction, Restitution: Double);
+var
+  i, idx: Integer;
+begin
+  if not g_active then
+    Exit;
+  idx := ObjIndex(Id);
+  if idx < 0 then
+    Exit;
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    g_shapeSetDensity(g_objs[idx].Shapes[i], Density);
+  g_mass(g_objs[idx].Body);
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    g_shapeSetFriction(g_objs[idx].Shapes[i], Friction);
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    g_shapeSetRestitution(g_objs[idx].Shapes[i], Restitution);
+  g_objs[idx].Density := Density;
+  g_objs[idx].Friction := Friction;
+  g_objs[idx].Restitution := Restitution;
+end;
+
+procedure PhysGetPhysParams(Id: Integer; out Density, Friction, Restitution: Double);
+var
+  idx: Integer;
+begin
+  Density := 0.0;
+  Friction := 0.0;
+  Restitution := 0.0;
+  if not g_active then
+    Exit;
+  idx := ObjIndex(Id);
+  if idx < 0 then
+    Exit;
+  Density := g_objs[idx].Density;
+  Friction := g_objs[idx].Friction;
+  Restitution := g_objs[idx].Restitution;
+end;
+
+procedure PhysSetPhysFilter(Id: Integer; Category, Mask, Group: Integer);
+var
+  f: TPhysFilter;
+  i, idx: Integer;
+begin
+  if not g_active then
+    Exit;
+  idx := ObjIndex(Id);
+  if idx < 0 then
+    Exit;
+  f.category := Word(Category);
+  f.mask := Word(Mask);
+  f.group := SmallInt(Group);
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    g_shapeSetFilter(g_objs[idx].Shapes[i], @f);
+end;
+
+procedure PhysReFilter(Id: Integer);
+var
+  i, idx: Integer;
+begin
+  if not g_active then
+    Exit;
+  idx := ObjIndex(Id);
+  if idx < 0 then
+    Exit;
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    g_reFilter(g_objs[idx].Shapes[i]);
+end;
+
 procedure PhysStep(Dt: Single; Vi, Pi: Integer);
 begin
   if g_active and (g_world <> nil) then
@@ -566,13 +690,21 @@ begin
   g_jointSetMotorSpeed := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMotorSpeed'));
   g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
   g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
+  g_shapeSetDensity := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetDensity'));
+  g_shapeSetFriction := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetFriction'));
+  g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));
+  g_shapeSetFilter := TSetFilterFn(GetProcAddress(g_dll, 'b2_Shape_SetFilter'));
+  g_reFilter := TReFilterFn(GetProcAddress(g_dll, 'b2_World_ReFilter'));
   if not (Assigned(g_createWorld) and Assigned(g_createBody) and Assigned(g_setXForm) and
     Assigned(g_shapeCircle) and Assigned(g_shapeBox) and Assigned(g_mass) and
     Assigned(g_setUserData) and Assigned(g_step) and Assigned(g_contactCb) and
     Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
     Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
-    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm)) then
+    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and
+    Assigned(g_shapeSetDensity) and Assigned(g_shapeSetFriction) and
+    Assigned(g_shapeSetRestitution) and Assigned(g_shapeSetFilter) and
+    Assigned(g_reFilter)) then
     Exit(False);
   aabb.lo.x := -100.0;
   aabb.lo.y := -100.0;

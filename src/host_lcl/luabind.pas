@@ -1680,6 +1680,7 @@ begin
   v3 := LuaOptInt(L, 3, 0);
   v4 := LuaOptInt(L, 4, 0);
   id := NextId('Set_PhysFilterData');
+  PhysSetPhysFilter(v1, v2, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1692,6 +1693,7 @@ begin
   LuaLogBegin(L, 'Re_Filter');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Re_Filter');
+  PhysReFilter(v1);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1724,6 +1726,7 @@ begin
   v3 := LuaOptNumber(L, 3, 0.0);
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Set_PhysParams');
+  PhysSetPhysParams(v1, v2, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1732,13 +1735,15 @@ function bind_Get_PhysParams(L: TLuaState): Integer; cdecl;
 var
   id: Integer;
   v1: Integer;
+  gx, gy, ga: Double;
 begin
   LuaLogBegin(L, 'Get_PhysParams');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Get_PhysParams');
-  Lua.PushNumber(L, id);
-  Lua.PushNumber(L, 0);
-  Lua.PushNumber(L, 0);
+  PhysGetPhysParams(v1, gx, gy, ga);
+  Lua.PushNumber(L, gx);
+  Lua.PushNumber(L, gy);
+  Lua.PushNumber(L, ga);
   Result := 3;
   LuaLogEnd(id);
 end;
