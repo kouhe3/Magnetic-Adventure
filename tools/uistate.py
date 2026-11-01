@@ -140,17 +140,7 @@ def cpu_seconds(pid):
 
 def cmd_capture(args):
     p = subprocess.Popen([os.path.join(args.dir, args.exe)], cwd=args.dir)
-    clicks = []
-    for spec in getattr(args, "click_at", None) or []:
-        t_str, frac = spec.split(":", 1)
-        fx, fy = (float(v) for v in frac.split(","))
-        clicks.append((float(t_str), fx, fy))
-    clicks.sort()
-    keys = []
-    for spec in getattr(args, "key_at", None) or []:
-        t_str, vk = spec.split(":", 1)
-        keys.append((float(t_str), int(vk, 0)))
-    keys.sort()
+    clicks, keys = _parse_events(args)
     print("pid=%d" % p.pid)
     os.makedirs(args.out, exist_ok=True)
     meta = open(os.path.join(args.out, "meta.jsonl"), "w", encoding="utf-8")
@@ -173,27 +163,7 @@ def cmd_capture(args):
         nxt = t0
         while time.time() - t0 < args.seconds:
             now = time.time() - t0
-            while clicks and now >= clicks[0][0]:
-                _, fx, fy = clicks.pop(0)
-                # 与 tools/click_play.py 同一套（已证）：SW_RESTORE + 前台 + 150 ms 按住
-                u.ShowWindow(win[0], 9)
-                u.SetForegroundWindow(win[0])
-                time.sleep(0.3)
-                u.SetCursorPos(int(rect[0] + rect[2] * fx), int(rect[1] + rect[3] * fy))
-                time.sleep(0.2)
-                u.mouse_event(0x0002, 0, 0, 0, 0)
-                time.sleep(0.15)
-                u.mouse_event(0x0004, 0, 0, 0, 0)
-                time.sleep(0.2)
-                print("click at t=%.1f -> %s fg=%d" % (now, (fx, fy), u.GetForegroundWindow() == win[0]))
-            while keys and now >= keys[0][0]:
-                _, vk = keys.pop(0)
-                u.SetForegroundWindow(win[0])
-                time.sleep(0.15)
-                u.keybd_event(vk, 0, 0, 0)
-                time.sleep(0.08)
-                u.keybd_event(vk, 0, 2, 0)
-                print("key at t=%.1f -> vk=0x%02X" % (now, vk))
+            _fire_events(win, rect, clicks, keys, now)
             img = gr.grab(rect)
             t = time.time() - t0
             cpu = cpu_seconds(p.pid) - c0
@@ -280,9 +250,136 @@ def cmd_build(args):
     return 0
 
 
-def classify(anchors, img):
+def classify(anchors, img, asset=None, asset_thr=0.35, allow_pause=True):
+    if asset is not None and allow_pause:
+        frame = img if img.ndim == 2 else img[:, :, :3].mean(axis=2)
+        corr, _x, _y, _sc = match_asset(frame, asset["img"], asset["scales"], asset["roi"],
+                                        detail=asset.get("detail"))
+        if corr >= asset_thr:
+            base, bscore, bmargin, allsc = _classify_mask(anchors, img)
+            # 面板出现在「无法判定/关卡/暂停」的底屏上 ⇒ 暂停菜单（加载/菜单/过场不算）
+            if base in ("unknown", "level", "pause"):
+                d = dict(allsc)
+                d["pause(asset)"] = round(corr, 3)
+                return "pause", corr, 99.0, d
+    return _classify_mask(anchors, img)
+
+
+def load_asset(path):
+    """读一张 RGBA 贴图（资产级判据的模板）。"""
+    from PIL import Image as _Image
+    return np.asarray(_Image.open(path).convert("RGBA")).astype(np.float32)
+
+
+def _asset_at_scale(asset, scale, detail=None):
+    """缩放模板；detail=百分位时只保留梯度最强的 (100-detail)% 像素（结构像素）。"""
+    from PIL import Image as _Image
+    h, w = asset.shape[:2]
+    aw, ah = max(4, int(round(w * scale))), max(4, int(round(h * scale)))
+    a = np.asarray(_Image.fromarray(asset.astype(np.uint8)).resize((aw, ah), _Image.BILINEAR)).astype(np.float32)
+    gray = a[:, :, 0]
+    m = a[:, :, 3] > 200
+    if detail is not None:
+        gx = np.zeros_like(gray)
+        gy = np.zeros_like(gray)
+        gx[:, 1:-1] = np.abs(gray[:, 2:] - gray[:, :-2])
+        gy[1:-1, :] = np.abs(gray[2:, :] - gray[:-2, :])
+        mag = gx + gy
+        thr = float(np.percentile(mag[m], detail))
+        m = m & (mag >= thr)
+    if m.sum() < 64:
+        return None
+    return gray[m], m, aw, ah
+
+
+def _ncc(frame, tmpl, mask, x, y, aw, ah):
+    win = frame[y:y + ah, x:x + aw][mask]
+    v = win - win.mean()
+    w = tmpl - tmpl.mean()
+    d = float(np.linalg.norm(v) * np.linalg.norm(w))
+    return float((v * w).sum() / d) if d > 1e-6 else 0.0
+
+
+def match_asset(frame, asset, scales, roi, step=2, detail=None):
+    """在 roi（帧比例）里按若干缩放找资产的最佳归一化相关。返回 (corr, x, y, scale)。"""
+    H, W = frame.shape
+    x0, y0 = int(W * roi[0]), int(H * roi[1])
+    x1, y1 = int(W * roi[2]), int(H * roi[3])
+    best = (-9.0, 0, 0, 0.0)
+    for scale in scales:
+        p = _asset_at_scale(asset, scale, detail)
+        if not p:
+            continue
+        tmpl, mask, aw, ah = p
+        if aw > x1 - x0 or ah > y1 - y0:
+            continue
+        for y in range(y0, y1 - ah + 1, step):
+            for x in range(x0, x1 - aw + 1, step):
+                c = _ncc(frame, tmpl, mask, x, y, aw, ah)
+                if c > best[0]:
+                    best = (c, x, y, scale)
+    # 在粗搜最优点附近细化到 1 px
+    if best[0] > -9:
+        _, bx, by, bs = best
+        p = _asset_at_scale(asset, bs, detail)
+        tmpl, mask, aw, ah = p
+        for y in range(max(y0, by - step), min(y1 - ah, by + step) + 1):
+            for x in range(max(x0, bx - step), min(x1 - aw, bx + step) + 1):
+                c = _ncc(frame, tmpl, mask, x, y, aw, ah)
+                if c > best[0]:
+                    best = (c, x, y, bs)
+    return best
+
+
+def load_asset_spec(meta_path, root):
+    """读 mapping/pause-panel.json：资产名 + 缩放集 + ROI + 阈值。"""
+    import json as _json
+    spec = _json.load(open(meta_path, encoding="utf-8"))
+    asset_path = os.path.join(root, spec["asset"])
+    return {"img": load_asset(asset_path), "scales": spec["scales"],
+            "roi": spec["roi"], "thr": spec.get("thr", 0.35),
+            "detail": spec.get("detail"), "path": asset_path}
+
+
+def _parse_events(args):
+    clicks, keys = [], []
+    for spec in getattr(args, "click_at", None) or []:
+        t_s, frac = spec.split(":", 1)
+        fx, fy = (float(v) for v in frac.split(","))
+        clicks.append((float(t_s), fx, fy))
+    for spec in getattr(args, "key_at", None) or []:
+        t_s, vk = spec.split(":", 1)
+        keys.append((float(t_s), int(vk, 0)))
+    clicks.sort(); keys.sort()
+    return clicks, keys
+
+
+def _fire_events(win, rect, clicks, keys, now):
+    while clicks and now >= clicks[0][0]:
+        _, fx, fy = clicks.pop(0)
+        u.ShowWindow(win[0], 9)
+        u.SetForegroundWindow(win[0])
+        time.sleep(0.3)
+        u.SetCursorPos(int(rect[0] + rect[2] * fx), int(rect[1] + rect[3] * fy))
+        time.sleep(0.2)
+        u.mouse_event(0x0002, 0, 0, 0, 0)
+        time.sleep(0.15)
+        u.mouse_event(0x0004, 0, 0, 0, 0)
+        time.sleep(0.2)
+        print("click at t=%.1f -> %s" % (now, (fx, fy)))
+    while keys and now >= keys[0][0]:
+        _, vk = keys.pop(0)
+        u.SetForegroundWindow(win[0])
+        time.sleep(0.15)
+        u.keybd_event(vk, 0, 0, 0)
+        time.sleep(0.08)
+        u.keybd_event(vk, 0, 2, 0)
+        print("key at t=%.1f -> vk=0x%02X" % (now, vk))
+
+
+def _classify_mask(anchors, img):
     refs = anchors["refs"]
-    mask = anchors["mask"].astype(bool).reshape(img.shape)
+    mask = anchors["mask"].astype(bool).reshape(img.shape[:2])
     states = [str(s) for s in anchors["states"]]
     scores = [float(np.abs(refs[i][mask] - img[mask]).mean()) for i in range(len(states))]
     order = np.argsort(scores)
@@ -294,16 +391,19 @@ def classify(anchors, img):
     return state, scores[best], margin, dict(zip(states, [round(s, 1) for s in scores]))
 
 
-def _state_from_win(anchors, win):
+def _state_from_win(anchors, win, asset=None, thr=0.45, allow_pause=True):
     gr = _Graber()
     try:
-        return classify(anchors, gr.grab(client_rect(win)))
+        return classify(anchors, gr.grab(client_rect(win)), asset, thr, allow_pause)
     finally:
         gr.close()
 
 
 def cmd_detect(args):
+    clicks, keys = _parse_events(args)
     anchors = np.load(args.anchors, allow_pickle=False)
+    asset = load_asset_spec(args.asset_pause, args.asset_root) if args.asset_pause else None
+    thr = asset["thr"] if asset else args.asset_thr
     p = subprocess.Popen([os.path.join(args.dir, args.exe)], cwd=args.dir)
     print("pid=%d" % p.pid)
     try:
@@ -316,8 +416,13 @@ def cmd_detect(args):
         if not win:
             print("error=no_window")
             return 1
+        rect = client_rect(win)
+        t0 = time.time()
+        seen_level = False
         for _ in range(args.repeat):
-            st, score, margin, allsc = _state_from_win(anchors, win)
+            _fire_events(win, rect, clicks, keys, time.time() - t0)
+            st, score, margin, allsc = _state_from_win(anchors, win, asset, thr, seen_level)
+            seen_level = seen_level or st == "level"
             print("state=%-8s score=%.1f margin=%.2f %r" % (st, score, margin, allsc))
             time.sleep(args.every)
         return 0
@@ -326,7 +431,10 @@ def cmd_detect(args):
 
 
 def cmd_wait(args):
+    clicks, keys = _parse_events(args)
     anchors = np.load(args.anchors, allow_pickle=False)
+    asset = load_asset_spec(args.asset_pause, args.asset_root) if args.asset_pause else None
+    thr = asset["thr"] if asset else args.asset_thr
     p = subprocess.Popen([os.path.join(args.dir, args.exe)], cwd=args.dir)
     print("pid=%d want=%s" % (p.pid, args.state))
     t0 = time.time()
@@ -340,8 +448,12 @@ def cmd_wait(args):
         if not win:
             print("error=no_window")
             return 1
+        rect = client_rect(win)
+        seen_level = False
         while time.time() - t0 < args.timeout:
-            st, score, margin, allsc = _state_from_win(anchors, win)
+            _fire_events(win, rect, clicks, keys, time.time() - t0)
+            st, score, margin, allsc = _state_from_win(anchors, win, asset, thr, seen_level)
+            seen_level = seen_level or st == "level"
             print("t=%.1f state=%-8s score=%.1f margin=%.2f" % (time.time() - t0, st, score, margin))
             if st == args.state:
                 print("reached=%s after %.1fs" % (args.state, time.time() - t0))
@@ -389,6 +501,14 @@ def main():
     d.add_argument("--anchors", required=True)
     d.add_argument("--repeat", type=int, default=5)
     d.add_argument("--every", type=float, default=2.0)
+    for cmd in (d,):
+        pass
+    d.add_argument("--asset-pause", default=None,
+                   help="mapping/pause-panel.json：资产级判据（命中即 state=pause）")
+    d.add_argument("--asset-root", default="work/pak_gametop")
+    d.add_argument("--asset-thr", type=float, default=0.45)
+    d.add_argument("--click-at", nargs="*", default=None)
+    d.add_argument("--key-at", action="append", default=[])
     d.set_defaults(func=cmd_detect)
 
     w = sub.add_parser("wait")
@@ -398,6 +518,12 @@ def main():
     w.add_argument("--state", required=True)
     w.add_argument("--timeout", type=float, default=60)
     w.add_argument("--every", type=float, default=0.5)
+    w.add_argument("--asset-pause", default=None,
+                   help="mapping/pause-panel.json：资产级判据（命中即 state=pause）")
+    w.add_argument("--asset-root", default="work/pak_gametop")
+    w.add_argument("--asset-thr", type=float, default=0.45)
+    w.add_argument("--click-at", nargs="*", default=None)
+    w.add_argument("--key-at", action="append", default=[])
     w.set_defaults(func=cmd_wait)
 
     args = ap.parse_args()

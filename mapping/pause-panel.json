@@ -1,0 +1,33 @@
+{
+  "asset": "lmenu_1.png",
+  "why": "暂停菜单面板的贴图；右上角固定装饰也在这一张里。判据 = 该资产按缩放后在画面右上区域出现（NCC≥thr）。",
+  "scales": [
+    0.25
+  ],
+  "roi": [
+    0.72,
+    0.0,
+    1.0,
+    0.9
+  ],
+  "thr": 0.55,
+  "measured": {
+    "capture": "320x240（客户端 1527x1108 物理，1.5x DPI）",
+    "scale": 0.25,
+    "box": [
+      250,
+      6,
+      64,
+      128
+    ],
+    "ncc_pause": 0.598,
+    "ncc_level": 0.293,
+    "ncc_loading": 0.452,
+    "ncc_menu": 0.223,
+    "note": "boot（GameTop 广告）0.466 与 pause 0.598 只差 1.28x，因此判据必须有『见过 level』这个先验",
+    "date": "2026-11-01",
+    "ncc_boot": 0.466
+  },
+  "detail": 60,
+  "rule": "pause = 面板资产命中(NCC>=thr，固定 0.25 尺度) 且 底屏 ∈ {unknown,level} 且 本次会话见过 level（避开 GameTop 广告白底的误命中）"
+}
