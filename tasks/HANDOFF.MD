@@ -91,6 +91,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2f1 level 4 齿轮相位（F375）**：模型速度 gear_7/gear_1/gear_3 = 3.0/9.0/5.0；三只齿轮反推的 `t (mod π/w)` 唯一公共解 **0.689 s**。`HOST_LEVEL_TIME=0.689` 的宿主整帧（忽略 plunger/shank/smoke 与隐藏提示）**37/37 零差**；负例 t=0.4 ⇒ gear_7 失配 1.219。下一刀：level 3 的 train/smoke 与 level 4 的 plunger/shank/smoke。
 
+- **2026-11-02 T6.4a-r-2g 静态覆盖里程碑（F376）**：5 个已采集关卡的静态场景全部通过宿主渲染路径（宿主自身 Lua 日志 → SceneModel → GL）：level 0 **25/25**（t=1.49）、1 **29/29**、2 **47/47**、3 **53/53**、4 **37/37**（t=0.689），`lua_bind_ab` 55/149/193/187/285 行 0 差，`level_draw_ab` 全部 `missing=0 unmatched_ref=0`。只排除各关动态项（level 3 train/smoke、level 4 plunger/shank/smoke）与隐藏提示。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
