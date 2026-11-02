@@ -12,11 +12,13 @@ uses
 
 var
   M: TSceneModel;
+  i: Integer;
+  O: TSceneObj;
 begin
   DecimalSeparator := '.';
   if ParamCount < 3 then
   begin
-    WriteLn('usage: scenemodel_cli <in.jsonl> <pak_dir> <out.jsonl>');
+    WriteLn('usage: scenemodel_cli <in.jsonl> <pak_dir> <out.jsonl> [time]');
     Halt(2);
   end;
   M := TSceneModel.Create;
@@ -25,6 +27,14 @@ begin
     begin
       WriteLn(StdErr, 'build failed: ', ParamStr(1));
       Halt(3);
+    end;
+    if ParamCount >= 4 then
+      M.ApplyTime(StrToFloat(ParamStr(4)));
+    for i := 0 to M.Count - 1 do
+    begin
+      O := M.ObjectAt(i);
+      if O.HasSpeed then
+        WriteLn(StdErr, 'gear ', O.Asset, ' w=', FloatToStrF(O.Speed, ffFixed, 9, 4));
     end;
     if not M.SaveJsonl(ParamStr(3)) then
     begin

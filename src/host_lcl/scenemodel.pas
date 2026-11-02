@@ -37,6 +37,9 @@ type
     Handle: Integer;
     HasPivot: Boolean;
     PivotX, PivotY: Double;
+    InitAngle: Double;
+    Speed: Double;
+    HasSpeed: Boolean;
   end;
 
   TSceneModel = class
@@ -52,6 +55,8 @@ type
     function SaveJsonl(const FileName: string): Boolean;
     function Count: Integer;
     function ObjectAt(Index: Integer): TSceneObj;
+    // 齿轮链动画：angle = InitAngle + w*t（w 由 Set_JointMotors/Add_JointSimpleGear 推出）。
+    procedure ApplyTime(t: Double);
     function BackCount: Integer;
     procedure BackAt(Index: Integer; out Top, Bottom: string);
     property CamX: Double read FCamX;
@@ -260,6 +265,9 @@ begin
   O.HasPivot := False;
   O.PivotX := 0.0;
   O.PivotY := 0.0;
+  O.InitAngle := 0.0;
+  O.Speed := 0.0;
+  O.HasSpeed := False;
 end;
 
 procedure TSceneModel.Clear;
@@ -281,6 +289,17 @@ begin
     Result := FObjects[Index]
   else
     InitObj(Result);
+end;
+
+procedure TSceneModel.ApplyTime(t: Double);
+var
+  i: Integer;
+begin
+  for i := 0 to High(FObjects) do
+    if FObjects[i].HasSpeed and
+      ((FObjects[i].Kind = 'Add_WoodGear') or
+       (FObjects[i].Kind = 'Add_MetallGear')) then
+      FObjects[i].Angle := FObjects[i].InitAngle + FObjects[i].Speed * t;
 end;
 
 function TSceneModel.AddObject(const O: TSceneObj): Integer;
@@ -309,13 +328,16 @@ var
   F: TextFile;
   Line, Name, Alias, Asset: string;
   Args: TArgs;
-  ArgCount, Ret, i, j: Integer;
+  ArgCount, Ret, i, j, k, m, n: Integer;
   O: TSceneObj;
   Materials: TStringList;
   Huds: array of THud;
   Bodies: array of TBody;
   PendingArm: Integer;
   Style: Integer;
+  Joints: array of record Handle, BodyA, BodyB: Integer; end;
+  Links: array of record B1, B2: Integer; Factor: Double; end;
+  Motors: array of record Joint: Integer; Speed: Double; end;
   Side: Double;
   X, Y, Ang: Double;
 
@@ -367,6 +389,9 @@ begin
     Materials.CaseSensitive := True;
     SetLength(Huds, 0);
     SetLength(Bodies, 0);
+    SetLength(Joints, 0);
+    SetLength(Links, 0);
+    SetLength(Motors, 0);
     PendingArm := -1;
 
     AssignFile(F, FileName);
@@ -528,6 +553,11 @@ begin
         O.H := NAIL_SIZE;
         O.Alpha := 1.0;
         AddHandle(Ret, AddObject(O));
+        i := Length(Joints);
+        SetLength(Joints, i + 1);
+        Joints[i].Handle := Ret;
+        Joints[i].BodyA := IntArg(Args, 1);
+        Joints[i].BodyB := IntArg(Args, 2);
         if PendingArm >= 0 then
         begin
           FObjects[PendingArm].HasPivot := True;
@@ -611,6 +641,24 @@ begin
           AddHandle(Ret, AddObject(O));
         end;
       end
+      else if Name = 'Add_JointSimpleGear' then
+      begin
+        if NumArg(Args, 4) <> 0.0 then
+        begin
+          i := Length(Links);
+          SetLength(Links, i + 1);
+          Links[i].B1 := IntArg(Args, 0);
+          Links[i].B2 := IntArg(Args, 1);
+          Links[i].Factor := -1.0 / NumArg(Args, 4);
+        end;
+      end
+      else if Name = 'Set_JointMotors' then
+      begin
+        i := Length(Motors);
+        SetLength(Motors, i + 1);
+        Motors[i].Joint := IntArg(Args, 0);
+        Motors[i].Speed := NumArg(Args, 2);
+      end
       else if Name = 'Add_HudButton' then
       begin
         i := Length(Huds);
@@ -651,6 +699,43 @@ begin
       end;
     end;
     CloseFile(F);
+
+    // 齿轮：保留 init 角，供 ApplyTime 叠加 w*t；速度由电机 + 传动比推出。
+    for i := 0 to High(FObjects) do
+      if (FObjects[i].Kind = 'Add_WoodGear') or
+        (FObjects[i].Kind = 'Add_MetallGear') then
+        FObjects[i].InitAngle := FObjects[i].Angle;
+    for i := 0 to High(Motors) do
+      for j := 0 to High(Joints) do
+        if Joints[j].Handle = Motors[i].Joint then
+        begin
+          k := FindHandle(Joints[j].BodyA);
+          if (k >= 0) and ((FObjects[k].Kind = 'Add_WoodGear') or
+            (FObjects[k].Kind = 'Add_MetallGear')) then
+          begin
+            FObjects[k].Speed := Motors[i].Speed;
+            FObjects[k].HasSpeed := True;
+          end;
+          k := FindHandle(Joints[j].BodyB);
+          if (k >= 0) and ((FObjects[k].Kind = 'Add_WoodGear') or
+            (FObjects[k].Kind = 'Add_MetallGear')) then
+          begin
+            FObjects[k].Speed := Motors[i].Speed;
+            FObjects[k].HasSpeed := True;
+          end;
+        end;
+    for k := 1 to High(Links) + 1 do
+      for i := 0 to High(Links) do
+      begin
+        n := FindHandle(Links[i].B1);
+        m := FindHandle(Links[i].B2);
+        if (n >= 0) and (m >= 0) and FObjects[n].HasSpeed and
+          (not FObjects[m].HasSpeed) then
+        begin
+          FObjects[m].Speed := FObjects[n].Speed * Links[i].Factor;
+          FObjects[m].HasSpeed := True;
+        end;
+      end;
 
     // HUD 按钮在全部调用之后按插入序追加（与 scene_from_lua.build 一致）。
     for i := 0 to High(Huds) do
