@@ -33,6 +33,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 旧 FP 场景复核（F318）**：`HT_CW=0x1332`（解除 invalid 屏蔽）+ `HT_SPECIAL=1`（NaN/denormal）时，crashlog 在 `game.exe+0x001ADFAB`（原版 `sub_5ADF60` 的 `fcompp`）记录 `0xC0000090`（`note=float-invalid-operation`），栈 `htab!ht_entry → htcw → b2Physics 代理 → USER32 → game.exe`，并写 74 KB MDMP；正确宿主 CW `0x137F` 下同一 800 条语料 `HT DONE runs=800 nan_diff=0`、crashlog 0 条 EXC。⇒ 旧的“Invalid floating point operation”弹窗根因是 FPC DLL 解除 x87 invalid 屏蔽后对 NaN 比较。
 
+- **2026-11-02 Self 类型首过（F319）**：1,012 个 pending 函数的 `Self` **不是单一结构体**。FPC 对象头 `[Self]=VMT`、`VMT+0xC` 类名短字符串、`VMT+0x30+4*i` 虚方法槽；`dword_665334` 是 `TLevelObjects`（VMT `0x6431D0`，大小 `0xB8`）。`python tools/app_self.py` → `work/app_self.csv`：39 个 virtual_method（21 个定义类）、144 个 Lua 绑定（`lua_State*`，不是 Pascal Self；102 个内部用 TLevelObjects）、802 个 direct_method（类未定，T7.2c）、27 个 static/helper。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
