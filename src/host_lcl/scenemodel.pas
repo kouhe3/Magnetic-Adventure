@@ -40,6 +40,11 @@ type
     InitAngle: Double;
     Speed: Double;
     HasSpeed: Boolean;
+    // level 4 曲柄滑块（F378）：杆的几何 + plunger/gear 的对象索引。
+    HasCrank: Boolean;
+    CrankPlunger, CrankGear: Integer;
+    CrankAX, CrankAY, CrankBX, CrankBY, CrankL: Double;
+    CrankOff, CrankSign, CrankBodyX: Double;
   end;
 
   TSceneModel = class
@@ -268,6 +273,17 @@ begin
   O.InitAngle := 0.0;
   O.Speed := 0.0;
   O.HasSpeed := False;
+  O.HasCrank := False;
+  O.CrankPlunger := 0;
+  O.CrankGear := 0;
+  O.CrankAX := 0.0;
+  O.CrankAY := 0.0;
+  O.CrankBX := 0.0;
+  O.CrankBY := 0.0;
+  O.CrankL := 0.0;
+  O.CrankOff := 0.0;
+  O.CrankSign := 1.0;
+  O.CrankBodyX := 0.0;
 end;
 
 procedure TSceneModel.Clear;
@@ -293,13 +309,41 @@ end;
 
 procedure TSceneModel.ApplyTime(t: Double);
 var
-  i: Integer;
+  i, gp: Integer;
+  G: TSceneObj;
+  Delta, GX, GY, DX, DY, PX, PY, RX, Rem, AY, BodyY: Double;
 begin
   for i := 0 to High(FObjects) do
     if FObjects[i].HasSpeed and
       ((FObjects[i].Kind = 'Add_WoodGear') or
        (FObjects[i].Kind = 'Add_MetallGear')) then
       FObjects[i].Angle := FObjects[i].InitAngle + FObjects[i].Speed * t;
+  for i := 0 to High(FObjects) do
+    if FObjects[i].HasCrank then
+    begin
+      gp := FObjects[i].CrankGear;
+      G := FObjects[gp];
+      Delta := 0.0;
+      if G.HasSpeed then
+        Delta := G.Speed * t;
+      GX := G.X;
+      GY := G.Y;
+      DX := FObjects[i].CrankBX - GX;
+      DY := FObjects[i].CrankBY - GY;
+      PX := GX + DX * Cos(Delta) - DY * Sin(Delta);
+      PY := GY + DX * Sin(Delta) + DY * Cos(Delta);
+      RX := FObjects[i].CrankAX - PX;
+      Rem := FObjects[i].CrankL * FObjects[i].CrankL - RX * RX;
+      if Rem < 0.0 then
+        Rem := 0.0;
+      AY := PY + FObjects[i].CrankSign * Sqrt(Rem);
+      BodyY := AY - FObjects[i].CrankOff;
+      FObjects[FObjects[i].CrankPlunger].X := FObjects[i].CrankBodyX;
+      FObjects[FObjects[i].CrankPlunger].Y := BodyY;
+      FObjects[i].X := (FObjects[i].CrankAX + PX) * 0.5;
+      FObjects[i].Y := (AY + PY) * 0.5;
+      FObjects[i].Angle := ArcTan2(PY - AY, PX - FObjects[i].CrankAX);
+    end;
 end;
 
 function TSceneModel.AddObject(const O: TSceneObj): Integer;
@@ -338,8 +382,11 @@ var
   Joints: array of record Handle, BodyA, BodyB: Integer; end;
   Links: array of record B1, B2: Integer; Factor: Double; end;
   Motors: array of record Joint: Integer; Speed: Double; end;
+  BodyObjs: array of record Handle, Obj: Integer; end;
   Side: Double;
   X, Y, Ang: Double;
+  AX, AY, BX, BY, LL: Double;
+  BodyH, GearH: Integer;
 
   function AssetOf(const N: string): string;
   begin
@@ -380,6 +427,16 @@ var
         Exit(k);
   end;
 
+  function FindBodyObj(H: Integer): Integer;
+  var
+    k: Integer;
+  begin
+    Result := -1;
+    for k := 0 to High(BodyObjs) do
+      if BodyObjs[k].Handle = H then
+        Exit(BodyObjs[k].Obj);
+  end;
+
 begin
   Result := False;
   Clear;
@@ -392,6 +449,7 @@ begin
     SetLength(Joints, 0);
     SetLength(Links, 0);
     SetLength(Motors, 0);
+    SetLength(BodyObjs, 0);
     PendingArm := -1;
 
     AssignFile(F, FileName);
@@ -489,7 +547,12 @@ begin
           O.H := 2.0 * NumArg(Args, 3);
           O.Alpha := 1.0;
           O.Root := IntArg(Args, 1);
-          AddHandle(Ret, AddObject(O));
+          m := AddObject(O);
+          AddHandle(Ret, m);
+          k := Length(BodyObjs);
+          SetLength(BodyObjs, k + 1);
+          BodyObjs[k].Handle := Bodies[i].Handle;
+          BodyObjs[k].Obj := m;
         end;
       end
       else if (Name = 'Add_MetallScrew') or (Name = 'Add_MetallGear') then
@@ -564,6 +627,47 @@ begin
           FObjects[PendingArm].PivotX := O.X;
           FObjects[PendingArm].PivotY := O.Y;
           PendingArm := -1;
+        end;
+      end
+      else if Name = 'Add_JointShank' then
+      begin
+        BodyH := IntArg(Args, 1);
+        GearH := IntArg(Args, 2);
+        i := FindBodyObj(BodyH);
+        j := FindBody(BodyH);
+        k := FindHandle(GearH);
+        if (i >= 0) and (j >= 0) and (k >= 0) then
+        begin
+          AX := NumArg(Args, 3);
+          AY := NumArg(Args, 4);
+          BX := NumArg(Args, 5);
+          BY := NumArg(Args, 6);
+          LL := Sqrt(Sqr(AX - BX) + Sqr(AY - BY));
+          InitObj(O);
+          O.Kind := Name;
+          O.Asset := 'shank_1.png';
+          O.X := (AX + BX) * 0.5;
+          O.Y := (AY + BY) * 0.5;
+          O.Angle := ArcTan2(BY - AY, BX - AX);
+          O.W := 1.3 * LL;
+          O.H := 0.65 * LL;
+          O.Alpha := 1.0;
+          O.Root := IntArg(Args, 0);
+          m := AddObject(O);
+          FObjects[m].HasCrank := True;
+          FObjects[m].CrankPlunger := i;
+          FObjects[m].CrankGear := k;
+          FObjects[m].CrankAX := AX;
+          FObjects[m].CrankAY := AY;
+          FObjects[m].CrankBX := BX;
+          FObjects[m].CrankBY := BY;
+          FObjects[m].CrankL := LL;
+          FObjects[m].CrankOff := AY - Bodies[j].Y;
+          if AY >= BY then
+            FObjects[m].CrankSign := 1.0
+          else
+            FObjects[m].CrankSign := -1.0;
+          FObjects[m].CrankBodyX := Bodies[j].X;
         end;
       end
       else if Name = 'Add_SwitchArm' then
@@ -653,12 +757,33 @@ begin
           Links[i].Factor := -1.0 / NumArg(Args, 4);
         end;
       end
+      else if Name = 'Add_AnimateSmoke' then
+      begin
+        // F379 只取样了 world root（0）；HUD 烟（root=3）在 1/2/3 关的判据帧不可见。
+        if IntArg(Args, 0) = 0 then
+        begin
+          InitObj(O);
+          O.Kind := Name;
+          O.Asset := 'smoke_5.png';
+          O.X := NumArg(Args, 1);
+          O.Y := NumArg(Args, 2);
+          O.Angle := NumArg(Args, 3);
+          O.W := NumArg(Args, 4) + 2.0;
+          O.H := NumArg(Args, 5) + 2.0;
+          O.Alpha := 1.0;
+          O.Root := IntArg(Args, 0);
+          AddHandle(Ret, AddObject(O));
+        end;
+      end
       else if Name = 'Set_JointMotors' then
       begin
-        i := Length(Motors);
-        SetLength(Motors, i + 1);
-        Motors[i].Joint := IntArg(Args, 0);
-        Motors[i].Speed := NumArg(Args, 2);
+        if IntArg(Args, 1) <> 0 then
+        begin
+          i := Length(Motors);
+          SetLength(Motors, i + 1);
+          Motors[i].Joint := IntArg(Args, 0);
+          Motors[i].Speed := NumArg(Args, 2);
+        end;
       end
       else if Name = 'Add_HudButton' then
       begin

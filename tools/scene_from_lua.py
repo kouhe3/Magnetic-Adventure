@@ -97,6 +97,9 @@ WOOD_BOX = {1: ("wbox_1.png", 4.702), 2: ("wbox_2.png", 4.702),
             3: ("wbox_3.png", 4.702)}
 PUSH_BUTTON = {1: ("pbut_1.png", 3.0, 1.5)}
 BAR_DOOR = {1: ("bar_1.png", 7.0, 3.5)}
+SHANK_ASSET = "shank_1.png"
+SHANK_LONG = 1.3          # 杆绘制长边 = 1.3·L、短边 = 0.65·L（F378）
+SMOKE_ASSET = "smoke_5.png"
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
 HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
@@ -138,6 +141,10 @@ def build(calls, pak_dir="", settle=True):
     objects = []
     backs = []
     bodies = {}
+    body_obj = {}      # body handle → Attach_SimpleGraphObject 的图元
+    joints = {}        # Add_JointNail handle → (bodyA, bodyB)
+    motors = []        # Set_JointMotors: (joint, speed)
+    links = []         # Add_JointSimpleGear: (body1, body2, factor)
     hud = {}
     handles = {}
     cam = (0.0, 0.0)
@@ -194,10 +201,11 @@ def build(calls, pak_dir="", settle=True):
             h, parent, sx, sy, mat = args[:5]
             body = bodies.get(h)
             if body is not None:
-                add({"kind": fn, "asset": asset_of(mat),
-                     "x": body[0], "y": body[1], "angle": body[2],
-                     "w": 2.0 * float(sx), "h": 2.0 * float(sy),
-                     "root": int(parent)}, ret)
+                obj = add({"kind": fn, "asset": asset_of(mat),
+                           "x": body[0], "y": body[1], "angle": body[2],
+                           "w": 2.0 * float(sx), "h": 2.0 * float(sy),
+                           "root": int(parent)}, ret)
+                body_obj[int(h)] = obj
         elif fn in ("Add_MetallScrew", "Add_MetallGear") and len(args) >= 5:
             parent, x, y, ang, style = args[:5]
             table = METAL_SCREW if fn == "Add_MetallScrew" else METAL_GEAR
@@ -208,22 +216,50 @@ def build(calls, pak_dir="", settle=True):
                 off = 0.0 if fn == "Add_MetallScrew" else math.pi
                 add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
                      "angle": float(ang) + off, "w": hit[1], "h": hit[1],
-                     "root": int(parent)}, ret)
+                     "root": int(parent), "_init_body": float(ang)}, ret)
         elif fn == "Add_WoodGear" and len(args) >= 5:
             parent, x, y, ang, style = args[:5]
             hit = WOOD_GEAR.get(int(style))
             if hit:
                 add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
                      "angle": float(ang) + math.pi, "w": hit[1], "h": hit[1],
-                     "root": int(parent)}, ret)
+                     "root": int(parent), "_init_body": float(ang)}, ret)
         elif fn == "Add_JointNail" and len(args) >= 5:
             add({"kind": fn, "asset": "nail_2.png",
                  "x": float(args[3]), "y": float(args[4]),
                  "angle": 0.0, "w": NAIL_SIZE, "h": NAIL_SIZE, "root": 0}, ret)
+            if isinstance(ret, int):
+                joints[ret] = (int(args[1]), int(args[2]))
             if pending_arm is not None:
                 # AddSimpleSwitchArm 紧接的 Add_JointNail 就是摆臂的固定锚点。
                 pending_arm["pivot"] = (float(args[3]), float(args[4]))
                 pending_arm = None
+        elif fn == "Add_JointShank" and len(args) >= 7:
+            root, body_h, gear_h = int(args[0]), int(args[1]), int(args[2])
+            ax, ay, bx, by = (float(v) for v in args[3:7])
+            plunger = body_obj.get(body_h)
+            gear = handles.get(gear_h)
+            if plunger is not None and gear is not None:
+                L = math.hypot(ax - bx, ay - by)
+                obj = {"kind": fn, "asset": SHANK_ASSET,
+                       "x": (ax + bx) * 0.5, "y": (ay + by) * 0.5,
+                       "angle": math.atan2(by - ay, bx - ax),
+                       "w": SHANK_LONG * L, "h": 0.5 * SHANK_LONG * L,
+                       "root": root}
+                objects.append(obj)   # 关节 handle 不能用于 Set_ScrObjPos
+                obj["_crank"] = {
+                    "plunger": plunger, "gear": gear,
+                    "ax": ax, "ay": ay, "bx": bx, "by": by, "L": L,
+                    "off": ay - plunger["y"], "sign": 1.0 if ay >= by else -1.0,
+                    "body_x": plunger["x"],
+                }
+        elif fn == "Add_JointSimpleGear" and len(args) >= 5:
+            ratio = float(args[4])
+            if ratio != 0.0:
+                links.append((int(args[0]), int(args[1]), -1.0 / ratio))
+        elif fn == "Set_JointMotors" and len(args) >= 3:
+            if int(args[1]) != 0:
+                motors.append((int(args[0]), float(args[2])))
         elif fn == "Add_SwitchArm" and len(args) >= 5:
             root, x, y, ang, style = args[:5]
             hit = SWITCH_ARM.get(int(style))
@@ -258,6 +294,16 @@ def build(calls, pak_dir="", settle=True):
         elif fn == "Add_HudButton" and len(args) >= 7:
             hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
                         "x": 0.0, "y": 0.0, "alpha": 1.0}
+        elif fn == "Add_AnimateSmoke" and len(args) >= 6:
+            # F379：level 4 的样本 = (x,y) 为中心、绘制尺寸 (args[4]+2, args[5]+2)；
+            # 只对 world root（0）取样；root=3 的 HUD 烟在 1/2/3 关的判据帧不可见，
+            # 尺寸/可见性规则未取样，不建图元。
+            if int(args[0]) == 0:
+                add({"kind": fn, "asset": SMOKE_ASSET,
+                     "x": float(args[1]), "y": float(args[2]),
+                     "angle": float(args[3]),
+                     "w": float(args[4]) + 2.0, "h": float(args[5]) + 2.0,
+                     "root": int(args[0])}, ret)
         elif fn == "Set_ScrObjPos" and len(args) >= 3:
             if args[0] in hud:
                 hud[args[0]]["x"] = float(args[1])
@@ -272,6 +318,19 @@ def build(calls, pak_dir="", settle=True):
             hud[args[0]]["alpha"] = 0.0
     if settle:
         settle_arms(objects)
+    # 齿轮速度：电机直接给关节里的齿轮；Add_JointSimpleGear 按 factor 传播。
+    for joint, speed in motors:
+        a, b = joints.get(joint, (0, 0))
+        for h in (a, b):
+            obj = handles.get(h)
+            if obj is not None and obj["kind"] in ("Add_WoodGear", "Add_MetallGear"):
+                obj["_speed"] = speed
+    for _ in range(len(links) + 1):
+        for b1, b2, factor in links:
+            o1, o2 = handles.get(b1), handles.get(b2)
+            if (o1 is not None and o2 is not None and
+                    o1.get("_speed") is not None and o2.get("_speed") is None):
+                o2["_speed"] = o1["_speed"] * factor
     for h in hud.values():
         asset = HUD_ASSET.get(h["tex"])
         if asset:
@@ -280,6 +339,40 @@ def build(calls, pak_dir="", settle=True):
                  "w": 2.0 * h["w"], "h": 2.0 * h["h"],
                  "alpha": h["alpha"], "root": 0, "space": "ndc"}, 0)
     return objects, backs, cam
+
+
+def apply_time(objects, t):
+    """按 F378 的曲柄滑块规则推进 level 4 的 plunger/shank（t 为关卡时间）。
+
+    齿轮 body 角 = init + w·t；连杆铰点在齿轮本体的局部坐标随齿轮旋转；
+    plunger 只能沿竖直轴移动，由杆长 L 解出 body_y；杆的绘制中心/角度取
+    两端 anchor 的中点/方向。没有电机的齿轮保持 init 角。
+    """
+    for obj in objects:
+        if obj["kind"] in ("Add_WoodGear", "Add_MetallGear"):
+            if obj.get("_speed") is not None:
+                obj["angle"] = obj["_init_body"] + obj["_speed"] * t + math.pi
+    for obj in objects:
+        meta = obj.get("_crank")
+        if meta is None:
+            continue
+        gear = meta["gear"]
+        speed = gear.get("_speed") or 0.0
+        delta = speed * t
+        gx, gy = gear["x"], gear["y"]
+        dx, dy = meta["bx"] - gx, meta["by"] - gy
+        px = gx + dx * math.cos(delta) - dy * math.sin(delta)
+        py = gy + dx * math.sin(delta) + dy * math.cos(delta)
+        rem = meta["L"] * meta["L"] - (meta["ax"] - px) ** 2
+        if rem < 0.0:
+            rem = 0.0
+        ay = py + meta["sign"] * math.sqrt(rem)
+        body_y = ay - meta["off"]
+        meta["plunger"]["x"] = meta["body_x"]
+        meta["plunger"]["y"] = body_y
+        obj["x"] = (meta["ax"] + px) * 0.5
+        obj["y"] = (ay + py) * 0.5
+        obj["angle"] = math.atan2(py - ay, px - meta["ax"])
 
 
 def ref_labeled(log, pak, frame):
@@ -399,6 +492,8 @@ def main():
     ap.add_argument("--ignore", default="mcur_1.png,tex=1")
     ap.add_argument("--allow-missing", default="",
                     help="允许的候选独有素材（隐藏提示层），逗号分隔")
+    ap.add_argument("--time", type=float, default=None,
+                    help="应用 F378 曲柄滑块/齿轮相位（秒）；不给则从 ref 拟合齿轮角")
     ap.add_argument("--tol", type=float, default=0.5)
     ap.add_argument("--uv-tol", type=float, default=1e-3)
     ap.add_argument("--alpha-tol", type=float, default=1.01,
@@ -414,6 +509,8 @@ def main():
     probe = os.path.join(a.probe_dir, "lvl%02d.jsonl" % a.level)
     calls = load_calls(probe)
     objects, backs, cam = build(calls, a.pak, not a.no_arm_settle)
+    if a.time is not None:
+        apply_time(objects, a.time)
     if a.dump_objects:
         dump_objects(objects, cam, a.dump_objects)
         if not a.ref or a.frame is None:
@@ -421,7 +518,8 @@ def main():
     ref, missed = ref_labeled(a.ref, a.pak, a.frame)
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
-    fit_gear_angles(objects, ref, cam)
+    if a.time is None:
+        fit_gear_angles(objects, ref, cam)
     print("scene objects=%d backs=%d camera=(%.3f,%.3f)"
           % (len(objects), len(backs), cam[0], cam[1]))
     if not a.no_arm_settle:
