@@ -25,7 +25,7 @@ uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
   GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents,
-  PhysWorld;
+  PhysWorld, LevelScene;
 
 type
   TCameraEvents = class
@@ -730,6 +730,7 @@ var
   S: TGLScene;
   Cam: TGLCamera;
   Menu: TMenuScene;
+  Level: TLevelScene;
   CamEvents: TCameraEvents;
   Pak: TPakFile;
   n: Integer;
@@ -740,11 +741,12 @@ var
   MouseX, MouseY: Single;
   DumpVp: array[0..3] of Integer;
   StateInit: TGLStateInit;
-  Headless, PakOpened: Boolean;
+  Headless, PakOpened, LevelMode: Boolean;
 begin
   MaybeLoadCrashLog;
   Application.Initialize;
   Headless := EnvFlag('HOST_HEADLESS');
+  LevelMode := EnvFlag('HOST_LEVEL_RENDER');
 
   // pak 与纹理自检不需要窗口（有头/无头共用）。
   Pak := TPakFile.Create;
@@ -775,7 +777,20 @@ begin
   Cam.CameraStyle := csCustom;
   Cam.OnCustomPerspective := @CamEvents.Ortho;
   S.Objects.AddChild(Cam);
-  if PakOpened then
+  if PakOpened and LevelMode then
+  begin
+    // T6.4a：Introduction 的相机与场景。draw 列表坐标是相机相对量；
+    // 相机放在原版 Set_CameraPosition(-3,3) 的位置即可。
+    Cam.Position.SetPoint(-3, 3, 10);
+    Level := TLevelScene.Create(S, Pak, Cam);
+    Level.BuildIntroduction;
+    AssignFile(tf, ExePath('level_init.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'sprites=', Level.Sprites);
+    Write(tf, Level.Log);
+    CloseFile(tf);
+  end
+  else if PakOpened then
   begin
     // 鼠标位置（设计像素，左上原点）：默认停在 glidle 抓包那一帧的位置
     // (884,684)-(916,716) 的中心 (900,700)，这样 A/B 是同状态（F188/F189）。
@@ -845,6 +860,10 @@ begin
     end;
     CloseFile(tf);
   end;
+
+  // T6.4a 自检：建场景 + 渲染一帧后直接退，不进入玩法循环（T6.4d 再接）。
+  if LevelMode then
+    ExitProcess(0);
 
   // T6.3c：HOST_PHYS=1 → 建 world（4 面世界墙）；HOST_LUA_SELFTEST → 跑自检后退出。
   // 有头/无头共用同一个入口（无头分支在上面已经调用过它）。

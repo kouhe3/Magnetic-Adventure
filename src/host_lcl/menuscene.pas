@@ -111,6 +111,10 @@ type
 
 function TempFilePath(const Ext: string): string;
 
+// 供 LevelScene 复用：把 pak 里的 PNG/JPG 解成 GLScene 纹理；Err 保留 M6 日志格式。
+function LoadPakTexture(Pak: TPakFile; const Asset: string; Tex: TGLTexture;
+  const DumpDir: string; out Err: string): Boolean;
+
 implementation
 
 uses Windows;
@@ -443,17 +447,18 @@ begin
   Inc(FLayers);
 end;
 
-function TMenuScene.LoadTexture(const Asset: string; Tex: TGLTexture): Boolean;
+function LoadPakTexture(Pak: TPakFile; const Asset: string; Tex: TGLTexture;
+  const DumpDir: string; out Err: string): Boolean;
 var
   Stream: TMemoryStream;
   Path, Ext: string;
   Img: TMagImage;
 begin
   Result := False;
-  if FPak = nil then Exit;
-  if not FPak.Read(Asset, Stream) then
+  if Pak = nil then Exit;
+  if not Pak.Read(Asset, Stream) then
   begin
-    FLog := FLog + 'missing ' + Asset + #13#10;
+    Err := Err + 'missing ' + Asset + #13#10;
     Exit;
   end;
   try
@@ -473,7 +478,7 @@ begin
           on E: Exception do
           begin
             Img.Free;
-            FLog := FLog + 'decode ' + Asset + ': ' + E.Message + #13#10;
+            Err := Err + 'decode ' + Asset + ': ' + E.Message + #13#10;
             Exit;
           end;
         end;
@@ -481,25 +486,25 @@ begin
       except
         on E: Exception do
         begin
-          FLog := FLog + 'assign ' + Asset + ': ' + E.Message + #13#10;
+          Err := Err + 'assign ' + Asset + ': ' + E.Message + #13#10;
           Exit;
         end;
       end;
-      if FDumpDir <> '' then
+      if DumpDir <> '' then
         try
-          Tex.Image.SaveToFile(IncludeTrailingPathDelimiter(FDumpDir) +
+          Tex.Image.SaveToFile(IncludeTrailingPathDelimiter(DumpDir) +
             ChangeFileExt(ExtractFileName(Asset), '.png'));
         except
           on E: Exception do
-            FLog := FLog + 'dump ' + Asset + ': ' + E.Message + #13#10;
+            Err := Err + 'dump ' + Asset + ': ' + E.Message + #13#10;
         end;
-      FLog := FLog + 'tex ' + Asset + ' ' + IntToStr(Tex.Image.Width) + 'x' +
+      Err := Err + 'tex ' + Asset + ' ' + IntToStr(Tex.Image.Width) + 'x' +
         IntToStr(Tex.Image.Height) + ' a0=' + IntToStr(Img.AlphaZero) + '/' +
         IntToStr(Img.AlphaTotal);
       if Tex.Image is TMagImage then
-        FLog := FLog + ' copy=' + IntToStr(TMagImage(Tex.Image).AlphaZero) + '/' +
+        Err := Err + ' copy=' + IntToStr(TMagImage(Tex.Image).AlphaZero) + '/' +
           IntToStr(TMagImage(Tex.Image).AlphaTotal);
-      FLog := FLog + #13#10;
+      Err := Err + #13#10;
       Tex.Disabled := False;
       Result := True;
     finally
@@ -508,6 +513,16 @@ begin
   finally
     Stream.Free;
   end;
+end;
+
+function TMenuScene.LoadTexture(const Asset: string; Tex: TGLTexture): Boolean;
+var
+  Err: string;
+begin
+  Err := '';
+  Result := LoadPakTexture(FPak, Asset, Tex, FDumpDir, Err);
+  if Err <> '' then
+    FLog := FLog + Err;
 end;
 
 procedure TMenuScene.AddLayer(const Asset: string; X, Y, W, H, Alpha: Single);
