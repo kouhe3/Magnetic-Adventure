@@ -55,6 +55,16 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 T6.3d 最终（F336）**：重录 `Good Shot!`（`work/rec_20261102_155327`，293,593,804 B，B2FFI02，首 step 前 23 bodies）后，新录制暴露 `Add_Ball` 未接：8 个球体 = Circle fric .7 / rest .4 / dens .3 / r .6；`PhysAddBall` + 生成器 HOOKS 接上 ⇒ 第 9 关 **23/23/33/8/82** 全 0。`python tools/phys_sweep.py` ⇒ **50 PASS / 2 SKIP / 0 MISMATCH**（12.5 s），`verify.py` ⇒ gates=7 fail=0。F335（49/3/0）置过期；13/51 仍为 shared SKIP。
 - **2026-11-02 T6.4a 第一关（F337–F340）**：内存判 MENU（`[0x665334]`/`TLevelManager+0x30`）→ 内存门控 Play 录 `work/level0_gl.bin`；新仪器 `tools/level_draw_ab.py`（自证 A/A/负例）；宿主 `src/host_lcl/levelscene.pas` 的 Introduction 场景 **25/25 逐 draw 零差**（frame 9600，`mismatches=0`）；菜单 `LoadPakTexture` 重构后 21/21；`verify.py` 7/7、`phys_sweep` 50/2/0。边界：瞬时态（hint alpha 0.8255/齿轮角 0）、手工场景表；通用 Lua→场景/动画/其他关卡归 T6.4a-r。
 
+- **2026-11-02 C 路线：绕过菜单直接进关（F342）**：`sub_560880` 的 command 299–350 分支 = `sub_571610(lm,index)` → `sub_572160(lm,rec)` → `sub_5721B0(lm)`；`work/probe_direct_level.py` 用窗口线程 hijack（`SuspendThread`+`SetThreadContext`）实测 `[lm+0x30]` 2→1、`[lm+4]=index`，负例 no-op 保持 2；index 0/1 的 b2 init 与真实点击录制 `b2_sites compare --stop-at-step` **TOTAL mismatches=0**；边界：未调 `sub_560720(appObj,1)`，渲染/退出未验证。
+
+- **2026-11-02 菜单管理器状态切换（F343）**：`sub_560880(appObj, 299+index)` 端到端实测 ⇒ `[app+0x10]` 2→1、`[lm+0x30]` 2→1、b2 首步前 init 与真实点击录制 **TOTAL mismatches=0**、截图确认 Introduction（菜单消失）；负例 `cmd=298` 保持 2。appObj 由 `[app+0x2C]=lm`+`[app+0x30]=menu`+`[menu+0x58]`+`[list+0x58]=52` 扫描定位。F342 的「未调 `sub_560720`」边界已闭合。
+
+- **2026-11-02 同进程 LVL→LVL（F344）**：`sub_5721B0` 建关末尾把 `[lm+0x54]` 清零，所以关卡运行时再调一次 `sub_560880(appObj, 299+newIndex)` 即可切到另一关（`sub_572160` 接受新记录）；`--index 0 --index2 1` 实测 `[lm+4]` 0→1、第二段 init 对 `rec_20261029_135715` **0 mismatches**（bodies 9 / shapes 15 / setters 39 / joints 0），截图 `work/level_switch.png` 是第 2 关。边界：xform 因 `collect_seq` 按 body 指针分组、指针复用而暂不可比；Lua/HUD 对象表未 diff。
+
+- **2026-11-02 Play=resume 的静态守卫（F345）**：`sub_560880` case 106 只在 `[lm+8]==0` 时走 `sub_575490`→`sub_571610`→`sub_572160`→`sub_5721B0`；`[lm+8]!=0` 时只执行 `sub_560720(app,1)`。`sub_5721B0` 写 `[lm+8]=1`，只有 `sub_560E80`（菜单回调 cmd 1/3）清零，主菜单切换不清。地图 299–350 无此守卫 ⇒ 强制重载。`work/probe_play_resume.py` 实测：menu 后 `lm8=1`、`[lm+4]`/`[lm+0x50]` 不变；Play 后仍不变、`app16` 2→1。
+
+- **2026-11-02 私有桌面隔离（F346）**：`work/probe_vdesk.py` 用 `CreateDesktop`+`CreateProcess(lpDesktop)` 在 `MagVDesk_<pid>` 上跑 `game.exe`；t≈16 s 到 MENU，窗口线程直接 `sub_560880(app,299)` ⇒ `[lm+0x30]` 2→1、`[lm+8]=1`。两次独立运行都是 b2 日志 8,388,548 B / `CreateWorld 1 / CreateBody 8 / DestroyBody 0 / 1,266 steps`；用户前台窗口不变，用户光标移动 5 次期间隐藏光标 0 次变化。⇒ 批量采关可以跑在私有桌面，不抢前台、不需要鼠标。边界：无像素/音频验收，游戏仍占 CPU/GPU。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
