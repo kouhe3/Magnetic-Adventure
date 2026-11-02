@@ -15,6 +15,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "../crashlog/crashlog.h"
+
 #define ARG_DWORDS 16
 #define MEM_DUMP 128
 #define ORIG_NAME "Squall_orig.dll"
@@ -177,6 +179,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         char path[MAX_PATH];
         DWORD n;
 
+        CrashLogInstallFromEnv();   /* 默认零成本；CRASHLOG_DIR/CRASHLOG_LOG 才启用 */
         DisableThreadLibraryCalls(inst);
         n = GetModuleFileNameA(inst, self, MAX_PATH);
         n = (n ? n - 1 : 0);
@@ -226,6 +229,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             FreeLibrary(g_orig);
             g_orig = 0;
         }
+        CrashLogUninstall();
     }
     return TRUE;
 }

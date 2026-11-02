@@ -693,6 +693,20 @@ begin
 end;
 
 var
+  CrashLogDll: HMODULE;
+
+// 崩溃捕获（F315–F317）：设 CRASHLOG_DIR/CRASHLOG_LOG 时加载 crashlog.dll，它在 DllMain 里装 VEH。
+// 默认零成本；代理（HOST_PHYS）路径也会带同一份记录器，二者用进程级互斥量只装一个。
+procedure MaybeLoadCrashLog;
+var
+  dir: array[0..MAX_PATH - 1] of Char;
+begin
+  if (GetEnvironmentVariable('CRASHLOG_DIR', @dir[0], SizeOf(dir)) > 0) or
+     (GetEnvironmentVariable('CRASHLOG_LOG', @dir[0], SizeOf(dir)) > 0) then
+    CrashLogDll := LoadLibrary('crashlog.dll');
+end;
+
+var
   F: TForm;
   S: TGLScene;
   Cam: TGLCamera;
@@ -709,6 +723,7 @@ var
   StateInit: TGLStateInit;
   Headless, PakOpened: Boolean;
 begin
+  MaybeLoadCrashLog;
   Application.Initialize;
   Headless := EnvFlag('HOST_HEADLESS');
 

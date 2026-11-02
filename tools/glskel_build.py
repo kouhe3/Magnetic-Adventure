@@ -6,6 +6,7 @@
 """
 import glob
 import os
+import shutil
 import subprocess
 import sys
 
@@ -39,6 +40,12 @@ def main():
     if r.returncode != 0:
         print("STDERR:", (r.stderr or "")[-2000:])
     exe = os.path.splitext(os.path.basename(pas))[0] + ".exe"
+    # 崩溃捕获（F315–F317）：CMake 的 crashlog.dll 若已构建，放到宿主旁边，
+    # 这样 CRASHLOG_DIR/CRASHLOG_LOG 开启时 magnet.pas 能直接 LoadLibrary。
+    if r.returncode == 0:
+        dll = "build/Release/crashlog.dll"
+        if os.path.exists(dll):
+            shutil.copy2(dll, os.path.join(out, "crashlog.dll"))
     print("rc=%d exe=%s" % (r.returncode, os.path.exists(out + "/" + exe)))
     return r.returncode
 

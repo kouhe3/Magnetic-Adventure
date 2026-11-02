@@ -117,6 +117,7 @@ python tools/report_sweep.py --write
 - `B2DBG_STEP` / `B2DBG_FILE` / `B2DBG_CONTACTS` / `B2DBG_FROM..TO`：步窗内 dump body 与接触表。
 - 重放侧：`B2_TRACE=<body hex>`、`B2_STEP_VI/PI`、`B2DUMP_CONTACTS=path,lo,hi`、`DIGEST_ALL`、`DUMP_FIRST`、`PROGRESS_EVERY`。
 - 代理侧：`B2PROXY_LOG`、`B2PROXY_HOT=1`（记录只读 getter）。
+- 崩溃捕获（F315–F317）：设 `CRASHLOG_DIR=<dir>`（或 `CRASHLOG_LOG=<path>`）后，b2/Squall/GL 代理与 `magnet.exe` 会装 first-chance VEH，把 code/地址/模块+RVA/CONTEXT/栈写进 `crash_<owner>_<pid>.log`；`CRASHLOG_DUMP=1` 写 minidump（默认只写 seq=1），`CRASHLOG_DIALOG=1` 额外记本进程 `#32770` 弹窗正文。判据：`python tools/crashlog_test.py`、`python tools/crashlog_host_test.py`；符号化：`python tools/crashlog_symbolize.py <log>`。
 
 **改 vendor 的规矩**
 - `vendor/box2d-2.0.2` 是"已修正快照"：`b2_maxPolygonVertices` 16→8（F28）、`b2_angularSleepTolerance * b2_pi`（F97）、GJK 早退补 `B2_FLT_EPSILON²`（F122）、速度钳位改"每步最大平移/旋转"（F124）。

@@ -29,6 +29,10 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-01 T8 oracle 自动化（F308–F314，详见 §14）**：`sweep.py --floors` 把每份录制的 A/A 地板缓存到 `work/floors.json`（**唯一非零** `rec_20261028_231623`=5,297，与 F125 逐项相同），`report_sweep` 出 `地板` 列、`verify physics:sample` 输出 `bad/floor`（判定口径不变）；`gen_rec_exports` + `rec_pick` 让「改一个导出」只跑 **1–3 份**录制（`rec_pick --exports b2_Body_SetBullet` → 1 份，现 4.4 s；`verify --changed` 0.3 s）；**14 路并行被证伪**（34.7 min vs 8 路 17 min，总重放量 3.6×）⇒ 默认 `min(8, cpu//2)`；**D4 重放器 5.0×**（真凶是每 8 条调用写一次进度文件）⇒ 全量 57 份 **15–17 min → 3.7 min**、总重放量 7,109→1,421 s（F312/F313）；**D5 合成契约** 87/87 导出 0 差异（`verify --only b2:contract` 0.3 s，F314），顺带修掉 5 处只有契约探针能抓到的 ABI 错误。
 
+- **2026-11-02 T7.2b 崩溃捕获（F315–F317）**：宿主崩溃的 OK/CANCEL 来自 LCL `TApplication.ShowException`（Cancel → `Halt(0)`，F315）；`src/crashlog/crashlog.c` 在进程内装 first-chance VEH，`CRASHLOG_DIR` 开启后把 code/地址/模块+RVA/CONTEXT/栈写进 `crash_<owner>_<pid>.log`，`CRASHLOG_DUMP=1` 写 minidump（默认只写 seq=1），`CRASHLOG_DIALOG=1` 记 `#32770` 正文（覆盖 FPC `raise`）。代理（b2/Squall/GL）与 `magnet.exe` 都带；判据 `python tools/crashlog_test.py` 16/16、`python tools/crashlog_host_test.py` PASS、`verify.py` gates=7。符号化：`python tools/crashlog_symbolize.py <log>`。
+
+- **2026-11-02 旧 FP 场景复核（F318）**：`HT_CW=0x1332`（解除 invalid 屏蔽）+ `HT_SPECIAL=1`（NaN/denormal）时，crashlog 在 `game.exe+0x001ADFAB`（原版 `sub_5ADF60` 的 `fcompp`）记录 `0xC0000090`（`note=float-invalid-operation`），栈 `htab!ht_entry → htcw → b2Physics 代理 → USER32 → game.exe`，并写 74 KB MDMP；正确宿主 CW `0x137F` 下同一 800 条语料 `HT DONE runs=800 nan_diff=0`、crashlog 0 条 EXC。⇒ 旧的“Invalid floating point operation”弹窗根因是 FPC DLL 解除 x87 invalid 屏蔽后对 NaN 比较。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
@@ -348,6 +352,7 @@ python tools/code_match.py units bin/gametop/game.exe <out>/glskel5.exe
 | 宿主 | `src/host/main.cpp`（窗口/消息）、`src/host/gl_render.cpp`（WGL + 菜单渲染）、`src/host/pak.{h,cpp}`（pak 只读）、`src/host/wic_decode.{h,cpp}`（WIC 解码）、`src/host/texture_table.h`（生成物） |
 | 代理 | `src/proxydll/`（b2，`B2FFI02`）、`src/squallproxy/`（`SQFFI01`）、`src/glproxy/`（`GLFFI02`）；桩由 `tools/gen_proxy.py` 生成 |
 | 仪器 | `tools/instr.py`、`gate.py`、`sweep.py`、`report_sweep.py`、`replay_ffi.py`、`ffi.py`、`verify.py`、`shotdiff.py`（截图像素 A/B）、`host_tex_ab.py`（上传纹理 CRC 对拍）、`draw_ab.py`（绘制列表逐 draw 比）、`gl_seq_ab.py`（GL 调用序逐帧 A/B，F216）、`lua_bind_ab.py`（绑定 JSONL call+args 对拍）、`gen_texture_table.py` |
+| 崩溃捕获 | `src/crashlog/crashlog.c`（VEH + minidump + `#32770` 正文，编进三个代理 + 独立 `crashlog.dll`）、`tools/crashlog_test.py`（32 位单元探针）、`tools/crashlog_host_test.py`（game.exe 主线程 AV）、`tools/crashlog_symbolize.py`（RVA→函数名） |
 | UI/自动化 | `tools/uistate.py`、`uitemplate.py`、`e2e_tutorial.py`、`e2e_record.py`、`driver.py`、`winprobe.py`、`wincompare.py`、`shot_window.py`（窗口客户区截图） |
 | GL | `tools/gl_ffi.py`、`gl_drawlist.py`、`gl_texpack.py`、`menu_draw_ab.py`（菜单逐 draw A/B，按素材名对齐）；抓包目录 `work/glprobe/` |
 | 数据 | `mapping/*.csv`（导出表、绑定、关卡映射、纹理 id↔素材 `textures.csv`）、`docs/levels.md`（只能由 `report_sweep.py --write` 生成） |

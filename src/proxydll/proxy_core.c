@@ -13,6 +13,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "../crashlog/crashlog.h"
+
 #define ARG_DWORDS 32
 #define MEM_DUMP 128   /* 多边形 def 最多 24+8*8=88B，64 会截断顶点 */
 
@@ -362,6 +364,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         DWORD n;
         int i;
 
+        CrashLogInstallFromEnv();   /* 默认零成本；CRASHLOG_DIR/CRASHLOG_LOG 才启用 */
         DisableThreadLibraryCalls(inst);
         n = GetEnvironmentVariableA("B2RTLPROBE_DLL", g_probe_dll, MAX_PATH);
         if (n > 0 && n < MAX_PATH)
@@ -422,6 +425,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             FreeLibrary(g_orig);
             g_orig = 0;
         }
+        CrashLogUninstall();
     }
     return TRUE;
 }

@@ -80,6 +80,7 @@ add_custom_command(TARGET b2physics POST_BUILD
 add_library(b2physics_proxy SHARED
   src/proxydll/proxy_core.c
   src/proxydll/proxy_stubs.c
+  src/crashlog/crashlog.c
   src/proxydll/proxy.def)
 target_link_options(b2physics_proxy PRIVATE /MAP)
 set_target_properties(b2physics_proxy PROPERTIES OUTPUT_NAME b2Physics
@@ -142,6 +143,7 @@ set_target_properties(squall PROPERTIES OUTPUT_NAME Squall
 add_library(squall_proxy SHARED
   src/squallproxy/proxy_core.c
   src/squallproxy/proxy_stubs.c
+  src/crashlog/crashlog.c
   src/squallproxy/proxy.def)
 set_target_properties(squall_proxy PROPERTIES OUTPUT_NAME Squall
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy_squall"
@@ -158,9 +160,25 @@ set_target_properties(squall_proxy PROPERTIES OUTPUT_NAME Squall
 add_library(gl_proxy SHARED
   src/glproxy/proxy_core.c
   src/glproxy/proxy_stubs.c
+  src/crashlog/crashlog.c
   src/glproxy/proxy.def)
 set_target_properties(gl_proxy PROPERTIES OUTPUT_NAME opengl32
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy_gl"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---- 进程内崩溃捕获（F315–F317）----
+# 同一份 crashlog.c 编进三个代理（默认零成本，CRASHLOG_DIR/CRASHLOG_LOG 才启用）；
+# 另出独立 DLL，供没有代理的进程（注入/自测）使用。
+add_library(crashlog SHARED src/crashlog/crashlog.c)
+target_compile_definitions(crashlog PRIVATE CRASHLOG_STANDALONE=1)
+set_target_properties(crashlog PROPERTIES OUTPUT_NAME crashlog
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# 测试夹具：故意在主线程制造未被吞掉的 AV（模拟宿主崩溃）
+add_library(crashlog_crashtest SHARED
+  tools/crashlog/crashtest.c
+  tools/crashlog/crashtest.def)
+set_target_properties(crashlog_crashtest PROPERTIES OUTPUT_NAME crashtest
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # ---- 诊断变体：SQUALL_DEBUG=1 时 api_Startup 会在进程 CWD 写 Squall.log，
