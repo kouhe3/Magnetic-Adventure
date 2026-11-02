@@ -79,6 +79,7 @@
 - [x] T6.4a-r-2c `tools/scene_from_lua.py` Python 场景模型（已实现子集：level 0 19/19、level 1 18/18 零差；负例 shift=5） 依据：F361
 - [x] T6.4a-r-2c2 补齐齿轮/钉/螺丝/SimplePhysicObject/HudButton（level 0 25/25、level 1 29/29 静态 draw 零差） 依据：F362
 - [ ] T6.4a-r-2c3 HUD 烟雾/level_end_box（level 1 该帧隐藏；其他帧可见时再接） 依据：F362
+- [x] T6.4a-r-2c4 level 2 扩关探针（gear_1/gear_11、世界层 (0,-4)、45/5；剩 SwitchArm/圆/时钟箭头/层划分） 依据：F363
 - [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349

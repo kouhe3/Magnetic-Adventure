@@ -62,9 +62,10 @@ NAME_ASSET = {
 }
 # 齿轮/螺丝的 style → (asset, 边长)；边长由 retail draw 的对边长度量出（F361）。
 # 未知 style 暂不建图元（调用方用 --ignore 兜住），扩关卡时再补表。
-WOOD_GEAR = {2: ("gear_2.png", 7.3141), 5: ("gear_7.png", 7.5408),
-             3: ("gear_3.png", 7.3668)}
-METAL_GEAR = {1: ("gear_10.png", 3.6896), 3: ("gear_12.png", 7.3668)}
+WOOD_GEAR = {1: ("gear_1.png", 3.6896), 2: ("gear_2.png", 7.3141),
+             3: ("gear_3.png", 7.3668), 5: ("gear_7.png", 7.5408)}
+METAL_GEAR = {1: ("gear_10.png", 3.6896), 2: ("gear_11.png", 7.3141),
+              3: ("gear_12.png", 7.3668)}
 METAL_SCREW = {1: ("screw_1.png", 3.248)}
 NAIL_SIZE = 1.6
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
@@ -185,25 +186,35 @@ def ref_labeled(log, pak, frame):
 
 
 def calibrate(objects, ref):
-    """每个 root 的偏移 = 首个同素材对象的参数坐标 − 零售 draw 中心。"""
+    """每个 root 的偏移 + 世界层偏移 = 参数坐标 − 零售 draw 中心；按匹配**投票**。
+
+    单个对象可能撞名（例：level 2 的 `level_circle_1` AlphaHint 与物理圆同叫
+    circle_1.png，位置却不同）；投票能把这个离群值压掉。
+    """
     by_name = {}
     for name, d in ref:
         by_name.setdefault(name, []).append(center(d))
-    offsets = {}
+    votes = {}
+    wvotes = {}
     for obj in objects:
-        if obj.get("world"):
-            continue
-        if obj["root"] in offsets:
-            continue
         hits = by_name.get(obj["asset"])
         if not hits:
             continue
         cx, cy = hits[0]
-        offsets[obj["root"]] = (obj["x"] - cx, obj["y"] - cy)
-    return offsets
+        key = (round(obj["x"] - cx, 3), round(obj["y"] - cy, 3))
+        if obj.get("world"):
+            wvotes[key] = wvotes.get(key, 0) + 1
+        else:
+            votes.setdefault(obj["root"], {})
+            votes[obj["root"]][key] = votes[obj["root"]].get(key, 0) + 1
+    offsets = {}
+    for root, counts in votes.items():
+        offsets[root] = max(counts.items(), key=lambda kv: kv[1])[0]
+    world = max(wvotes.items(), key=lambda kv: kv[1])[0] if wvotes else (0.0, 0.0)
+    return offsets, world
 
 
-def scene_draws(objects, backs, offsets, shift=(0.0, 0.0)):
+def scene_draws(objects, backs, offsets, world, shift=(0.0, 0.0)):
     out = []
     sx, sy = shift
     # 背景：两个半屏 NDC 常量（零售 bbox 有 ~0.002 的矩阵量化）
@@ -220,7 +231,7 @@ def scene_draws(objects, backs, offsets, shift=(0.0, 0.0)):
                                            0.0, obj.get("alpha", 1.0))))
             continue
         if obj.get("world"):
-            ox = oy = 0.0
+            ox, oy = world
         else:
             ox, oy = offsets.get(obj["root"], (0.0, 0.0))
         out.append((obj["asset"], quad(obj["x"] - ox + sx, obj["y"] - oy + sy,
@@ -233,7 +244,7 @@ def scene_draws(objects, backs, offsets, shift=(0.0, 0.0)):
     return out
 
 
-def fit_gear_angles(objects, ref, offsets):
+def fit_gear_angles(objects, ref, offsets, world):
     """齿轮的绘制角 = body angle + 电机 spin；spin 是动画状态，从 oracle 帧标定。
 
     只对 Add_WoodGear/Add_MetallGear 生效；用同素材 + 最近中心的 ref draw 取
@@ -250,7 +261,7 @@ def fit_gear_angles(objects, ref, offsets):
         hits = by_name.get(obj["asset"])
         if not hits:
             continue
-        ox, oy = (0.0, 0.0) if obj.get("world") else offsets.get(obj["root"], (0.0, 0.0))
+        ox, oy = world if obj.get("world") else offsets.get(obj["root"], (0.0, 0.0))
         cx, cy = obj["x"] - ox, obj["y"] - oy
         _c, ang = min(hits, key=lambda h: (h[0][0] - cx) ** 2 + (h[0][1] - cy) ** 2)
         obj["angle"] = ang
@@ -278,12 +289,13 @@ def main():
     ref, missed = ref_labeled(a.ref, a.pak, a.frame)
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
-    offsets = calibrate(objects, ref)
-    fit_gear_angles(objects, ref, offsets)
-    print("scene objects=%d backs=%d root_offsets=%s"
-          % (len(objects), len(backs), {k: (round(v[0], 3), round(v[1], 3))
-                                        for k, v in sorted(offsets.items())}))
-    cand = scene_draws(objects, backs, offsets, (a.shift, 0.0))
+    offsets, world = calibrate(objects, ref)
+    fit_gear_angles(objects, ref, offsets, world)
+    print("scene objects=%d backs=%d root_offsets=%s world_offset=%s"
+          % (len(objects), len(backs),
+             {k: (round(v[0], 3), round(v[1], 3)) for k, v in sorted(offsets.items())},
+             (round(world[0], 3), round(world[1], 3))))
+    cand = scene_draws(objects, backs, offsets, world, (a.shift, 0.0))
     ignore = {x.strip() for x in a.ignore.split(",") if x.strip()}
     bad, missing, unref, first = level_draw_ab.compare(
         ref, cand, a.tol, a.uv_tol, a.alpha_tol, ignore, verbose=not a.quiet)
