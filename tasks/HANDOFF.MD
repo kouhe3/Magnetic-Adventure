@@ -73,6 +73,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2c6 `Add_SwitchArm`（F366）**：图元 = 中心在 body 的 4×2 quad、sprite 角 = body−π/2，锚点半径 1.6；level 2 frame 904 的摆角是 init+0.506（关节限位）。`fit_arm_pose` 从 ref 长边拟合动态角并用 `pivot+R(body)·(0,1.6)` 预测位置（`center_err=0.0000`，`--arm-tol 0.02` 硬判据）⇒ level 2 **47/47 零差**；负例 `--no-arm-fit` 退出码 1；level 0/1 无回归。下一刀：r-2d 移植 Pascal。
 
+- **2026-11-02 T6.4a-r-2c7 扩关 level 3/4（F367）**：两份独立 GL 采集 `work/gl_levels2a`/`2b`，A/A 只余动态项（`train_1` d=0.630、smoke 动画帧）。新增 `Add_WoodBox`（1/2/3→`wbox_N` 4.702 正方形）、`Add_PushButton`（`pbut_1` 3×1.5）、`Add_BarDoor`（`bar_1` 7×3.5）、`Add_SwitchArm` style 2（`sw_arm2` 4×2）与引擎材质名回退（`button_platform_1`→`bplatf_1.png`）。静态判据 level 3 `pairs=53 mismatches=0`、level 4 `pairs=37 mismatches=0`；level 0/1/2 无回归。plunger/shank/train/smoke 是动态项，归宿主的物理/动画。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

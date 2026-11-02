@@ -26,9 +26,15 @@
   Set_CameraPosition    相机（模型唯一的全局偏移）
   Set_ScrObjPos         按句柄改写位置/角度（含 OnResizeForm 与时钟箭头动画）
   Add_SwitchArm         style 1→sw_arm1.png 4×2，中心在 body、sprite 角 = body−π/2；
-                        紧随的 Add_JointNail 是锚点（半径 1.6），动态摆角由 ref 长边拟合
+                        style 2→sw_arm2.png；紧随的 Add_JointNail 是锚点（半径 1.6），
+                        动态摆角由 ref 长边拟合
+  Add_WoodBox           style 1..3→wbox_N.png，正方形 4.702
+  Add_PushButton        style 1→pbut_1.png，3×1.5（平台 button_platform_1→bplatf_1.png）
+  Add_BarDoor           style 1→bar_1.png，7×3.5
   mbtn_1/2 + 10×dot_1   引擎/HUD 常量（level 0/1 同坐标）
-未实现（用 --ignore 排除）: HUD 烟雾/level_end_box、未知 style 的齿轮/摆臂。
+未接（用 --ignore 排除）: HUD 烟雾/level_end_box、未知 style，以及**动态项**——
+level 3/4 的 train_1（移动，A/A 地板 0.630）、smoke（动画帧）、plunger/shank
+（物理体静止后位姿 ≠ init）。动态项归宿主的物理/动画，不进静态工厂判据。
 
 用法:
   python tools/scene_from_lua.py --level 0 --ref work/level0_gl.bin --frame 9600 \\
@@ -70,6 +76,8 @@ import menu_draw_ab  # noqa: E402
 # 直接纹理名（不是 LevelMaterial alias）的少量映射；由 objlog/GL 帧反查得到。
 NAME_ASSET = {
     "magnet_hero_1": "magneth.png",
+    # 引擎内置材质名（没有 Add_LevelMaterial 登记）：平台纹理来自 pak `bplatf_1.png`。
+    "button_platform_1": "bplatf_1.png",
 }
 # 齿轮/螺丝的 style → (asset, 边长)；边长由 retail draw 的对边长度量出（F361）。
 # 未知 style 暂不建图元（调用方用 --ignore 兜住），扩关卡时再补表。
@@ -81,8 +89,14 @@ METAL_SCREW = {1: ("screw_1.png", 3.248)}
 NAIL_SIZE = 1.6
 # Add_SwitchArm style → (asset, 长边, 短边)。摆臂是物理体：图元中心在 body 原点，
 # sprite 角 = body 角 − π/2；body 由关节锚点以半径 1.6 悬挂（basefs.lua:81-84）。
-SWITCH_ARM = {1: ("sw_arm1.png", 4.0, 2.0)}
+SWITCH_ARM = {1: ("sw_arm1.png", 4.0, 2.0),
+              2: ("sw_arm2.png", 4.0, 2.0)}
 ARM_RADIUS = 1.6
+# 静态方块/按钮/门：边长由 level 3/4 的零售 draw 对边量出（F367）。
+WOOD_BOX = {1: ("wbox_1.png", 4.702), 2: ("wbox_2.png", 4.702),
+            3: ("wbox_3.png", 4.702)}
+PUSH_BUTTON = {1: ("pbut_1.png", 3.0, 1.5)}
+BAR_DOOR = {1: ("bar_1.png", 7.0, 3.5)}
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
 HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
@@ -112,7 +126,7 @@ def quad(cx, cy, w, h, angle=0.0, alpha=1.0):
             "v": v, "uv": [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]}
 
 
-def build(calls):
+def build(calls, pak_dir=""):
     """返回 (objects, back_assets, camera)。
 
     坐标语义（F364）：探针返回真实的 `Get_RealViewRect()` 后，脚本里的坐标已经是
@@ -128,6 +142,18 @@ def build(calls):
     handles = {}
     cam = (0.0, 0.0)
     pending_arm = None
+
+    def asset_of(name):
+        """材质名 → 素材文件：先查 Add_LevelMaterial 别名，再查内置表，最后按
+        pak 目录里的同名 `.png`/`.jpg`（引擎自带材质没有登记调用）。"""
+        hit = materials.get(name) or NAME_ASSET.get(name)
+        if hit:
+            return hit
+        if pak_dir:
+            for ext in (".png", ".jpg"):
+                if os.path.exists(os.path.join(pak_dir, str(name) + ext)):
+                    return str(name) + ext
+        return name
 
     def add(obj, ret):
         objects.append(obj)
@@ -147,13 +173,13 @@ def build(calls):
             backs.append((name, name + "1.jpg", name + "2.jpg"))
         elif fn == "Add_GraphSprite" and len(args) >= 7:
             root, x, y, ang, sx, sy, name = args[:7]
-            asset = materials.get(name) or NAME_ASSET.get(name) or name
+            asset = asset_of(name)
             add({"kind": fn, "asset": asset, "x": float(x), "y": float(y),
                  "angle": float(ang), "w": 2.0 * float(sx), "h": 2.0 * float(sy),
                  "root": int(root)}, ret)
         elif fn == "Add_AlphaHint" and len(args) >= 7:
             root, x, y, ang, sx, sy, mat = args[:7]
-            asset = materials.get(mat) or NAME_ASSET.get(mat) or mat
+            asset = asset_of(mat)
             add({"kind": fn, "asset": asset, "x": float(x), "y": float(y),
                  "angle": float(ang), "w": 2.0 * float(sx), "h": 2.0 * float(sy),
                  "root": int(root)}, ret)
@@ -168,7 +194,7 @@ def build(calls):
             h, parent, sx, sy, mat = args[:5]
             body = bodies.get(h)
             if body is not None:
-                add({"kind": fn, "asset": materials.get(mat, mat),
+                add({"kind": fn, "asset": asset_of(mat),
                      "x": body[0], "y": body[1], "angle": body[2],
                      "w": 2.0 * float(sx), "h": 2.0 * float(sy),
                      "root": int(parent)}, ret)
@@ -205,6 +231,27 @@ def build(calls):
                                    "init_angle": float(ang),
                                    "w": hit[1], "h": hit[2],
                                    "root": int(root), "pivot": None}, ret)
+        elif fn == "Add_WoodBox" and len(args) >= 5:
+            root, x, y, ang, style = args[:5]
+            hit = WOOD_BOX.get(int(style))
+            if hit:
+                add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
+                     "angle": float(ang), "w": hit[1], "h": hit[1],
+                     "root": int(root)}, ret)
+        elif fn == "Add_PushButton" and len(args) >= 5:
+            root, x, y, ang, style = args[:5]
+            hit = PUSH_BUTTON.get(int(style))
+            if hit:
+                add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
+                     "angle": float(ang), "w": hit[1], "h": hit[2],
+                     "root": int(root)}, ret)
+        elif fn == "Add_BarDoor" and len(args) >= 5:
+            root, x, y, ang, style = args[:5]
+            hit = BAR_DOOR.get(int(style))
+            if hit:
+                add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
+                     "angle": float(ang), "w": hit[1], "h": hit[2],
+                     "root": int(root)}, ret)
         elif fn == "Add_HudButton" and len(args) >= 7:
             hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
                         "x": 0.0, "y": 0.0, "alpha": 1.0}
@@ -316,11 +363,16 @@ def fit_arm_pose(objects, ref, cam):
         init = (obj["x"], obj["y"])
         (cx, cy), ang = min(hits, key=lambda h: (h[0][0] - init[0]) ** 2 +
                                                (h[0][1] - init[1]) ** 2)
-        body = ang + math.pi * 0.5
+        # 四边形对 π 旋转对称：长边方向只给出 angles mod π，body 相对锚点有两个
+        # 镜像候选；用 ref 中心选边（这不影响 draw，只决定半径不变量的比较方向）。
         px, py = obj["pivot"]
-        pred = (px - ARM_RADIUS * math.sin(body),
-                py + ARM_RADIUS * math.cos(body))
-        err = math.hypot(pred[0] - cam[0] - cx, pred[1] - cam[1] - cy)
+        cands = []
+        for body in (ang + math.pi * 0.5, ang - math.pi * 0.5):
+            pred = (px - ARM_RADIUS * math.sin(body),
+                    py + ARM_RADIUS * math.cos(body))
+            err = math.hypot(pred[0] - cam[0] - cx, pred[1] - cam[1] - cy)
+            cands.append((err, body, pred))
+        err, body, pred = min(cands, key=lambda t: t[0])
         obj["angle"] = ang
         obj["x"], obj["y"] = pred
         out.append((obj["asset"], body - obj.get("init_angle", body), err))
@@ -351,7 +403,7 @@ def main():
 
     probe = os.path.join(a.probe_dir, "lvl%02d.jsonl" % a.level)
     calls = load_calls(probe)
-    objects, backs, cam = build(calls)
+    objects, backs, cam = build(calls, a.pak)
     ref, missed = ref_labeled(a.ref, a.pak, a.frame)
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
