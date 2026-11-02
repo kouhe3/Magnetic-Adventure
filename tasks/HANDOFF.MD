@@ -89,6 +89,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2f0 摆臂 settle（F374）**：摆臂静止位姿是确定规则——body = init + 0.5（关节限位）、位置 = 锚点 + R(body)·(0,1.6)、sprite = body−π/2；level 2 整帧 **47/47**（宿主自身日志 193/193），level 4 的 `sw_arm2` dbbox=0.016 PASS（整帧只剩 `gear_7` 的电机相位差 0.829）。`scene_from_lua.build` 与 `scenemodel.pas` 都在构建末尾应用；`--no-arm-settle` 是工具负例。下一刀：level 4 齿轮相位（电机 9/5）与 level 3/4 的 plunger/shank/train/smoke。
 
+- **2026-11-02 T6.4a-r-2f1 level 4 齿轮相位（F375）**：模型速度 gear_7/gear_1/gear_3 = 3.0/9.0/5.0；三只齿轮反推的 `t (mod π/w)` 唯一公共解 **0.689 s**。`HOST_LEVEL_TIME=0.689` 的宿主整帧（忽略 plunger/shank/smoke 与隐藏提示）**37/37 零差**；负例 t=0.4 ⇒ gear_7 失配 1.219。下一刀：level 3 的 train/smoke 与 level 4 的 plunger/shank/smoke。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
