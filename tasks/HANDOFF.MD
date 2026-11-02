@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-01**（§13 整机字节覆盖 + 暂停菜单命令通道）。`work` 分支；未提交改动只有本文；台账到 **F307**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot + 四批带 call + 三批叶子；台账到 **F331**）。`work` 分支；未提交改动只有本文；台账到 **F331**。
 
 ## 0. 一句话现状
 
@@ -17,7 +17,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 **本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **v1.1 / trunk r5000**、11 个单元 1,043 个函数只剩 **12 个（2,448 B）sim<0.95** 且已证是原版本地补丁（F211–F213，逐单元百分比以 §0.1 为准）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
 
-台账 **307 条**（F001–F307，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
+台账 **331 条**（F001–F331，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
 - **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
 
@@ -34,6 +34,22 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 旧 FP 场景复核（F318）**：`HT_CW=0x1332`（解除 invalid 屏蔽）+ `HT_SPECIAL=1`（NaN/denormal）时，crashlog 在 `game.exe+0x001ADFAB`（原版 `sub_5ADF60` 的 `fcompp`）记录 `0xC0000090`（`note=float-invalid-operation`），栈 `htab!ht_entry → htcw → b2Physics 代理 → USER32 → game.exe`，并写 74 KB MDMP；正确宿主 CW `0x137F` 下同一 800 条语料 `HT DONE runs=800 nan_diff=0`、crashlog 0 条 EXC。⇒ 旧的“Invalid floating point operation”弹窗根因是 FPC DLL 解除 x87 invalid 屏蔽后对 NaN 比较。
 
 - **2026-11-02 Self 类型首过（F319）**：1,012 个 pending 函数的 `Self` **不是单一结构体**。FPC 对象头 `[Self]=VMT`、`VMT+0xC` 类名短字符串、`VMT+0x30+4*i` 虚方法槽；`dword_665334` 是 `TLevelObjects`（VMT `0x6431D0`，大小 `0xB8`）。`python tools/app_self.py` → `work/app_self.csv`：39 个 virtual_method（21 个定义类）、144 个 Lua 绑定（`lua_State*`，不是 Pascal Self；102 个内部用 TLevelObjects）、802 个 direct_method（类未定，T7.2c）、27 个 static/helper。
+
+- **2026-11-02 Self 深层映射（F320）**：修掉抽象解释的 `mov [ebp+var], eax` Self 槽 bug 后，静态覆盖 **183 → 540/1,012**（153 Lua + 387 方法）。运行时字段表 66 类（`TLevelObjects` 字段到 TDebugInfo/TSoundManager/TPhysicObjectList/TGraphObjectList/TJointObjectList/TTimerObjectList/TScriptManager 等）+ live 回调 46 条（30/30 的 Self 偏移更匹配 context）参与传播。剩 472 = 324 只有未知调用者 + 101 已知调用者未解析 + 47 无直接调用者；下一层用运行时入口 EAX/VMT 采样。产物 `work/app_self_deep.csv`、`work/live_fields.json`、`work/live_callbacks.json`。
+
+- **2026-11-02 10-function matching pilot（F321–F323）**：从 540 个有类名函数选 10 个跨类叶子，用 FPC 2.2.4 `-Mdelphi -O1 -g- -Xs- -Xm` 重建源码；`work/pilot/compare.py` 逐字节比对 retail `.text` ⇒ **10/10 exact**（无 call/全局引用，故无重定位）。负例：`TLevelObjects.SetFlag` 的 `True→False` 第 15 字节 `01→00`，判据拒绝。关键形态：`0x52DDA0` 是带两参、未显式赋 Result 的 function + `with`；`0x576290` 是 procedure 不是 function；`0x5625F0` 匹配 standalone procedure(Obj, A)，不是方法。边界：候选源用合成类/填充字段，只证 codegen/ABI，不是真实类布局；带 call/绝对地址的函数还需重定位归一化或整链接。产物 `work/pilot/pilot10.pas`、`work/pilot/pilot10_results.json`、`work/pilot/README.md`。
+
+- **2026-11-02 带 call 的 10 函数（F324/F325）**：`work/pilot/callers.pas` 用同 flags 编译；`work/pilot/reloc_compare.py` 只屏蔽候选 COFF 的 REL32/DIR32 字段 ⇒ **9/10 masked_equal**。关键：`TProfileManager.Get` 是 procedure；`TCameraManager.Update`/`TScriptManager.Get`/`TUIContainer.Count` 调用嵌套对象的**方法**（对象进 EBX，standalone 显式 Obj 桩形态不对）；`TMainMenuManager.LoadGui` 是全局 `PChar` 的 `mov edx,[0x64162C]`，不是 `mov edx,offset`。唯一失败 `TSoundManager.Stop`：target `mov al/test` vs FPC `cmp`，其余字节相同，是源码形态/开关问题，不是重定位。wrong-target 负例 `callers_neg.pas` 把 `sub_5795D0` 改成 `sub_571960`：`masked_equal=True` 但映射不符 ⇒ R3 拒绝；规则 R1–R6 见 F325。
+
+- **2026-11-02 第二批 10 个叶子（F326）**：`work/pilot/leaves2.pas` ⇒ **9/10 exact**；累计叶子 **19/20**。新增 exact：TMouseCur 三个字节 getter、三个空方法、TLevelObjects 字节 setter、TBaseScreenObject 带一个未用参数的 Char getter、TLevelMenu 嵌套 Boolean setter。唯一失败 `0x57B330`：target Self 在 EAX + 一个栈参数、callee `retn 4`；FPC 2.2.4 的 2 参/3 参/stdcall 方法形态都产生更大帧或 `retn 8`，暂归为调用约定/源码形态未复现。
+
+- **2026-11-02 两个例外闭环（F327/F328）**：`0x57B330` 的 `[ebp+8]` 不是 Integer，是 **Single**；`procedure SetValue(A: Single); FValue: Single at +0x2C` 逐字节相同 ⇒ 第二批叶子 **10/10**，累计叶子 **20/20**。`TSoundManager.Stop` 的 +4 是 **Char**，`if FChar <> #0 then ...` 复现 `mov al,[eax+4]; test al,al` ⇒ 带 call 批次 **10/10 masked-equal**。先前 F326 的 9/10 与 F324 的 9/10 是历史状态。
+
+- **2026-11-02 第三批 9 个叶子（F329）**：`work/pilot/leaves3.pas` ⇒ **7/9 exact**，累计叶子 **27/29 attempted**。新增 exact：0x57B290 早退 reset、0x57B660/0x58E660 standalone `GetData(Obj, Dest)` + `rep movsd`、0x567DC0 const-record copy、0x58F100 三参 Boolean True、0x58F120 单 Single 空方法、0x561EE0 `FFlag1 and FFlag2`。残差：0x57B160 只差对齐 NOP（`89 f6` vs `90 90`，指令级相同）；0x58F620 只差栈槽序（Self -8/Src -4/Dst -C vs 方法 Self -C/Src -4/Dst -8）。0x583270 140 B 浮点循环延后。
+
+- **2026-11-02 第四批带 call 10 个（F330）**：`work/pilot/callers2.pas` ⇒ **10/10 masked-equal**，累计带 call **20/20**。覆盖 Single/LongInt/Char 参数、零参 getter、四参 setter（`retn 8`）；方法调用形态（对象进 EBX、Self 在 EAX）全部成立。
+
+- **2026-11-02 第五批带 call 10 个（F331）**：`work/pilot/callers3.pas` ⇒ **5/10 masked-equal**，累计带 call **25/30**。exact = 4 个 TSoundManager Stop/Pause（Char 守卫 + cdecl）+ TLevelMenu 四参 setter。TJointObjectList 五个同形函数只差参数求值顺序（target 先取 FField 到 ECX 再装全局到 EDX；FPC 2.2.4 反过来），重定位目标全匹配。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
