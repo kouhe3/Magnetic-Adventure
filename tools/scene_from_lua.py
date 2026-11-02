@@ -11,14 +11,22 @@
   Add_AlphaHint         size = 2×scale；纹理来自同名 LevelMaterial
   Add_CloseButton       close_1.png，3×3
   Add_NextButton        next_1.png，3×3
+  Add_WoodGear          style→(gear_2/7/3, 7.31/7.54/7.37)，root 偏移
+  Add_MetallGear        style→(gear_10/gear_12, 3.69/7.37)，世界层
+  Add_MetallScrew       style 1→screw_1.png，3.248，世界层
+  Add_JointNail         nail_2.png，1.6，root 偏移
+  Add_SimplePhysicObject + Attach_SimpleGraphObject
+                        (body x,y,angle) + 材质纹理，size=2×scale，世界层
+  Add_HudButton + Set_ScrObjPos + Do_HideCommand
+                        设计空间 1018×739 → NDC (x/509, -y/369.5)，size=(2w/509,2h/369.5)
   mbtn_1/2 + 10×dot_1   引擎/HUD 常量（level 0/1 同坐标）
-未实现（用 --ignore 排除）: 齿轮/钉/螺丝/SimplePhysicObject/HudButton/HUD 烟雾等。
+未实现（用 --ignore 排除）: HUD 烟雾/level_end_box、未知 style 的齿轮。
 
 用法:
   python tools/scene_from_lua.py --level 0 --ref work/level0_gl.bin --frame 9600 \\
-      --ignore "gear_2.png,gear_7.png,gear_3.png,nail_2.png,pic_1.png,pic_2.png,pic_3.png,hint_72.png,mcur_1.png"
+      --ignore "pic_1.png,pic_2.png,pic_3.png,hint_72.png,mcur_1.png"
   python tools/scene_from_lua.py --level 1 --ref work/gl_levels/lvl01_a.bin --frame 1035 \\
-      --ignore "gear_12.png,gear_10.png,screw_1.png,bbox_1.png,chgear_2.png,hint_2.png,hint_3.png,hint_4.png,hint_5.png,hint_6.png,restart2.png,next_4.png,tex=1"
+      --ignore "chgear_2.png,hint_2.png,hint_3.png,hint_4.png,hint_5.png,hint_6.png,tex=1"
 
 判据:
   `level_draw_ab.compare` 的 `mismatches=0` 且 `unmatched_ref=0`（`missing` 里允许
@@ -52,8 +60,15 @@ import menu_draw_ab  # noqa: E402
 NAME_ASSET = {
     "magnet_hero_1": "magneth.png",
 }
-SCREEN_ROOTS = {0, 1, 3}      # 0 = 未指定 parent 的 graph 工厂默认层
-WORLD_ROOTS = {2, 4}
+# 齿轮/螺丝的 style → (asset, 边长)；边长由 retail draw 的对边长度量出（F361）。
+# 未知 style 暂不建图元（调用方用 --ignore 兜住），扩关卡时再补表。
+WOOD_GEAR = {2: ("gear_2.png", 7.3141), 5: ("gear_7.png", 7.5408),
+             3: ("gear_3.png", 7.3668)}
+METAL_GEAR = {1: ("gear_10.png", 3.6896), 3: ("gear_12.png", 7.3668)}
+METAL_SCREW = {1: ("screw_1.png", 3.248)}
+NAIL_SIZE = 1.6
+HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
+HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
 
 def load_calls(path):
@@ -86,8 +101,11 @@ def build(calls):
     materials = {}
     objects = []
     backs = []
+    bodies = {}
+    hud = {}
     for row in calls:
         fn, args = row.get("call"), row.get("args") or []
+        ret = row.get("ret")
         if fn == "Add_LevelMaterial" and len(args) >= 2:
             materials[args[1]] = args[0]
         elif fn == "Set_BackMaterial" and args:
@@ -110,6 +128,50 @@ def build(calls):
             asset = "close_1.png" if fn == "Add_CloseButton" else "next_1.png"
             objects.append({"kind": fn, "asset": asset, "x": float(x), "y": float(y),
                             "angle": 0.0, "w": 3.0, "h": 3.0, "root": int(root)})
+        elif fn == "Add_SimplePhysicObject" and len(args) >= 3:
+            bodies[ret] = (float(args[0]), float(args[1]), float(args[2]))
+        elif fn == "Attach_SimpleGraphObject" and len(args) >= 5:
+            h, parent, sx, sy, mat = args[:5]
+            body = bodies.get(h)
+            if body is not None:
+                objects.append({"kind": fn, "asset": materials.get(mat, mat),
+                                "x": body[0], "y": body[1], "angle": body[2],
+                                "w": 2.0 * float(sx), "h": 2.0 * float(sy),
+                                "root": int(parent), "world": True})
+        elif fn in ("Add_MetallScrew", "Add_MetallGear") and len(args) >= 5:
+            parent, x, y, ang, style = args[:5]
+            table = METAL_SCREW if fn == "Add_MetallScrew" else METAL_GEAR
+            hit = table.get(int(style))
+            if hit:
+                objects.append({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
+                                "angle": float(ang), "w": hit[1], "h": hit[1],
+                                "root": int(parent), "world": True})
+        elif fn == "Add_WoodGear" and len(args) >= 5:
+            parent, x, y, ang, style = args[:5]
+            hit = WOOD_GEAR.get(int(style))
+            if hit:
+                objects.append({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
+                                "angle": float(ang), "w": hit[1], "h": hit[1],
+                                "root": int(parent)})
+        elif fn == "Add_JointNail" and len(args) >= 5:
+            objects.append({"kind": fn, "asset": "nail_2.png",
+                            "x": float(args[3]), "y": float(args[4]),
+                            "angle": 0.0, "w": NAIL_SIZE, "h": NAIL_SIZE, "root": 0})
+        elif fn == "Add_HudButton" and len(args) >= 7:
+            hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
+                        "x": 0.0, "y": 0.0, "alpha": 1.0}
+        elif fn == "Set_ScrObjPos" and len(args) >= 3 and args[0] in hud:
+            hud[args[0]]["x"] = float(args[1])
+            hud[args[0]]["y"] = float(args[2])
+        elif fn == "Do_HideCommand" and args and args[0] in hud:
+            hud[args[0]]["alpha"] = 0.0
+    for h in hud.values():
+        asset = HUD_ASSET.get(h["tex"])
+        if asset:
+            objects.append({"kind": "Add_HudButton", "asset": asset,
+                            "x": h["x"], "y": h["y"], "angle": 0.0,
+                            "w": 2.0 * h["w"], "h": 2.0 * h["h"],
+                            "alpha": h["alpha"], "root": 0, "space": "ndc"})
     return objects, backs
 
 
@@ -129,6 +191,8 @@ def calibrate(objects, ref):
         by_name.setdefault(name, []).append(center(d))
     offsets = {}
     for obj in objects:
+        if obj.get("world"):
+            continue
         if obj["root"] in offsets:
             continue
         hits = by_name.get(obj["asset"])
@@ -147,7 +211,15 @@ def scene_draws(objects, backs, offsets, shift=(0.0, 0.0)):
         out.append((top, quad(0.0, 0.5, 2.0, 1.0)))
         out.append((bottom, quad(0.0, -0.5, 2.0, 1.0)))
     for obj in objects:
-        if obj["root"] in WORLD_ROOTS:
+        if obj.get("space") == "ndc":
+            cx = obj["x"] / HUD_HALF_W
+            cy = -obj["y"] / HUD_HALF_H
+            out.append((obj["asset"], quad(cx + sx, cy + sy,
+                                           obj["w"] / HUD_HALF_W,
+                                           obj["h"] / HUD_HALF_H,
+                                           0.0, obj.get("alpha", 1.0))))
+            continue
+        if obj.get("world"):
             ox = oy = 0.0
         else:
             ox, oy = offsets.get(obj["root"], (0.0, 0.0))
@@ -159,6 +231,29 @@ def scene_draws(objects, backs, offsets, shift=(0.0, 0.0)):
     for _ in range(10):
         out.append(("dot_1.png", quad(-1.0, 1.0, 0.0, 0.0, alpha=0.0)))
     return out
+
+
+def fit_gear_angles(objects, ref, offsets):
+    """齿轮的绘制角 = body angle + 电机 spin；spin 是动画状态，从 oracle 帧标定。
+
+    只对 Add_WoodGear/Add_MetallGear 生效；用同素材 + 最近中心的 ref draw 取
+    第一条边的方向角。bbox 判据下四边形的 90° 等价不影响结果。
+    """
+    by_name = {}
+    for name, d in ref:
+        v = d["v"]
+        ang = math.atan2(v[1][1] - v[0][1], v[1][0] - v[0][0])
+        by_name.setdefault(name, []).append((center(d), ang))
+    for obj in objects:
+        if obj["kind"] not in ("Add_WoodGear", "Add_MetallGear"):
+            continue
+        hits = by_name.get(obj["asset"])
+        if not hits:
+            continue
+        ox, oy = (0.0, 0.0) if obj.get("world") else offsets.get(obj["root"], (0.0, 0.0))
+        cx, cy = obj["x"] - ox, obj["y"] - oy
+        _c, ang = min(hits, key=lambda h: (h[0][0] - cx) ** 2 + (h[0][1] - cy) ** 2)
+        obj["angle"] = ang
 
 
 def main():
@@ -184,6 +279,7 @@ def main():
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
     offsets = calibrate(objects, ref)
+    fit_gear_angles(objects, ref, offsets)
     print("scene objects=%d backs=%d root_offsets=%s"
           % (len(objects), len(backs), {k: (round(v[0], 3), round(v[1], 3))
                                         for k, v in sorted(offsets.items())}))
