@@ -74,7 +74,8 @@
 - [x] T6.4a-r-1 升仪器 `tools/capture_gl_levels.py`（逐关窗口 + settled 帧 + 静态/动态分列；纹理解析缓存；level 2 A/A 47/47） 依据：F357
 - [ ] T6.4a-r-2 通用场景生成器（52 关 50 个 `Add_*` 工厂；先 level 0/1，判据静态 draw 零差） 依据：F356、F340
 - [x] T6.4a-r-2a 工厂→draw 配对（graph 层 = 参数 − 有效相机、world 层 = 参数；层归属未归因） 依据：F358
-- [ ] T6.4a-r-2b 归因层规则（52 关同一工厂偏移 / 引擎相机父图） 依据：F358
+- [x] T6.4a-r-2b 归因层规则（半视图偏移 ±28.24/±20.5；front/hints=屏幕层、medium/back=世界层） 依据：F359
+- [ ] T6.4a-r-2b2 给 `grFrontRoot`/`grMediumRoot`/`grHintsRoot`/`grBackRoot` 赋稳定 id，绑定记录 parent（probe + host） 依据：F359
 - [ ] T6.4a-r-2c `tools/scene_from_lua.py` Python 场景模型 + level 0/1 静态 draw 零差 依据：F358
 - [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
