@@ -88,6 +88,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 T6.4a-r-2e 齿轮相位（F373）**：齿轮 sprite 相对 body 的局部旋转是 **π**（螺丝为 0）；加 π 后 level 0 的驱动轮 `t=1.490`，gear_7/gear_3 的预测与零售逐位吻合。`HOST_LEVEL_TIME` 接进 `BuildFromModel`→`ApplyTime`，宿主 level 0（自身 Lua 日志 55/55）`pairs=25 mismatches=0`；负例 t=1.952/0.5 失配。方形齿轮 bbox 对 90° 倍数不敏感，负例取 ~45° 偏移。下一刀：摆臂 settle 与 level 3/4 动态项。
 
 - **2026-11-02 T6.4a-r-2f0 摆臂 settle（F374）**：摆臂静止位姿是确定规则——body = init + 0.5（关节限位）、位置 = 锚点 + R(body)·(0,1.6)、sprite = body−π/2；level 2 整帧 **47/47**（宿主自身日志 193/193），level 4 的 `sw_arm2` dbbox=0.016 PASS（整帧只剩 `gear_7` 的电机相位差 0.829）。`scene_from_lua.build` 与 `scenemodel.pas` 都在构建末尾应用；`--no-arm-settle` 是工具负例。下一刀：level 4 齿轮相位（电机 9/5）与 level 3/4 的 plunger/shank/train/smoke。
+- **2026-11-02 T6.4b 拖拽首段（F380/F381）**：`work/drag_lvl1.py`（分阶段 CLI）+ `work/drag_shot.py`（截图标注刚体/目标/轨迹）用实时 b2 digest 做闭环；level 1 螺母→左箱 d=0.166、刷新 gear→右箱 d=0.197，出现 **“Level completed!”**。关键标定：客户区 1527×1108 @ (516,183)（1.5× DPI）、视口 ±28.2395/±20.5、**屏幕 y 与 GL y 反向**；磁铁需按住左键。b2 代理新增 `B2PROXY_LIVE`/`B2PROXY_LIGHT`。下一步：宿主重放 + `b2_sites compare`。
 
 - **2026-11-02 T6.4a-r-2f1 level 4 齿轮相位（F375）**：模型速度 gear_7/gear_1/gear_3 = 3.0/9.0/5.0；三只齿轮反推的 `t (mod π/w)` 唯一公共解 **0.689 s**。`HOST_LEVEL_TIME=0.689` 的宿主整帧（忽略 plunger/shank/smoke 与隐藏提示）**37/37 零差**；负例 t=0.4 ⇒ gear_7 失配 1.219。下一刀：level 3 的 train/smoke 与 level 4 的 plunger/shank/smoke。
 

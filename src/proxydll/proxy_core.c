@@ -76,6 +76,8 @@ static uint32_t g_id_destroy_body = 0;
 static long g_step_no = 0;
 
 static HANDLE g_file = INVALID_HANDLE_VALUE;
+static int g_live = 0;   /* B2PROXY_LIVE=1：每步 digest 后立即刷盘，供闭环读位姿 */
+static int g_light = 0;  /* B2PROXY_LIGHT=1：只写 digest/contacts，不写 pre/post */
 
 /* 8 MB 用户态缓冲：每次调用只做一次 memcpy，攒满再 WriteFile。
  * 之前每条记录一次 WriteFile + 每 1024 条 FlushFileBuffers，是游戏卡顿的主因。 */
@@ -90,6 +92,14 @@ static void OutFlush(void) {
     if (g_file == INVALID_HANDLE_VALUE || !g_out_used) return;
     WriteFile(g_file, g_out, g_out_used, &written, NULL);
     g_out_used = 0;
+}
+
+static void LiveFlush(void) {
+    if (!g_live || g_file == INVALID_HANDLE_VALUE) return;
+    if (g_cs_ready) EnterCriticalSection(&g_cs);
+    OutFlush();
+    if (g_cs_ready) LeaveCriticalSection(&g_cs);
+    FlushFileBuffers(g_file);
 }
 
 static void Emit(const void* p, DWORD n) {
@@ -158,7 +168,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
         if (Readable((const void*)(uintptr_t)r.args[2]))
             memcpy(r.m2, (const void*)(uintptr_t)r.args[2], MEM_DUMP);
         r.seq = (uint32_t)InterlockedIncrement(&g_count);
-        Emit(&r, (DWORD)sizeof r);
+        if (!g_light) Emit(&r, (DWORD)sizeof r);
     }
     g_in = 0;
 }
@@ -293,6 +303,7 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
             DumpStepDigest();
             if (!IsBadReadPtr((const void*)(uintptr_t)args_ptr, 4))
                 DumpContacts((void*)(uintptr_t)(*(const uint32_t*)(uintptr_t)args_ptr));
+            LiveFlush();
         }
         return orig_ret;
     }
@@ -309,6 +320,7 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         if (!IsBadReadPtr((const void*)(uintptr_t)args_ptr, 4))
             world = *(const uint32_t*)(uintptr_t)args_ptr;   /* Step(world, dt, vi, pi) */
         DumpContacts((void*)(uintptr_t)world);
+        LiveFlush();
     }
     if (g_file != INVALID_HANDLE_VALUE && !g_in) {
         PostRec r;
@@ -321,7 +333,7 @@ uint32_t __cdecl finish_call(unsigned id, uint32_t retval, uint32_t args_ptr) {
         if (Readable((const void*)(uintptr_t)a0))
             memcpy(r.m0, (const void*)(uintptr_t)a0, MEM_DUMP);
         g_in = 1;
-        Emit(&r, (DWORD)sizeof r);
+        if (!g_light) Emit(&r, (DWORD)sizeof r);
         g_in = 0;
     }
     return orig_ret;
@@ -361,6 +373,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         char self[MAX_PATH];
         char orig[MAX_PATH];
         char log[MAX_PATH];
+        char live[16];
         DWORD n;
         int i;
 
@@ -395,6 +408,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             }
         }
         n = GetEnvironmentVariableA("B2PROXY_LOG", log, MAX_PATH);
+        g_live = GetEnvironmentVariableA("B2PROXY_LIVE", live, sizeof(live)) > 0;
+        g_light = GetEnvironmentVariableA("B2PROXY_LIGHT", live, sizeof(live)) > 0;
         if (n == 0 || n >= MAX_PATH) JoinDir(log, self, "b2ffi.log");
         g_file = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ, NULL,
                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
