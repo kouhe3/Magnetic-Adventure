@@ -5,6 +5,8 @@
 闸门（premise-gate，2026-11-01，T6.3d）：`mode=直接做` —— oracle = 原版 b2 代理录制（B2FFI02，L2/L4；宿主 A/A=0，F282）；criteria = `python tools/phys_sweep.py`（逐关 `b2_sites compare --stop-at-step` 的 `TOTAL mismatches=0`）。
 闸门（premise-gate，2026-11-01，T6.4f/T6.3e）：`mode=改造后做 | 直接做` —— oracle = 原版 `TLevelButtonWithHint` 反编译 + 一次 GLFFI02 填充态抓包（L2/L3）；T6.3e = Lua 5.1 + `mapping/lua-binding-args.csv`（L2）；criteria = T6.4f 逐 draw `mismatches=0`，T6.3e 期望 JSONL `mismatches=0`。
 
+闸门（premise-gate，2026-11-02，T6.4a-r）：`mode=改造后做` —— oracle = 原版 GLFFI02 逐关窗口抓包（L4，F356 待证）+ `work/lua_probe/lvlNN.jsonl`（L2）；criteria = `python tools/level_draw_ab.py` 逐关静态 draw `mismatches=0`；round=1 | status=running | date=2026-11-02。
+
 ### 路线图闸门（premise-gate，2026-11-01 全线过闸）
 
 判定三件：oracle 等级、判据能写成二值命令、判据延迟（秒级优先）。任一条写不出的不进队列——进 `tasks/backlog.md`，带回流条件。
@@ -369,3 +371,4 @@
 - 2026-10-31 依据 F264（**逐关采集的入口坐标已数据化**）：地图节点在 pak `GuiLvl.txt`——`Command` 299–350 是 52 关（按顺序），变换 `design=(PosX,PosY)+(506.15,355.5)`；点 Command 299 已验证进入第 1 关。产物 `work/map_nodes.csv` / `work/map_overlay.png`。下一步：Map → 节点 → 采集循环（每关新进程、模块库断点、`#HB` 切分）。
 - 2026-10-31 依据 F264（**逐关采集端到端打通**）：新进程 + 62 断点 + 自动开 Map（设计 285,414）+ 点 Command 299 节点（设计 214,192）→ 第 1 关 init **25/25 `Add_*`** 命中（`work/hostcapture_lvl1_via_map.log/.jsonl`）。⇒ 52 关可无人值守采集（每关一进程，约 35 s/关），下一步封装成循环工具。
 - 2026-10-31 依据 F265/F266（**采集工具与首条差异**）：① 游戏失焦即暂停，burst 必须"只数 `#HB` + 每轮提前台"，否则关卡 init 停在 ~12 个对象（lvl01 12 → 25）；② `Add_*` 断点补到 65 条（SimpleButton/HudButton/LevelSound），lvl02 命中 28 → 40；③ 首条真实差异：`lvl_o14.lua` 的两个无条件 `Add_AlphaHint('level_chalk_*')` 原版没有（6 vs 8），候选未判定（F266 待证）。
+- 2026-11-02 依据 F356、F339、F340（**T6.4a-r 第一刀：逐关 GL 绘制 oracle 成立**）：① 判定 `mode=改造后做` 成立：`tools/direct_drive.py` + `GLPROXY_T0/T1`（14–24 s 窗口，DLL 加载起算）在私有桌面一次采到 level 1 进关帧；两份独立采集 **190/121 MB**，第 **1035/479** 帧起稳定 **30 draws**（过渡帧 35/59/61/51/37）。② A/A：`level_draw_ab` 在 settled 帧（A 1060 / B 490）**29 个 pak 素材 `dbbox=0 duv=0 da=0`**；唯一非场景 draw 是 `tex=1`（`work/level0_tex.json` 的 id 1 = `mcur_1.png`，光标/输入态，动态）；首稳定帧（A 1035 / B 479）只有 `chscrew2`/`hint_1` 的 **alpha 差 0.086**（淡入相位，bbox/UV 仍 0）。③ 结论：逐关 GL oracle 的静态地板 = **0**；alpha 淡入与光标必须列为动态项。④ 下一步：升 `tools/capture_gl_levels.py`（逐关窗口 + 自动找 settled 帧 + 静态/动态分列；纹理解析需缓存 pak CRC 索引——`level_draw_ab` 无 map 时单次约 **200 s**，52 关全量前必须先降下来），再用 level 1 的 29 个静态 draw 做通用场景生成器（52 关共 **50 个 `Add_*` 工厂**，先 level 0/1）。
