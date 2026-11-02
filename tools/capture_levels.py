@@ -4,15 +4,17 @@
 Why one process per level: the b2 proxy keeps an 8 MB user-space buffer and only
 writes it when full or on DLL_PROCESS_DETACH (src/proxydll/proxy_core.c).  A
 short per-level run stays below 8 MB, so a TerminateProcess would lose the whole
-log.  direct_drive.py now asks the target to call kernel32!ExitProcess, which
-runs DLL_PROCESS_DETACH and flushes the buffer (F349).  One process also makes
-the log boundary trivial: everything before the first b2_World_Step is the
-level init.
+log.  By default the child now exits through the game's normal WM_CLOSE path
+(F352/F353), which also runs Squall_Free / b2_DestroyWorld, and the GameTop
+ShellExecuteA call at 0x52ED6A is NOPed in the work copy (F354) so a 52-level
+run does not open 52 browser tabs.  One process also makes the log boundary
+trivial: everything before the first b2_World_Step is the level init.
 
 Usage (any 64-bit Python; the child is the 32-bit interpreter):
   python tools/capture_levels.py --levels 0-51
   python tools/capture_levels.py --levels 0,1,2 --resume
-  python tools/capture_levels.py --levels 1 --kill      # negative control
+  python tools/capture_levels.py --levels 1 --keep-ad   # keep the GameTop ad
+  python tools/capture_levels.py --levels 1 --exit-mode clean
 
 Criterion:
   For each level with a usable recording and no known RNG caveat,
@@ -59,6 +61,27 @@ from phys_sweep import (  # noqa: E402
 )
 
 DEFAULT_PY32 = r"C:/Users/K/.local/bin/python3.12.exe"
+NOAD_OFF = 0x12E16A
+NOAD_CALL = bytes.fromhex("e8 e1 39 ed ff")
+NOAD_NOP = b"\x90" * 5
+
+
+def ensure_noad(game_dir: Path) -> str:
+    """NOP the GameTop ShellExecuteA call in a work copy; refuse oracle bins."""
+    try:
+        game_dir.resolve().relative_to((ROOT / "work").resolve())
+    except ValueError:
+        raise SystemExit(f"refuse to patch a directory outside work/: {game_dir}")
+    exe = game_dir / "game.exe"
+    data = bytearray(exe.read_bytes())
+    cur = bytes(data[NOAD_OFF:NOAD_OFF + 5])
+    if cur == NOAD_NOP:
+        return "already"
+    if cur != NOAD_CALL:
+        raise SystemExit(f"unexpected bytes at {NOAD_OFF:#x}: {cur.hex()}")
+    data[NOAD_OFF:NOAD_OFF + 5] = NOAD_NOP
+    exe.write_bytes(data)
+    return "patched"
 
 
 def log_magic(path: Path) -> str:
@@ -90,12 +113,15 @@ def run_one(idx: int, name: str, rec: str | None, args) -> dict:
     env = dict(os.environ)
     env["B2PROXY_LOG"] = str(log)
     env.pop("B2PROXY_HOT", None)
+    exit_mode = "kill" if args.kill else args.exit_mode
     cmd = [
         args.py32, str(TOOLS / "direct_drive.py"),
         "--dir", str(args.dir),
         "--levels", str(idx),
         "--timeout", str(args.timeout),
         "--gap", str(args.gap),
+        "--exit-mode", exit_mode,
+        "--exit-timeout", str(args.exit_timeout),
         "--out", str(drive_out),
     ]
     if args.no_desktop:
@@ -129,7 +155,8 @@ def run_one(idx: int, name: str, rec: str | None, args) -> dict:
     row = {
         "level": idx, "name": name, "rec": rec, "rc": rc,
         "ms": ms, "log": str(log), "log_bytes": size, "magic": magic,
-        "exit": clean, "error": err if rc != 0 else "",
+        "exit": clean, "exit_mode": args.exit_mode,
+        "error": err if rc != 0 else "",
     }
     if rc != 0:
         row["status"] = "ERROR"
@@ -188,6 +215,10 @@ def main() -> int:
     ap.add_argument("--py32", default=os.environ.get("PY32", DEFAULT_PY32))
     ap.add_argument("--timeout", type=float, default=30.0)
     ap.add_argument("--gap", type=float, default=1.5)
+    ap.add_argument("--exit-mode", choices=("wmclose", "clean", "kill"), default="wmclose")
+    ap.add_argument("--exit-timeout", type=float, default=20.0)
+    ap.add_argument("--keep-ad", action="store_true",
+                    help="do not NOP the GameTop ShellExecuteA call at 0x52ED6A")
     ap.add_argument("--resume", action="store_true", help="skip levels already PASS in summary.jsonl")
     ap.add_argument("--kill", action="store_true", help="negative control: TerminateProcess")
     ap.add_argument("--no-desktop", action="store_true")
@@ -196,9 +227,11 @@ def main() -> int:
     if not Path(args.py32).exists():
         print(f"PY32 not found: {args.py32}", file=sys.stderr)
         return 2
-    args.dir = Path(args.dir)
-    args.out_dir = Path(args.out_dir)
+    args.dir = Path(args.dir).resolve()
+    args.out_dir = Path(args.out_dir).resolve()
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    if not args.keep_ad:
+        print("noad", ensure_noad(args.dir), flush=True)
 
     levels = parse_levels(Path(args.levels_file))
     if len(levels) != 52:

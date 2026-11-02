@@ -66,6 +66,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 私有桌面隔离（F346）**：`work/probe_vdesk.py` 用 `CreateDesktop`+`CreateProcess(lpDesktop)` 在 `MagVDesk_<pid>` 上跑 `game.exe`；t≈16 s 到 MENU，窗口线程直接 `sub_560880(app,299)` ⇒ `[lm+0x30]` 2→1、`[lm+8]=1`。两次独立运行都是 b2 日志 8,388,548 B / `CreateWorld 1 / CreateBody 8 / DestroyBody 0 / 1,266 steps`；用户前台窗口不变，用户光标移动 5 次期间隐藏光标 0 次变化。⇒ 批量采关可以跑在私有桌面，不抢前台、不需要鼠标。边界：无像素/音频验收，游戏仍占 CPU/GPU。
 
 - **2026-11-02 `tools/direct_drive.py` + 静音（F347/F348）**：私有桌面 + 连续 `sub_560880(app,299+index)`，判据 `[lm+0x30]=1/[lm+4]=index/[lm+0x50]!=0/[lm+8]=1`；`--levels 0,1,2` 各 200 ms、fail=0，负例 `99` 启动前 exit 2。游戏把 SOUND/MUSIC 音量持久化在 active `<Player>`（用户改成 0/0，624→616 B；`KKK` 100/100 不变）；工具只读不写存档，并用 `nircmd muteappvolume game.exe 1` 兜底。CABLE 留给音频验收。
+- **2026-11-02 采集默认 WM_CLOSE + NOP 广告（F354/F355）**：`direct_drive.py` 新增 `--exit-mode wmclose`（`PostMessage(WM_CLOSE)`，失败回落 clean）；`capture_levels.py` 默认 wmclose + `--noad`（work 副本 file 0x12E16A 写 `90×5`，`--keep-ad` 关闭）。level 1 实测 PASS mism=0、log 2,371,720 B、exit 0/702 ms；clean 仍 PASS。全量 52 关未重跑。
 - **2026-11-02 T6.4b-0 采关补全（F349）**：`direct_drive.py` 默认远端 `ExitProcess` 干净退出，b2 代理在 `DLL_PROCESS_DETACH` 写完 8 MB 缓冲（同一关 clean 2,345,172 B vs `--kill` 0 B）；新增 `tools/capture_levels.py` 逐关独立进程采集并 `b2_sites compare --stop-at-step`。52 关 15m28s ⇒ PASS=47 / SHARED=2（13、51，共用 Introduction 录制）/ RNG=3（28/36/42）；0 MISMATCH、0 ERROR，52/52 `exit.clean=True`。产物 `work/capture/lvl*_ffi.bin`、`summary.jsonl`、`run52.log`。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）

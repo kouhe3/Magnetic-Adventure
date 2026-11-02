@@ -330,6 +330,10 @@ def main():
     ap.add_argument("--no-silent", action="store_true", help="skip the nircmd mute")
     ap.add_argument("--kill", action="store_true",
                     help="TerminateProcess instead of a clean ExitProcess (negative control)")
+    ap.add_argument("--exit-mode", choices=("clean", "wmclose", "kill"), default="clean",
+                    help="clean=remote ExitProcess; wmclose=PostMessage(WM_CLOSE) then clean fallback")
+    ap.add_argument("--exit-timeout", type=float, default=15.0,
+                    help="seconds to wait for WM_CLOSE to end the process")
     a = ap.parse_args()
 
     if ctypes.sizeof(ctypes.c_void_p) != 4:
@@ -469,20 +473,51 @@ def main():
                     emit({"event": "exited", "after": idx})
                     break
             time.sleep(a.gap)
-        emit({"event": "summary", "levels": len(levels), "fail": fails})
-        return 0 if fails == 0 else 1
+        exit_ok = True
+        if a.exit_mode == "wmclose" and not a.kill:
+            win = find_window(pid, desk)
+            if not win:
+                exit_info = {"event": "exit", "mode": "wmclose", "ok": False,
+                             "why": "no window"}
+            else:
+                user32.PostMessageW(win[0], 0x0010, 0, 0)
+                t0 = time.time()
+                while time.time() - t0 < a.exit_timeout:
+                    if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
+                        code = ctypes.c_ulong()
+                        k32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
+                        exit_info = {"event": "exit", "mode": "wmclose", "ok": code.value == 0,
+                                     "code": code.value,
+                                     "ms": int((time.time() - t0) * 1000)}
+                        break
+                    time.sleep(0.1)
+                else:
+                    exit_info = {"event": "exit", "mode": "wmclose", "ok": False,
+                                 "why": "timeout"}
+            if not exit_info["ok"]:
+                clean_ok, ms, why = remote_exit(hp, pi)
+                exit_info["fallback"] = {"mode": "clean", "ok": clean_ok,
+                                         "ms": ms, "why": why}
+                exit_ok = False
+            emit(exit_info)
+        emit({"event": "summary", "levels": len(levels), "fail": fails,
+              "exit_mode": a.exit_mode})
+        return 0 if fails == 0 and exit_ok else 1
     finally:
         if a.kill:
+            a.exit_mode = "kill"
+        alive = k32.WaitForSingleObject(pi.hProcess, 0) != 0
+        if a.exit_mode == "kill":
             try:
                 k32.TerminateProcess(ctypes.c_void_p(pi.hProcess), 0)
             except Exception:
                 pass
             if out:
-                emit({"event": "exit", "clean": False, "ok": True, "why": "kill"})
-        else:
+                emit({"event": "exit", "mode": "kill", "ok": True, "why": "kill"})
+        elif alive:
             clean_ok, ms, why = remote_exit(hp, pi)
             if out:
-                emit({"event": "exit", "clean": True, "ok": clean_ok,
+                emit({"event": "exit", "mode": "clean", "ok": clean_ok,
                       "ms": ms, "why": why})
             if not clean_ok:
                 try:
@@ -503,7 +538,7 @@ def main():
                 user32.CloseDesktop(ctypes.c_void_p(desk))
             except Exception:
                 pass
-        print("exit", "killed" if a.kill else "clean", pid, flush=True)
+        print("exit", a.exit_mode, pid, flush=True)
 
 
 if __name__ == "__main__":
