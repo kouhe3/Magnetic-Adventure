@@ -81,7 +81,7 @@
 - [ ] T6.4a-r-2c3 HUD 烟雾/level_end_box（level 1 该帧隐藏；其他帧可见时再接） 依据：F362
 - [x] T6.4a-r-2c4 level 2 扩关探针（gear_1/gear_11、世界层 (0,-4)、45/5；剩 SwitchArm/圆/时钟箭头/层划分） 依据：F363
 - [x] T6.4a-r-2c5 `Get_RealViewRect` 语义（相机 ± 半视图）+ 相机偏移/`Set_ScrObjPos` 回放：level 2 46/46、level 0/1 无回归 依据：F364、F365
-- [ ] T6.4a-r-2c6 `Add_SwitchArm`（`sw_arm1.png` 4×2，body 位置 + 关节几何） 依据：F363、F365
+- [x] T6.4a-r-2c6 `Add_SwitchArm`（`sw_arm1.png` 4×2、锚点半径 1.6、动态摆角拟合；level 2 47/47） 依据：F366
 - [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349

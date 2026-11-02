@@ -25,8 +25,10 @@
                         设计空间 1018×739 → NDC (x/509, -y/369.5)，size=(2w/509,2h/369.5)
   Set_CameraPosition    相机（模型唯一的全局偏移）
   Set_ScrObjPos         按句柄改写位置/角度（含 OnResizeForm 与时钟箭头动画）
+  Add_SwitchArm         style 1→sw_arm1.png 4×2，中心在 body、sprite 角 = body−π/2；
+                        紧随的 Add_JointNail 是锚点（半径 1.6），动态摆角由 ref 长边拟合
   mbtn_1/2 + 10×dot_1   引擎/HUD 常量（level 0/1 同坐标）
-未实现（用 --ignore 排除）: HUD 烟雾/level_end_box、Add_SwitchArm、未知 style 的齿轮。
+未实现（用 --ignore 排除）: HUD 烟雾/level_end_box、未知 style 的齿轮/摆臂。
 
 用法:
   python tools/scene_from_lua.py --level 0 --ref work/level0_gl.bin --frame 9600 \\
@@ -77,6 +79,10 @@ METAL_GEAR = {1: ("gear_10.png", 3.6896), 2: ("gear_11.png", 7.3141),
               3: ("gear_12.png", 7.3668)}
 METAL_SCREW = {1: ("screw_1.png", 3.248)}
 NAIL_SIZE = 1.6
+# Add_SwitchArm style → (asset, 长边, 短边)。摆臂是物理体：图元中心在 body 原点，
+# sprite 角 = body 角 − π/2；body 由关节锚点以半径 1.6 悬挂（basefs.lua:81-84）。
+SWITCH_ARM = {1: ("sw_arm1.png", 4.0, 2.0)}
+ARM_RADIUS = 1.6
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
 HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
@@ -121,6 +127,7 @@ def build(calls):
     hud = {}
     handles = {}
     cam = (0.0, 0.0)
+    pending_arm = None
 
     def add(obj, ret):
         objects.append(obj)
@@ -184,6 +191,20 @@ def build(calls):
             add({"kind": fn, "asset": "nail_2.png",
                  "x": float(args[3]), "y": float(args[4]),
                  "angle": 0.0, "w": NAIL_SIZE, "h": NAIL_SIZE, "root": 0}, ret)
+            if pending_arm is not None:
+                # AddSimpleSwitchArm 紧接的 Add_JointNail 就是摆臂的固定锚点。
+                pending_arm["pivot"] = (float(args[3]), float(args[4]))
+                pending_arm = None
+        elif fn == "Add_SwitchArm" and len(args) >= 5:
+            root, x, y, ang, style = args[:5]
+            hit = SWITCH_ARM.get(int(style))
+            if hit:
+                pending_arm = add({"kind": fn, "asset": hit[0],
+                                   "x": float(x), "y": float(y),
+                                   "angle": float(ang) - math.pi * 0.5,
+                                   "init_angle": float(ang),
+                                   "w": hit[1], "h": hit[2],
+                                   "root": int(root), "pivot": None}, ret)
         elif fn == "Add_HudButton" and len(args) >= 7:
             hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
                         "x": 0.0, "y": 0.0, "alpha": 1.0}
@@ -267,6 +288,45 @@ def fit_gear_angles(objects, ref, cam):
         obj["angle"] = ang
 
 
+def fit_arm_pose(objects, ref, cam):
+    """摆臂是物理体：init 姿态之外还有重力/关节限位决定的动态角（F366）。
+
+    从 ref 的同素材四边形取**长边**方向作为 sprite 角，body 角 = sprite 角 + π/2；
+    再由固定锚点 `pivot` 与半径 1.6 预测 body 位置，与 ref 的四边形中心比较。
+    返回 [(asset, 摆角相对 init, center_err)]；center_err 是半径/锚点假设的硬判据。
+    """
+    by_name = {}
+    for name, d in ref:
+        v = d["v"]
+        lens = [math.hypot(v[(i + 1) % 4][0] - v[i][0],
+                           v[(i + 1) % 4][1] - v[i][1]) for i in range(4)]
+        k = max(range(4), key=lambda i: lens[i])
+        ang = math.atan2(v[(k + 1) % 4][1] - v[k][1],
+                         v[(k + 1) % 4][0] - v[k][0])
+        cx = sum(p[0] for p in v) / 4.0
+        cy = sum(p[1] for p in v) / 4.0
+        by_name.setdefault(name, []).append(((cx, cy), ang))
+    out = []
+    for obj in objects:
+        if obj["kind"] != "Add_SwitchArm" or obj.get("pivot") is None:
+            continue
+        hits = by_name.get(obj["asset"])
+        if not hits:
+            continue
+        init = (obj["x"], obj["y"])
+        (cx, cy), ang = min(hits, key=lambda h: (h[0][0] - init[0]) ** 2 +
+                                               (h[0][1] - init[1]) ** 2)
+        body = ang + math.pi * 0.5
+        px, py = obj["pivot"]
+        pred = (px - ARM_RADIUS * math.sin(body),
+                py + ARM_RADIUS * math.cos(body))
+        err = math.hypot(pred[0] - cam[0] - cx, pred[1] - cam[1] - cy)
+        obj["angle"] = ang
+        obj["x"], obj["y"] = pred
+        out.append((obj["asset"], body - obj.get("init_angle", body), err))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--level", type=int, required=True)
@@ -282,6 +342,10 @@ def main():
     ap.add_argument("--alpha-tol", type=float, default=1.01,
                     help="本切片只判几何/UV；alpha 默认忽略")
     ap.add_argument("--shift", type=float, default=0.0, help="负例：候选整体平移")
+    ap.add_argument("--no-arm-fit", action="store_true",
+                    help="负例：摆臂停在 init 姿态（不按 ref 拟合动态角）")
+    ap.add_argument("--arm-tol", type=float, default=0.02,
+                    help="摆臂 center_err 上限（半径 1.6/锚点假设的硬判据）")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
@@ -292,8 +356,11 @@ def main():
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
     fit_gear_angles(objects, ref, cam)
+    arms = [] if a.no_arm_fit else fit_arm_pose(objects, ref, cam)
     print("scene objects=%d backs=%d camera=(%.3f,%.3f)"
           % (len(objects), len(backs), cam[0], cam[1]))
+    for asset, swing, err in arms:
+        print("arm %-12s swing=%+.3f center_err=%.4f" % (asset, swing, err))
     cand = scene_draws(objects, backs, cam, (a.shift, 0.0))
     ignore = {x.strip() for x in a.ignore.split(",") if x.strip()}
     bad, missing, unref, first = level_draw_ab.compare(
@@ -302,7 +369,10 @@ def main():
     unexpected = [m for m in missing if m not in allow]
     if unexpected:
         print("unexpected cand-only: %s" % unexpected)
-    return 0 if bad == 0 and not unref and not unexpected else 1
+    arm_bad = [x for x in arms if x[2] > a.arm_tol]
+    if arm_bad:
+        print("arm center_err too large: %s" % arm_bad)
+    return 0 if bad == 0 and not unref and not unexpected and not arm_bad else 1
 
 
 if __name__ == "__main__":
