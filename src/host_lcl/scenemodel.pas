@@ -578,6 +578,7 @@ begin
           O.X := NumArg(Args, 1);
           O.Y := NumArg(Args, 2);
           O.Angle := NumArg(Args, 3) - Pi * 0.5;
+          O.InitAngle := NumArg(Args, 3);
           O.W := 4.0;
           O.H := 2.0;
           O.Alpha := 1.0;
@@ -735,6 +736,16 @@ begin
           FObjects[m].Speed := FObjects[n].Speed * Links[i].Factor;
           FObjects[m].HasSpeed := True;
         end;
+      end;
+
+    // 摆臂静止位姿（F374）：body = init + 0.5（关节限位），位置由锚点 + 1.6。
+    for i := 0 to High(FObjects) do
+      if (FObjects[i].Kind = 'Add_SwitchArm') and FObjects[i].HasPivot then
+      begin
+        Ang := FObjects[i].InitAngle + 0.5;
+        FObjects[i].X := FObjects[i].PivotX - ARM_RADIUS * Sin(Ang);
+        FObjects[i].Y := FObjects[i].PivotY + ARM_RADIUS * Cos(Ang);
+        FObjects[i].Angle := Ang - Pi * 0.5;
       end;
 
     // HUD 按钮在全部调用之后按插入序追加（与 scene_from_lua.build 一致）。

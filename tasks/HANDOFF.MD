@@ -87,6 +87,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2e 齿轮相位（F373）**：齿轮 sprite 相对 body 的局部旋转是 **π**（螺丝为 0）；加 π 后 level 0 的驱动轮 `t=1.490`，gear_7/gear_3 的预测与零售逐位吻合。`HOST_LEVEL_TIME` 接进 `BuildFromModel`→`ApplyTime`，宿主 level 0（自身 Lua 日志 55/55）`pairs=25 mismatches=0`；负例 t=1.952/0.5 失配。方形齿轮 bbox 对 90° 倍数不敏感，负例取 ~45° 偏移。下一刀：摆臂 settle 与 level 3/4 动态项。
 
+- **2026-11-02 T6.4a-r-2f0 摆臂 settle（F374）**：摆臂静止位姿是确定规则——body = init + 0.5（关节限位）、位置 = 锚点 + R(body)·(0,1.6)、sprite = body−π/2；level 2 整帧 **47/47**（宿主自身日志 193/193），level 4 的 `sw_arm2` dbbox=0.016 PASS（整帧只剩 `gear_7` 的电机相位差 0.829）。`scene_from_lua.build` 与 `scenemodel.pas` 都在构建末尾应用；`--no-arm-settle` 是工具负例。下一刀：level 4 齿轮相位（电机 9/5）与 level 3/4 的 plunger/shank/train/smoke。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

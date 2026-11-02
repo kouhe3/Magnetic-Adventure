@@ -27,7 +27,7 @@
   Set_ScrObjPos         按句柄改写位置/角度（含 OnResizeForm 与时钟箭头动画）
   Add_SwitchArm         style 1→sw_arm1.png 4×2，中心在 body、sprite 角 = body−π/2；
                         style 2→sw_arm2.png；紧随的 Add_JointNail 是锚点（半径 1.6），
-                        动态摆角由 ref 长边拟合
+                        静止位姿 = init+0.5（关节限位）+ 锚点半径 1.6
   Add_WoodBox           style 1..3→wbox_N.png，正方形 4.702
   Add_PushButton        style 1→pbut_1.png，3×1.5（平台 button_platform_1→bplatf_1.png）
   Add_BarDoor           style 1→bar_1.png，7×3.5
@@ -48,7 +48,7 @@ level 3/4 的 train_1（移动，A/A 地板 0.630）、smoke（动画帧）、pl
   提示层）。退出码 0=PASS。默认 `--alpha-tol 1.01`：本切片只判几何/UV，alpha 淡入
   属于动画状态（F339）。负例：`--shift 1.0` ⇒ `mismatches>0`；
   把探针的 `Get_RealViewRect` 退回 0 桩（`LUA_PROBE_VIEWRECT=0` 重生成语料）⇒
-  level 2 的 hint/close/箭头 `mismatches>=3`。
+  level 2 的 hint/close/箭头 `mismatches>=3`；`--no-arm-settle` ⇒ 摆臂失配。
 
 覆盖边界:
   - 相机只取 `Set_CameraPosition`；`Get_RealViewRect` 的语义要由探针实现（F364），
@@ -126,7 +126,7 @@ def quad(cx, cy, w, h, angle=0.0, alpha=1.0):
             "v": v, "uv": [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]}
 
 
-def build(calls, pak_dir=""):
+def build(calls, pak_dir="", settle=True):
     """返回 (objects, back_assets, camera)。
 
     坐标语义（F364）：探针返回真实的 `Get_RealViewRect()` 后，脚本里的坐标已经是
@@ -270,6 +270,8 @@ def build(calls, pak_dir=""):
                     obj["angle"] = float(args[3])
         elif fn == "Do_HideCommand" and args and args[0] in hud:
             hud[args[0]]["alpha"] = 0.0
+    if settle:
+        settle_arms(objects)
     for h in hud.values():
         asset = HUD_ASSET.get(h["tex"])
         if asset:
@@ -343,54 +345,25 @@ def fit_gear_angles(objects, ref, cam):
             obj["angle"] = ang
 
 
-def fit_arm_pose(objects, ref, cam):
-    """摆臂是物理体：init 姿态之外还有重力/关节限位决定的动态角（F366）。
-
-    从 ref 的同素材四边形取**长边**方向作为 sprite 角，body 角 = sprite 角 + π/2；
-    再由固定锚点 `pivot` 与半径 1.6 预测 body 位置，与 ref 的四边形中心比较。
-    返回 [(asset, 摆角相对 init, center_err)]；center_err 是半径/锚点假设的硬判据。
-    """
-    by_name = {}
-    for name, d in ref:
-        v = d["v"]
-        lens = [math.hypot(v[(i + 1) % 4][0] - v[i][0],
-                           v[(i + 1) % 4][1] - v[i][1]) for i in range(4)]
-        k = max(range(4), key=lambda i: lens[i])
-        ang = math.atan2(v[(k + 1) % 4][1] - v[k][1],
-                         v[(k + 1) % 4][0] - v[k][0])
-        cx = sum(p[0] for p in v) / 4.0
-        cy = sum(p[1] for p in v) / 4.0
-        by_name.setdefault(name, []).append(((cx, cy), ang))
+def settle_arms(objects):
+    """摆臂的静止位姿（F374）：body 角 = init + 0.5（关节限位 +0.5），
+    位置由锚点 + 半径 1.6 决定；sprite 角 = body − π/2。不再从 ref 拟合。"""
     out = []
     for obj in objects:
-        if obj["kind"] != "Add_SwitchArm" or obj.get("pivot") is None:
+        if obj["kind"] != "Add_SwitchArm" or not obj.get("pivot"):
             continue
-        hits = by_name.get(obj["asset"])
-        if not hits:
-            continue
-        init = (obj["x"], obj["y"])
-        (cx, cy), ang = min(hits, key=lambda h: (h[0][0] - init[0]) ** 2 +
-                                               (h[0][1] - init[1]) ** 2)
-        # 四边形对 π 旋转对称：长边方向只给出 angles mod π，body 相对锚点有两个
-        # 镜像候选；用 ref 中心选边（这不影响 draw，只决定半径不变量的比较方向）。
+        body = obj.get("init_angle", obj["angle"] + math.pi * 0.5) + 0.5
         px, py = obj["pivot"]
-        cands = []
-        for body in (ang + math.pi * 0.5, ang - math.pi * 0.5):
-            pred = (px - ARM_RADIUS * math.sin(body),
-                    py + ARM_RADIUS * math.cos(body))
-            err = math.hypot(pred[0] - cam[0] - cx, pred[1] - cam[1] - cy)
-            cands.append((err, body, pred))
-        err, body, pred = min(cands, key=lambda t: t[0])
-        obj["angle"] = ang
-        obj["x"], obj["y"] = pred
-        out.append((obj["asset"], body - obj.get("init_angle", body), err))
+        obj["x"] = px - ARM_RADIUS * math.sin(body)
+        obj["y"] = py + ARM_RADIUS * math.cos(body)
+        obj["angle"] = body - math.pi * 0.5
+        out.append((obj["asset"], 0.5))
     return out
-
 
 def dump_objects(objects, cam, path):
     """场景图元 JSONL（与 src/host_lcl/scenemodel.pas 的 SaveJsonl 同 schema）。
 
-    只导出 build() 的结果（不含 ref 拟合的动画相位），用于 Pascal 移植的对拍。
+    只导出 build() 的结果（含摆臂 settle；不含齿轮动画相位），用于 Pascal 移植对拍。
     """
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write('{"kind":"_camera","x":%s,"y":%s}\n'
@@ -433,16 +406,14 @@ def main():
     ap.add_argument("--shift", type=float, default=0.0, help="负例：候选整体平移")
     ap.add_argument("--dump-objects", default="",
                     help="把 build() 的图元写成 JSONL（Pascal 模型对拍用）")
-    ap.add_argument("--no-arm-fit", action="store_true",
-                    help="负例：摆臂停在 init 姿态（不按 ref 拟合动态角）")
-    ap.add_argument("--arm-tol", type=float, default=0.02,
-                    help="摆臂 center_err 上限（半径 1.6/锚点假设的硬判据）")
+    ap.add_argument("--no-arm-settle", action="store_true",
+                    help="负例：摆臂停在 init 姿态（不 settle 到关节限位）")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
     probe = os.path.join(a.probe_dir, "lvl%02d.jsonl" % a.level)
     calls = load_calls(probe)
-    objects, backs, cam = build(calls, a.pak)
+    objects, backs, cam = build(calls, a.pak, not a.no_arm_settle)
     if a.dump_objects:
         dump_objects(objects, cam, a.dump_objects)
         if not a.ref or a.frame is None:
@@ -451,11 +422,12 @@ def main():
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))
     fit_gear_angles(objects, ref, cam)
-    arms = [] if a.no_arm_fit else fit_arm_pose(objects, ref, cam)
     print("scene objects=%d backs=%d camera=(%.3f,%.3f)"
           % (len(objects), len(backs), cam[0], cam[1]))
-    for asset, swing, err in arms:
-        print("arm %-12s swing=%+.3f center_err=%.4f" % (asset, swing, err))
+    if not a.no_arm_settle:
+        for o in objects:
+            if o["kind"] == "Add_SwitchArm":
+                print("arm %-12s swing=+0.500" % o["asset"])
     cand = scene_draws(objects, backs, cam, (a.shift, 0.0))
     ignore = {x.strip() for x in a.ignore.split(",") if x.strip()}
     bad, missing, unref, first = level_draw_ab.compare(
@@ -464,10 +436,7 @@ def main():
     unexpected = [m for m in missing if m not in allow]
     if unexpected:
         print("unexpected cand-only: %s" % unexpected)
-    arm_bad = [x for x in arms if x[2] > a.arm_tol]
-    if arm_bad:
-        print("arm center_err too large: %s" % arm_bad)
-    return 0 if bad == 0 and not unref and not unexpected and not arm_bad else 1
+    return 0 if bad == 0 and not unref and not unexpected else 1
 
 
 if __name__ == "__main__":
