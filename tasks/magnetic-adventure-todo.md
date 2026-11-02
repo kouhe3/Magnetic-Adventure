@@ -71,6 +71,7 @@
 - [x] T6.4a 关卡渲染：Introduction frame 9600 逐 draw **25/25 mismatches=0**；仪器 `level_draw_ab` 自证 A/A/负例；内存判 MENU 依据：F337–F340（菜单回归 21/21，`verify` 7/7，`phys_sweep` 50/2/0）
 - [ ] T6.4a-r 关卡场景通用化：Lua→场景生成、齿轮/提示动画、其他关卡 依据：F339、F340（第一关瞬时态已过；先做生成器）
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
+- [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [ ] T6.4e 关卡文本（`pt_sans*.dat` / `gulim2.dat`，判据同 T6.4a 的 draw 列表） 依据：F11、F192、F231

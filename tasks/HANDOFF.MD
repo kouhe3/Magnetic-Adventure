@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot、五批叶子/带 call 对拍、第五批残差闭环与 **T6.3d 收口 50 PASS / 2 SKIP / 0 MISMATCH**；台账到 **F336**）。`work` 分支；台账到 **F336**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot、五批叶子/带 call 对拍、第五批残差闭环与 **T6.3d 收口 50 PASS / 2 SKIP / 0 MISMATCH**；台账到 **F349**）。`work` 分支；台账到 **F349**。
 
 ## 0. 一句话现状
 
@@ -17,7 +17,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 **本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **v1.1 / trunk r5000**、11 个单元 1,043 个函数只剩 **12 个（2,448 B）sim<0.95** 且已证是原版本地补丁（F211–F213，逐单元百分比以 §0.1 为准）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
 
-台账 **336 条**（F001–F336，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
+台账 **349 条**（F001–F349，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
 - **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
 
@@ -66,6 +66,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 私有桌面隔离（F346）**：`work/probe_vdesk.py` 用 `CreateDesktop`+`CreateProcess(lpDesktop)` 在 `MagVDesk_<pid>` 上跑 `game.exe`；t≈16 s 到 MENU，窗口线程直接 `sub_560880(app,299)` ⇒ `[lm+0x30]` 2→1、`[lm+8]=1`。两次独立运行都是 b2 日志 8,388,548 B / `CreateWorld 1 / CreateBody 8 / DestroyBody 0 / 1,266 steps`；用户前台窗口不变，用户光标移动 5 次期间隐藏光标 0 次变化。⇒ 批量采关可以跑在私有桌面，不抢前台、不需要鼠标。边界：无像素/音频验收，游戏仍占 CPU/GPU。
 
 - **2026-11-02 `tools/direct_drive.py` + 静音（F347/F348）**：私有桌面 + 连续 `sub_560880(app,299+index)`，判据 `[lm+0x30]=1/[lm+4]=index/[lm+0x50]!=0/[lm+8]=1`；`--levels 0,1,2` 各 200 ms、fail=0，负例 `99` 启动前 exit 2。游戏把 SOUND/MUSIC 音量持久化在 active `<Player>`（用户改成 0/0，624→616 B；`KKK` 100/100 不变）；工具只读不写存档，并用 `nircmd muteappvolume game.exe 1` 兜底。CABLE 留给音频验收。
+- **2026-11-02 T6.4b-0 采关补全（F349）**：`direct_drive.py` 默认远端 `ExitProcess` 干净退出，b2 代理在 `DLL_PROCESS_DETACH` 写完 8 MB 缓冲（同一关 clean 2,345,172 B vs `--kill` 0 B）；新增 `tools/capture_levels.py` 逐关独立进程采集并 `b2_sites compare --stop-at-step`。52 关 15m28s ⇒ PASS=47 / SHARED=2（13、51，共用 Introduction 录制）/ RNG=3（28/36/42）；0 MISMATCH、0 ERROR，52/52 `exit.clean=True`。产物 `work/capture/lvl*_ffi.bin`、`summary.jsonl`、`run52.log`。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 

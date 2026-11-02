@@ -81,6 +81,7 @@ PAGE_EXECUTE_READWRITE = 0x40
 CONTEXT_FULL = 0x00100007
 READABLE = {0x02, 0x04, 0x08, 0x20, 0x40, 0x80}
 DESKTOP_ALL = 0x000F01FF
+PROCESS_CREATE_THREAD = 0x0002
 
 
 class MBI(ctypes.Structure):
@@ -230,6 +231,66 @@ def build_stub(base, app, index, orig_eip, call_va=0x560880):
     return bytes(b)
 
 
+def remote_exit(hp, pi, timeout=10.0):
+    """Call kernel32!ExitProcess(0) in the target so DLL_PROCESS_DETACH flushes logs.
+
+    Returns (process_exited, elapsed_ms, reason).  Fallback is TerminateProcess by
+    the caller; that loses the proxy's 8 MB user-space buffer (F349).
+    """
+    hp_val = hp.value if hasattr(hp, "value") else hp
+    if not hp_val:
+        return False, 0, "no process handle"
+    psapi = ctypes.WinDLL("psapi")
+    psapi.EnumProcessModules.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+                                         wt.DWORD, ctypes.POINTER(wt.DWORD)]
+    psapi.EnumProcessModules.restype = wt.BOOL
+    psapi.GetModuleBaseNameA.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                         ctypes.c_char_p, wt.DWORD]
+    psapi.GetModuleBaseNameA.restype = wt.DWORD
+
+    mods = (ctypes.c_void_p * 1024)()
+    need = wt.DWORD()
+    if not psapi.EnumProcessModules(ctypes.c_void_p(hp_val), mods,
+                                    ctypes.sizeof(mods), ctypes.byref(need)):
+        return False, 0, "EnumProcessModules"
+
+    k32.GetModuleHandleA.restype = ctypes.c_void_p
+    k32.GetProcAddress.restype = ctypes.c_void_p
+    local_base = k32.GetModuleHandleA(b"kernel32.dll")
+    local_exit = k32.GetProcAddress(ctypes.c_void_p(local_base), b"ExitProcess")
+    if not local_base or not local_exit:
+        return False, 0, "local kernel32!ExitProcess"
+    local_base = int(local_base)
+    local_exit = int(local_exit)
+
+    remote_base = None
+    for i in range(need.value // ctypes.sizeof(ctypes.c_void_p)):
+        name = ctypes.create_string_buffer(260)
+        n = psapi.GetModuleBaseNameA(ctypes.c_void_p(hp_val), mods[i], name, 260)
+        if n and name.value.lower() == b"kernel32.dll":
+            remote_base = mods[i].value if hasattr(mods[i], "value") else int(mods[i])
+            break
+    if not remote_base:
+        return False, 0, "remote kernel32 not found"
+
+    addr = remote_base + (local_exit - local_base)
+    k32.CreateRemoteThread.restype = wt.HANDLE
+    k32.CreateRemoteThread.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t,
+                                       ctypes.c_void_p, ctypes.c_void_p, wt.DWORD,
+                                       ctypes.POINTER(wt.DWORD)]
+    k32.WaitForSingleObject.argtypes = [ctypes.c_void_p, wt.DWORD]
+    th = k32.CreateRemoteThread(ctypes.c_void_p(hp_val), None, 0,
+                                ctypes.c_void_p(addr), None, 0, None)
+    if not th:
+        return False, 0, "CreateRemoteThread"
+    t0 = time.time()
+    k32.WaitForSingleObject(ctypes.c_void_p(pi.hProcess), int(timeout * 1000))
+    k32.CloseHandle(th)
+    alive = k32.WaitForSingleObject(ctypes.c_void_p(pi.hProcess), 0)
+    ms = int((time.time() - t0) * 1000)
+    return alive == 0, ms, "ok" if alive == 0 else "still alive"
+
+
 def parse_levels(spec):
     out = []
     for part in spec.split(","):
@@ -267,6 +328,8 @@ def main():
     ap.add_argument("--out", default=None, help="JSONL output path")
     ap.add_argument("--no-desktop", action="store_true", help="run on the default desktop (debug)")
     ap.add_argument("--no-silent", action="store_true", help="skip the nircmd mute")
+    ap.add_argument("--kill", action="store_true",
+                    help="TerminateProcess instead of a clean ExitProcess (negative control)")
     a = ap.parse_args()
 
     if ctypes.sizeof(ctypes.c_void_p) != 4:
@@ -306,7 +369,8 @@ def main():
             time.sleep(0.5)
         print("muted game.exe", muted, flush=True)
     hp = k32.OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION |
-                         PROCESS_VM_OPERATION | PROCESS_VM_WRITE, False, pid)
+                         PROCESS_VM_OPERATION | PROCESS_VM_WRITE |
+                         PROCESS_CREATE_THREAD, False, pid)
     out = open(a.out, "w", encoding="utf-8") if a.out else None
 
     def emit(obj):
@@ -408,10 +472,30 @@ def main():
         emit({"event": "summary", "levels": len(levels), "fail": fails})
         return 0 if fails == 0 else 1
     finally:
+        if a.kill:
+            try:
+                k32.TerminateProcess(ctypes.c_void_p(pi.hProcess), 0)
+            except Exception:
+                pass
+            if out:
+                emit({"event": "exit", "clean": False, "ok": True, "why": "kill"})
+        else:
+            clean_ok, ms, why = remote_exit(hp, pi)
+            if out:
+                emit({"event": "exit", "clean": True, "ok": clean_ok,
+                      "ms": ms, "why": why})
+            if not clean_ok:
+                try:
+                    k32.TerminateProcess(ctypes.c_void_p(pi.hProcess), 0)
+                except Exception:
+                    pass
         if out:
             out.close()
         try:
-            k32.TerminateProcess(pi.hProcess, 0)
+            k32.CloseHandle(ctypes.c_void_p(pi.hThread))
+            hp_val = hp.value if hasattr(hp, "value") else hp
+            if hp_val:
+                k32.CloseHandle(ctypes.c_void_p(hp_val))
         except Exception:
             pass
         if desk:
@@ -419,7 +503,7 @@ def main():
                 user32.CloseDesktop(ctypes.c_void_p(desk))
             except Exception:
                 pass
-        print("killed", pid, flush=True)
+        print("exit", "killed" if a.kill else "clean", pid, flush=True)
 
 
 if __name__ == "__main__":
