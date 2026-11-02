@@ -384,11 +384,40 @@ def fit_arm_pose(objects, ref, cam):
     return out
 
 
+def dump_objects(objects, cam, path):
+    """场景图元 JSONL（与 src/host_lcl/scenemodel.pas 的 SaveJsonl 同 schema）。
+
+    只导出 build() 的结果（不含 ref 拟合的动画相位），用于 Pascal 移植的对拍。
+    """
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write('{"kind":"_camera","x":%s,"y":%s}\n'
+                % (num9(cam[0]), num9(cam[1])))
+        for o in objects:
+            rec = {
+                "kind": o["kind"],
+                "asset": o["asset"],
+                "x": float(o["x"]),
+                "y": float(o["y"]),
+                "angle": float(o["angle"]),
+                "w": float(o["w"]),
+                "h": float(o["h"]),
+                "alpha": float(o.get("alpha", 1.0)),
+                "space": "ndc" if o.get("space") == "ndc" else "world",
+                "root": int(o.get("root", 0)),
+            }
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def num9(v):
+    """与 Pascal FloatToStrF(ffGeneral, 9) 对齐的数值文本。"""
+    return ("%.9g" % float(v))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--level", type=int, required=True)
-    ap.add_argument("--ref", required=True, help="零售 GLFFI02 日志")
-    ap.add_argument("--frame", type=int, required=True)
+    ap.add_argument("--ref", help="零售 GLFFI02 日志（--dump-objects 时可省）")
+    ap.add_argument("--frame", type=int)
     ap.add_argument("--pak", default="work/pak_gametop")
     ap.add_argument("--probe-dir", default="work/lua_probe")
     ap.add_argument("--ignore", default="mcur_1.png,tex=1")
@@ -399,6 +428,8 @@ def main():
     ap.add_argument("--alpha-tol", type=float, default=1.01,
                     help="本切片只判几何/UV；alpha 默认忽略")
     ap.add_argument("--shift", type=float, default=0.0, help="负例：候选整体平移")
+    ap.add_argument("--dump-objects", default="",
+                    help="把 build() 的图元写成 JSONL（Pascal 模型对拍用）")
     ap.add_argument("--no-arm-fit", action="store_true",
                     help="负例：摆臂停在 init 姿态（不按 ref 拟合动态角）")
     ap.add_argument("--arm-tol", type=float, default=0.02,
@@ -409,6 +440,10 @@ def main():
     probe = os.path.join(a.probe_dir, "lvl%02d.jsonl" % a.level)
     calls = load_calls(probe)
     objects, backs, cam = build(calls, a.pak)
+    if a.dump_objects:
+        dump_objects(objects, cam, a.dump_objects)
+        if not a.ref or a.frame is None:
+            return 0
     ref, missed = ref_labeled(a.ref, a.pak, a.frame)
     if missed:
         print("ref 纹理 CRC 未匹配 %d 条: %s" % (len(missed), missed[:6]))

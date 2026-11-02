@@ -77,6 +77,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2c8 齿轮动画机制（F368）**：短间隔（Δt<0.92 s）测角速度 ⇒ level 0 的 gear_2/7/3 = **1.699/-1.275/1.530 rad/s**，与 `Set_JointMotors(...,1.7,...)` + `Add_JointSimpleGear` 的 ratio（1.3333/-1.1111）按 `w_child=-w_parent/ratio` 吻合；level 1/2 的齿轮 **0.000**（静态；`fit_gear_angles` 的 ±π 是对称四边形歧义，已改为差 0/π 时保留 init 角）。5 关静态判据不变：25/29/47/53/37。宿主可按 `w·t` 出齿轮动画；level 0 的帧内绝对时间仍待定。
 
+- **2026-11-02 T6.4a-r-2d0 Pascal 场景模型（F369）**：新增 `src/host_lcl/scenemodel.pas`（绑定 JSONL→图元列表，语义照 `tools/scene_from_lua.py` 的 `build()`：相机偏移、`Set_ScrObjPos` 句柄回放、HUD 设计空间、摆臂锚点、WoodBox/PushButton/BarDoor/SwitchArm style 2、引擎材质名回退）+ `scenemodel_cli.pas`（FPC 2.2.4 控制台）+ `tools/scenemodel_ab.py`。5 关 objects=15/21/37/45/33、相机一致、`mismatches=0`；负例跨关 16 处。宿主**尚未**把它接进渲染路径（仍走硬编码 `levelscene.pas`）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

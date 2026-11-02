@@ -84,6 +84,7 @@
 - [x] T6.4a-r-2c6 `Add_SwitchArm`（`sw_arm1.png` 4×2、锚点半径 1.6、动态摆角拟合；level 2 47/47） 依据：F366
 - [x] T6.4a-r-2c7 扩关 level 3/4：WoodBox/PushButton+平台/BarDoor/SwitchArm style 2（静态 53/53、37/37；动态项单列） 依据：F367
 - [x] T6.4a-r-2c8 齿轮动画机制：`w_child=-w_parent/ratio`（level 0 实测 1.699/-1.275/1.530；level 1/2 静态） 依据：F368
+- [x] T6.4a-r-2d0 Pascal 场景模型（`src/host_lcl/scenemodel.pas` + CLI）：5 关与 Python 逐对象一致（15/21/37/45/33） 依据：F369
 - [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
