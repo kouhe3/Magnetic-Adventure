@@ -12,6 +12,9 @@
 #include <windows.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 
 #include "../crashlog/crashlog.h"
 
@@ -76,8 +79,23 @@ static uint32_t g_id_destroy_body = 0;
 static long g_step_no = 0;
 
 static HANDLE g_file = INVALID_HANDLE_VALUE;
+static HANDLE g_trace = INVALID_HANDLE_VALUE;
 static int g_live = 0;   /* B2PROXY_LIVE=1：每步 digest 后立即刷盘，供闭环读位姿 */
 static int g_light = 0;  /* B2PROXY_LIGHT=1：只写 digest/contacts，不写 pre/post */
+/* B2CI_*：无鼠标的 CI 力伺服。磁铁位置 = 物体位置 + 朝目标的速度矢量，
+ * 用 PD 力把物体推向目标；默认关闭。 */
+static int g_ci_index = -1;
+static int g_ci_armed = 0;
+static int g_ci_mode = 0;   /* 0=PD force, 1=velocity servo */
+static float g_ci_tx = 0.0f, g_ci_ty = 0.0f;
+static float g_ci_maxspeed = 8.0f, g_ci_gain = 8.0f;
+static float g_ci_force = 30.0f, g_ci_done = 0.4f;
+static HANDLE g_ci_trace = INVALID_HANDLE_VALUE;
+static char g_ci_cfg[MAX_PATH] = {0};
+typedef void (__cdecl *CiForceFn)(void*, const float*, const float*);
+typedef void (__cdecl *CiVoidFn)(void*);
+static CiForceFn g_ci_force_fn = NULL;
+static CiVoidFn g_ci_wake_fn = NULL;
 
 /* 8 MB 用户态缓冲：每次调用只做一次 memcpy，攒满再 WriteFile。
  * 之前每条记录一次 WriteFile + 每 1024 条 FlushFileBuffers，是游戏卡顿的主因。 */
@@ -134,10 +152,130 @@ static int Readable(const void* p) {
     return !IsBadReadPtr(p, MEM_DUMP);
 }
 
+/* B2PROXY_TRACE=path：为 ApplyForce 记录「谁调用了 wrapper」。
+ * 桩在入口做了 pushfd+pushad；saved EBP 在 esp0-28，[saved EBP+4] 是
+ * wrapper 的调用者返回地址。仅诊断用，默认零成本。 */
+static void TraceForceCaller(uint32_t esp0, uint32_t body,
+                             const unsigned char* force_mem) {
+    uint32_t ebp, callers[4] = {0, 0, 0, 0};
+    uint32_t fx = 0, fy = 0;
+    char buf[200];
+    int n;
+    int i;
+    if (g_trace == INVALID_HANDLE_VALUE) return;
+    if (force_mem) {
+        memcpy(&fx, force_mem, 4);
+        memcpy(&fy, force_mem + 4, 4);
+    }
+    if (!fx && !fy) return;          /* 只留非零力，磁铁施力才出现 */
+    if (IsBadReadPtr((const void*)(uintptr_t)(esp0 - 28), 4)) return;
+    ebp = *(uint32_t*)(uintptr_t)(esp0 - 28);
+    for (i = 0; i < 4; ++i) {
+        if (IsBadReadPtr((const void*)(uintptr_t)(ebp + 4), 4)) break;
+        callers[i] = *(uint32_t*)(uintptr_t)(ebp + 4);
+        if (IsBadReadPtr((const void*)(uintptr_t)ebp, 4)) break;
+        ebp = *(uint32_t*)(uintptr_t)ebp;
+    }
+    n = wsprintfA(buf, "body=%08x f=%08x,%08x c0=%08x c1=%08x c2=%08x c3=%08x seq=%u\r\n",
+                  body, fx, fy, callers[0], callers[1], callers[2], callers[3],
+                  (unsigned)g_count);
+    {
+        DWORD written = 0;
+        WriteFile(g_trace, buf, (DWORD)n, &written, NULL);
+        FlushFileBuffers(g_trace);
+    }
+}
+
+static void CiApply(void) {
+    void* body;
+    char* b;
+    float px, py, vx, vy, dx, dy, d, ux, uy, vdes, fx, fy, mag;
+    float f[2], p[2];
+    char buf[200];
+    int n;
+    if (g_ci_cfg[0]) {
+        FILE* cf = fopen(g_ci_cfg, "r");
+        if (cf) {
+            int idx;
+            float tx, ty;
+            if (fscanf(cf, "%d,%f,%f", &idx, &tx, &ty) == 3) {
+                g_ci_index = idx;
+                g_ci_tx = tx;
+                g_ci_ty = ty;
+                g_ci_armed = 1;
+            }
+            fclose(cf);
+        }
+    }
+    if (!g_ci_armed || g_ci_index < 0 || g_ci_index >= g_nbodies) return;
+    body = g_bodies[g_ci_index];
+    if (!body || IsBadReadPtr(body, 152)) return;
+    b = (char*)body;
+    px = *(float*)(b + 8);
+    py = *(float*)(b + 12);
+    vx = *(float*)(b + 68);
+    vy = *(float*)(b + 72);
+    dx = g_ci_tx - px;
+    dy = g_ci_ty - py;
+    d = (float)sqrt((double)(dx * dx + dy * dy));
+    if (d < g_ci_done) return;
+    ux = dx / d;
+    uy = dy / d;
+    if (!g_ci_force_fn)
+        g_ci_force_fn = (CiForceFn)GetProcAddress(g_orig, "b2_Body_ApplyForce");
+    if (!g_ci_wake_fn)
+        g_ci_wake_fn = (CiVoidFn)GetProcAddress(g_orig, "b2_Body_WakeUp");
+    if (g_ci_mode) {
+        vdes = d * 4.0f;
+        if (vdes < 2.0f) vdes = 2.0f;
+        if (vdes > g_ci_maxspeed) vdes = g_ci_maxspeed;
+        if (d < g_ci_done) vdes = 0.0f;
+        if (g_ci_wake_fn) g_ci_wake_fn(body);
+        *(float*)(b + 68) = ux * vdes;
+        *(float*)(b + 72) = uy * vdes;
+        if (g_ci_trace != INVALID_HANDLE_VALUE) {
+            n = sprintf(buf, "seq=%u p=%.4f,%.4f vset=%.4f,%.4f d=%.4f mode=v\r\n",
+                        (unsigned)g_count, px, py, ux * vdes, uy * vdes, d);
+            if (n > 0) {
+                DWORD written = 0;
+                WriteFile(g_ci_trace, buf, (DWORD)n, &written, NULL);
+            }
+        }
+        return;
+    }
+    vdes = d * 2.0f;
+    if (vdes < 1.5f) vdes = 1.5f;
+    if (vdes > g_ci_maxspeed) vdes = g_ci_maxspeed;
+    fx = (ux * vdes - vx) * g_ci_gain;
+    fy = (uy * vdes - vy) * g_ci_gain;
+    mag = (float)sqrt((double)(fx * fx + fy * fy));
+    if (mag > g_ci_force) {
+        fx *= g_ci_force / mag;
+        fy *= g_ci_force / mag;
+    }
+    if (g_ci_wake_fn) g_ci_wake_fn(body);
+    if (g_ci_force_fn) {
+        f[0] = fx;
+        f[1] = fy;
+        p[0] = px;
+        p[1] = py;
+        g_ci_force_fn(body, f, p);
+    }
+    if (g_ci_trace != INVALID_HANDLE_VALUE) {
+        n = sprintf(buf, "seq=%u p=%.4f,%.4f v=%.4f,%.4f d=%.4f vdes=%.4f f=%.4f,%.4f\r\n",
+                    (unsigned)g_count, px, py, vx, vy, d, vdes, fx, fy);
+        if (n > 0) {
+            DWORD written = 0;
+            WriteFile(g_ci_trace, buf, (DWORD)n, &written, NULL);
+        }
+    }
+}
+
 /* cdecl( unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx ) */
 void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
     if (g_in) { g_next_skip = 1; return; }
     if (id == 0 || (int)id >= g_n_exports) return;
+    if (id == g_id_step) CiApply();
 
     FARPROC fn = g_slot[id];
     if (!fn) {
@@ -169,6 +307,7 @@ void __cdecl log_call(unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx) {
             memcpy(r.m2, (const void*)(uintptr_t)r.args[2], MEM_DUMP);
         r.seq = (uint32_t)InterlockedIncrement(&g_count);
         if (!g_light) Emit(&r, (DWORD)sizeof r);
+        if (id == 1) TraceForceCaller(esp0, r.args[0], r.m1);
     }
     g_in = 0;
 }
@@ -374,7 +513,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         char orig[MAX_PATH];
         char log[MAX_PATH];
         char live[16];
-        DWORD n;
+        char trace[MAX_PATH];
+        char ci[256];
+        DWORD n, tn;
         int i;
 
         CrashLogInstallFromEnv();   /* 默认零成本；CRASHLOG_DIR/CRASHLOG_LOG 才启用 */
@@ -410,6 +551,33 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         n = GetEnvironmentVariableA("B2PROXY_LOG", log, MAX_PATH);
         g_live = GetEnvironmentVariableA("B2PROXY_LIVE", live, sizeof(live)) > 0;
         g_light = GetEnvironmentVariableA("B2PROXY_LIGHT", live, sizeof(live)) > 0;
+        tn = GetEnvironmentVariableA("B2PROXY_TRACE", trace, MAX_PATH);
+        if (tn > 0 && tn < MAX_PATH)
+            g_trace = CreateFileA(trace, FILE_APPEND_DATA,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                                  OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (GetEnvironmentVariableA("B2CI_INDEX", ci, sizeof(ci)) > 0) {
+            g_ci_index = atoi(ci);
+            if (GetEnvironmentVariableA("B2CI_TARGET", ci, sizeof(ci)) > 0) {
+                if (sscanf(ci, "%f,%f", &g_ci_tx, &g_ci_ty) == 2)
+                    g_ci_armed = 1;
+            }
+            if (GetEnvironmentVariableA("B2CI_MAXSPEED", ci, sizeof(ci)) > 0)
+                g_ci_maxspeed = (float)atof(ci);
+            if (GetEnvironmentVariableA("B2CI_GAIN", ci, sizeof(ci)) > 0)
+                g_ci_gain = (float)atof(ci);
+            if (GetEnvironmentVariableA("B2CI_FORCE", ci, sizeof(ci)) > 0)
+                g_ci_force = (float)atof(ci);
+            if (GetEnvironmentVariableA("B2CI_DONE", ci, sizeof(ci)) > 0)
+                g_ci_done = (float)atof(ci);
+            if (GetEnvironmentVariableA("B2CI_MODE", ci, sizeof(ci)) > 0)
+                g_ci_mode = (ci[0] == 'v' || ci[0] == 'V' || atoi(ci) == 1);
+            if (GetEnvironmentVariableA("B2CI_TRACE", ci, sizeof(ci)) > 0)
+                g_ci_trace = CreateFileA(ci, FILE_APPEND_DATA,
+                                         FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                                         OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        }
+        GetEnvironmentVariableA("B2CI_CONFIG", g_ci_cfg, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(log, self, "b2ffi.log");
         g_file = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ, NULL,
                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -430,6 +598,16 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             Emit(&hdr, sizeof hdr);
         }
     } else if (reason == DLL_PROCESS_DETACH) {
+        if (g_ci_trace != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(g_ci_trace);
+            CloseHandle(g_ci_trace);
+            g_ci_trace = INVALID_HANDLE_VALUE;
+        }
+        if (g_trace != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(g_trace);
+            CloseHandle(g_trace);
+            g_trace = INVALID_HANDLE_VALUE;
+        }
         if (g_file != INVALID_HANDLE_VALUE) {
             OutFlush();
             FlushFileBuffers(g_file);

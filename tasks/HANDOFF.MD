@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 T6.4a-r-2f level 4 动态项与 **T6.4b level 1 拖拽首段**；此前 10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F381**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 **CI mover 两段通关**；此前 10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F384**。
 
 ## 0. 一句话现状
 
@@ -89,6 +89,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2f0 摆臂 settle（F374）**：摆臂静止位姿是确定规则——body = init + 0.5（关节限位）、位置 = 锚点 + R(body)·(0,1.6)、sprite = body−π/2；level 2 整帧 **47/47**（宿主自身日志 193/193），level 4 的 `sw_arm2` dbbox=0.016 PASS（整帧只剩 `gear_7` 的电机相位差 0.829）。`scene_from_lua.build` 与 `scenemodel.pas` 都在构建末尾应用；`--no-arm-settle` 是工具负例。下一刀：level 4 齿轮相位（电机 9/5）与 level 3/4 的 plunger/shank/train/smoke。
 - **2026-11-02 T6.4b 拖拽首段（F380/F381）**：`work/drag_lvl1.py`（分阶段 CLI）+ `work/drag_shot.py`（截图标注刚体/目标/轨迹）用实时 b2 digest 做闭环；level 1 螺母→左箱 d=0.166、刷新 gear→右箱 d=0.197，出现 **“Level completed!”**。关键标定：客户区 1527×1108 @ (516,183)（1.5× DPI）、视口 ±28.2395/±20.5、**屏幕 y 与 GL y 反向**；磁铁需按住左键。b2 代理新增 `B2PROXY_LIVE`/`B2PROXY_LIGHT`。下一步：宿主重放 + `b2_sites compare`。
+- **2026-11-02 磁铁机制 + CI mover 首跑（F382–F384）**：按下金属体 → `TPlayerObject+0x14`=目标、`+0x10`=1、`TMouseCur+0x40/+0x44`=光标世界；每帧 0x57A000→0x58E5A0→0x58E4A0，力 `min(315/d,30)` 沿 mouse−target（常数 10.5/315/30），经 target VMT +0xD4。`Add_Magnet` 是 TPhysicObject 工厂，不是玩家磁铁。CI 代理 `B2CI_*` 力伺服能推动 body #4，但直线路径被箱体挡住（22.34→17.11），未到目标；下一步 waypoint/施力点。
+- **2026-11-02 CI mover 两段通关（F384）**：`B2CI_CONFIG` 热切换 + `B2CI_MODE=velocity`（max 20）在 level 1 两段到达目标（螺母 d=0.073、齿轮 d=0.176），出现 **“Excellent! Level completed!”** 对话；`start` 在 level state 后等 0.8 s 并复查 `[lm+0x30]/[lm+4]/[lm+8]/app16` 再 arm。负例：不等待时完成态退回主菜单。全程无鼠标。
 
 - **2026-11-02 T6.4a-r-2f1 level 4 齿轮相位（F375）**：模型速度 gear_7/gear_1/gear_3 = 3.0/9.0/5.0；三只齿轮反推的 `t (mod π/w)` 唯一公共解 **0.689 s**。`HOST_LEVEL_TIME=0.689` 的宿主整帧（忽略 plunger/shank/smoke 与隐藏提示）**37/37 零差**；负例 t=0.4 ⇒ gear_7 失配 1.219。下一刀：level 3 的 train/smoke 与 level 4 的 plunger/shank/smoke。
 
