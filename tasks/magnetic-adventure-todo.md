@@ -92,7 +92,8 @@
 - [x] T6.4a-r-2f0 摆臂 settle 规则（init+0.5 + 锚点半径 1.6；level 2 47/47、level 4 arm2 PASS） 依据：F374
 - [x] T6.4a-r-2f1 level 4 齿轮相位（t=0.689，37/37 零差） 依据：F375
 - [x] T6.4a-r-2g 5 关静态渲染覆盖（25/29/47/53/37 全零差；宿主自身日志） 依据：F376
-- [ ] T6.4a-r-2f level 3 train/smoke 与 level 4 plunger/shank/smoke（物理位姿/动画帧） 依据：F376
+- [ ] T6.4a-r-2f2 level 3 train/smoke：逐帧 `DoProgress(DeltaTime)` + `Set_ScrObjPos` 路径 依据：F377
+- [ ] T6.4a-r-2f level 4 plunger/shank（几何连杆/物理位姿）与 smoke 动画帧 依据：F376
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355
