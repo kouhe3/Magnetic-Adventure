@@ -36,7 +36,7 @@ type
     function BuildIntroduction: Boolean;
     // 从 SceneModel 的图元列表建场景（T6.4a-r-2d）：世界坐标 + 相机来自模型，
     // HUD 按钮走设计空间，末尾补 mbtn/dot 引擎常量（与 BuildIntroduction 一致）。
-    function BuildFromModel(const JsonlPath, PakDir: string): Boolean;
+    function BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
   end;
@@ -150,7 +150,7 @@ begin
   FLog := FLog + 'sprites=' + IntToStr(FSprites) + #13#10;
 end;
 
-function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string): Boolean;
+function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;
 const
   HUD_W = 509.0;   // 设计空间半宽（F188）
   HUD_H = 369.5;   // 设计空间半高
@@ -164,6 +164,8 @@ begin
   M := TSceneModel.Create;
   try
     if not M.BuildFromJsonl(JsonlPath, PakDir) then Exit;
+    if Time <> 0.0 then
+      M.ApplyTime(Time);  // 齿轮：sprite 角 = init + w·t（F372/F373）
     FCamera.Position.SetPoint(M.CamX, M.CamY, 10);
     // 背景 = 两个半屏 NDC quad（back_N1 上、back_N2 下），与 Python
     // scene_draws 的常量一致：中心 (0,±0.5)、size 2×1。

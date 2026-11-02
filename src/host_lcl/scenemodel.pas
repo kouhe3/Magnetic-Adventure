@@ -502,7 +502,7 @@ begin
           O.Asset := METAL_GEAR_ASSET[Style];
           O.X := NumArg(Args, 1);
           O.Y := NumArg(Args, 2);
-          O.Angle := NumArg(Args, 3);
+          O.Angle := NumArg(Args, 3) + Pi;
           O.W := METAL_GEAR_SIDE[Style];
           O.H := METAL_GEAR_SIDE[Style];
           O.Alpha := 1.0;
@@ -534,7 +534,7 @@ begin
           O.Asset := WOOD_GEAR_ASSET[Style];
           O.X := NumArg(Args, 1);
           O.Y := NumArg(Args, 2);
-          O.Angle := NumArg(Args, 3);
+          O.Angle := NumArg(Args, 3) + Pi;
           O.W := WOOD_GEAR_SIDE[Style];
           O.H := WOOD_GEAR_SIDE[Style];
           O.Alpha := 1.0;

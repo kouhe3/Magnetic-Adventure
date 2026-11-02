@@ -203,15 +203,18 @@ def build(calls, pak_dir=""):
             table = METAL_SCREW if fn == "Add_MetallScrew" else METAL_GEAR
             hit = table.get(int(style))
             if hit:
+                # 齿轮的 sprite 局部旋转是 π（F373：同 style 的静态关 = ±π；level 0
+                # 用 +π 后三只齿轮的相位与零售逐位吻合）；螺丝的偏移是 0。
+                off = 0.0 if fn == "Add_MetallScrew" else math.pi
                 add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
-                     "angle": float(ang), "w": hit[1], "h": hit[1],
+                     "angle": float(ang) + off, "w": hit[1], "h": hit[1],
                      "root": int(parent)}, ret)
         elif fn == "Add_WoodGear" and len(args) >= 5:
             parent, x, y, ang, style = args[:5]
             hit = WOOD_GEAR.get(int(style))
             if hit:
                 add({"kind": fn, "asset": hit[0], "x": float(x), "y": float(y),
-                     "angle": float(ang), "w": hit[1], "h": hit[1],
+                     "angle": float(ang) + math.pi, "w": hit[1], "h": hit[1],
                      "root": int(parent)}, ret)
         elif fn == "Add_JointNail" and len(args) >= 5:
             add({"kind": fn, "asset": "nail_2.png",

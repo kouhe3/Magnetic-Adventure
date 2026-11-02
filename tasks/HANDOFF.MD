@@ -85,6 +85,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2e1 齿轮速度移植（F372）**：`scenemodel.pas` 解析 `Add_JointNail`/`Set_JointMotors`/`Add_JointSimpleGear`，按 `w_child=-w_parent/ratio` 传播并暴露 `ApplyTime(t)`；CLI `[time]` 选项打印速度。level 0 得 `1.7000/−1.2750/1.5300`（=F368）。**绝对相位未归因**：由驱动轮反推 t 后 gear_7/gear_3 的 sprite 角差 0.785/0.314 rad，存在 per-style sprite 偏移或电机前沉降，需单独测。
 
+- **2026-11-02 T6.4a-r-2e 齿轮相位（F373）**：齿轮 sprite 相对 body 的局部旋转是 **π**（螺丝为 0）；加 π 后 level 0 的驱动轮 `t=1.490`，gear_7/gear_3 的预测与零售逐位吻合。`HOST_LEVEL_TIME` 接进 `BuildFromModel`→`ApplyTime`，宿主 level 0（自身 Lua 日志 55/55）`pairs=25 mismatches=0`；负例 t=1.952/0.5 失配。方形齿轮 bbox 对 90° 倍数不敏感，负例取 ~45° 偏移。下一刀：摆臂 settle 与 level 3/4 动态项。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

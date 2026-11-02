@@ -803,7 +803,8 @@ begin
       // T6.4a-r-2d：从 SceneModel 的图元列表建场景（相机由模型里的
       // Set_CameraPosition 提供）；HOST_PAK_DIR 只用于素材名回退。
       if not Level.BuildFromModel(EnvStr('HOST_LEVEL_MODEL'),
-        EnvStr('HOST_PAK_DIR')) then
+        EnvStr('HOST_PAK_DIR'),
+        StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0)) then
         WriteLn(StdErr, 'level model failed: ', EnvStr('HOST_LEVEL_MODEL'));
     end
     else

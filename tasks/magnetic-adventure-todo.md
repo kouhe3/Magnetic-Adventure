@@ -88,7 +88,8 @@
 - [x] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器（`HOST_LEVEL_MODEL`；level 1 逐 draw 29/29 零差） 依据：F369、F370
 - [x] T6.4a-r-2e0 宿主自产 Lua 日志驱动渲染（level 1：149/149 绑定、29/29 draw） 依据：F371
 - [x] T6.4a-r-2e1 齿轮速度移植（SceneModel 传播 `w_child=-w_parent/ratio`；1.7000/−1.2750/1.5300） 依据：F372
-- [ ] T6.4a-r-2e 动画相位：per-style sprite 偏移 / 宿主 `HOST_LEVEL_TIME` + 摆臂 settle、level 3/4 动态项 依据：F372
+- [x] T6.4a-r-2e 齿轮绝对相位：π sprite 偏移 + `HOST_LEVEL_TIME`（level 0 25/25） 依据：F373
+- [ ] T6.4a-r-2f 摆臂 settle 与 level 3/4 动态项（train/smoke/plunger/shank） 依据：F370、F373
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355
