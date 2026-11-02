@@ -79,6 +79,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2d0 Pascal 场景模型（F369）**：新增 `src/host_lcl/scenemodel.pas`（绑定 JSONL→图元列表，语义照 `tools/scene_from_lua.py` 的 `build()`：相机偏移、`Set_ScrObjPos` 句柄回放、HUD 设计空间、摆臂锚点、WoodBox/PushButton/BarDoor/SwitchArm style 2、引擎材质名回退）+ `scenemodel_cli.pas`（FPC 2.2.4 控制台）+ `tools/scenemodel_ab.py`。5 关 objects=15/21/37/45/33、相机一致、`mismatches=0`；负例跨关 16 处。宿主**尚未**把它接进渲染路径（仍走硬编码 `levelscene.pas`）。
 
+- **2026-11-02 T6.4a-r-2d 接渲染路径（F370）**：宿主 `HOST_LEVEL_RENDER=1 HOST_LEVEL_MODEL=<binding.jsonl>` 用 `SceneModel` 建关卡场景（世界/HUD sprite、背景 `back_N1/2`、mbtn/dot 常量、相机取模型；HUD 映射 `X=x+509−w/2, Y=y+369.5−h/2`）。level 1 与零售 frame 1060 `pairs=29 mismatches=0`；负例（level 2 模型）`mismatches=4`；无 MODEL 的硬编码 Introduction 仍 `sprites=25`。数据源仍是探针 JSONL；下一刀接宿主自身 Lua 日志 + 动画相位。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

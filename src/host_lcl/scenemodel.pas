@@ -42,6 +42,7 @@ type
   TSceneModel = class
   private
     FObjects: array of TSceneObj;
+    FBacks: array of record Top, Bottom: string; end;
     FCamX, FCamY: Double;
     function AddObject(const O: TSceneObj): Integer;
     function FindHandle(H: Integer): Integer;
@@ -50,6 +51,9 @@ type
     function BuildFromJsonl(const FileName, PakDir: string): Boolean;
     function SaveJsonl(const FileName: string): Boolean;
     function Count: Integer;
+    function ObjectAt(Index: Integer): TSceneObj;
+    function BackCount: Integer;
+    procedure BackAt(Index: Integer; out Top, Bottom: string);
     property CamX: Double read FCamX;
     property CamY: Double read FCamY;
   end;
@@ -224,10 +228,44 @@ begin
 end;
 
 { ---------- TSceneModel ---------- }
+function TSceneModel.BackCount: Integer;
+begin
+  Result := Length(FBacks);
+end;
+
+procedure TSceneModel.BackAt(Index: Integer; out Top, Bottom: string);
+begin
+  Top := '';
+  Bottom := '';
+  if (Index >= 0) and (Index < Length(FBacks)) then
+  begin
+    Top := FBacks[Index].Top;
+    Bottom := FBacks[Index].Bottom;
+  end;
+end;
+
+procedure InitObj(out O: TSceneObj);
+begin
+  O.Kind := '';
+  O.Asset := '';
+  O.X := 0.0;
+  O.Y := 0.0;
+  O.Angle := 0.0;
+  O.W := 0.0;
+  O.H := 0.0;
+  O.Alpha := 1.0;
+  O.Space := 0;
+  O.Root := 0;
+  O.Handle := 0;
+  O.HasPivot := False;
+  O.PivotX := 0.0;
+  O.PivotY := 0.0;
+end;
 
 procedure TSceneModel.Clear;
 begin
   SetLength(FObjects, 0);
+  SetLength(FBacks, 0);
   FCamX := 0.0;
   FCamY := 0.0;
 end;
@@ -235,6 +273,14 @@ end;
 function TSceneModel.Count: Integer;
 begin
   Result := Length(FObjects);
+end;
+
+function TSceneModel.ObjectAt(Index: Integer): TSceneObj;
+begin
+  if (Index >= 0) and (Index < Length(FObjects)) then
+    Result := FObjects[Index]
+  else
+    InitObj(Result);
 end;
 
 function TSceneModel.AddObject(const O: TSceneObj): Integer;
@@ -256,23 +302,7 @@ begin
       Exit(i);
 end;
 
-procedure InitObj(out O: TSceneObj);
-begin
-  O.Kind := '';
-  O.Asset := '';
-  O.X := 0.0;
-  O.Y := 0.0;
-  O.Angle := 0.0;
-  O.W := 0.0;
-  O.H := 0.0;
-  O.Alpha := 1.0;
-  O.Space := 0;
-  O.Root := 0;
-  O.Handle := 0;
-  O.HasPivot := False;
-  O.PivotX := 0.0;
-  O.PivotY := 0.0;
-end;
+
 
 function TSceneModel.BuildFromJsonl(const FileName, PakDir: string): Boolean;
 var
@@ -360,6 +390,13 @@ begin
         Asset := StrArg(Args, 0);
         if (Alias <> '') and (Asset <> '') then
           Materials.Values[Alias] := Asset;
+      end
+      else if Name = 'Set_BackMaterial' then
+      begin
+        i := Length(FBacks);
+        SetLength(FBacks, i + 1);
+        FBacks[i].Top := StrArg(Args, 0) + '1.jpg';
+        FBacks[i].Bottom := StrArg(Args, 0) + '2.jpg';
       end
       else if Name = 'Add_GraphSprite' then
       begin

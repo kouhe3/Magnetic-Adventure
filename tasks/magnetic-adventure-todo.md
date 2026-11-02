@@ -85,7 +85,8 @@
 - [x] T6.4a-r-2c7 扩关 level 3/4：WoodBox/PushButton+平台/BarDoor/SwitchArm style 2（静态 53/53、37/37；动态项单列） 依据：F367
 - [x] T6.4a-r-2c8 齿轮动画机制：`w_child=-w_parent/ratio`（level 0 实测 1.699/-1.275/1.530；level 1/2 静态） 依据：F368
 - [x] T6.4a-r-2d0 Pascal 场景模型（`src/host_lcl/scenemodel.pas` + CLI）：5 关与 Python 逐对象一致（15/21/37/45/33） 依据：F369
-- [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
+- [x] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器（`HOST_LEVEL_MODEL`；level 1 逐 draw 29/29 零差） 依据：F369、F370
+- [ ] T6.4a-r-2e 宿主自身 Lua 日志 → SceneModel + 动画相位（level 0 齿轮 `w·t`、level 2 摆臂、level 3/4 动态项） 依据：F368、F370
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355

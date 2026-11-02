@@ -797,11 +797,22 @@ begin
   S.Objects.AddChild(Cam);
   if PakOpened and LevelMode then
   begin
-    // T6.4a：Introduction 的相机与场景。draw 列表坐标是相机相对量；
-    // 相机放在原版 Set_CameraPosition(-3,3) 的位置即可。
-    Cam.Position.SetPoint(-3, 3, 10);
     Level := TLevelScene.Create(S, Pak, Cam);
-    Level.BuildIntroduction;
+    if EnvStr('HOST_LEVEL_MODEL') <> '' then
+    begin
+      // T6.4a-r-2d：从 SceneModel 的图元列表建场景（相机由模型里的
+      // Set_CameraPosition 提供）；HOST_PAK_DIR 只用于素材名回退。
+      if not Level.BuildFromModel(EnvStr('HOST_LEVEL_MODEL'),
+        EnvStr('HOST_PAK_DIR')) then
+        WriteLn(StdErr, 'level model failed: ', EnvStr('HOST_LEVEL_MODEL'));
+    end
+    else
+    begin
+      // T6.4a：Introduction 的相机与场景。draw 列表坐标是相机相对量；
+      // 相机放在原版 Set_CameraPosition(-3,3) 的位置即可。
+      Cam.Position.SetPoint(-3, 3, 10);
+      Level.BuildIntroduction;
+    end;
     AssignFile(tf, ExePath('level_init.log'));
     Rewrite(tf);
     WriteLn(tf, 'sprites=', Level.Sprites);

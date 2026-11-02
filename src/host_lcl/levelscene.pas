@@ -17,7 +17,7 @@ interface
 
 uses Classes, SysUtils, Math, GLScene, GLObjects, GLHUDObjects, GLTexture,
   GLMaterial, GLGraphics, GLTextureFormat, GLRenderContextInfo, OpenGL1x,
-  MenuScene, PakFile;
+  MenuScene, PakFile, SceneModel;
 
 type
   TLevelScene = class
@@ -34,6 +34,9 @@ type
   public
     constructor Create(Scene: TGLScene; Pak: TPakFile; Camera: TGLCamera);
     function BuildIntroduction: Boolean;
+    // 从 SceneModel 的图元列表建场景（T6.4a-r-2d）：世界坐标 + 相机来自模型，
+    // HUD 按钮走设计空间，末尾补 mbtn/dot 引擎常量（与 BuildIntroduction 一致）。
+    function BuildFromModel(const JsonlPath, PakDir: string): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
   end;
@@ -145,6 +148,51 @@ begin
   if not AddHiddenDots(10) then Exit;
   Result := True;
   FLog := FLog + 'sprites=' + IntToStr(FSprites) + #13#10;
+end;
+
+function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string): Boolean;
+const
+  HUD_W = 509.0;   // 设计空间半宽（F188）
+  HUD_H = 369.5;   // 设计空间半高
+var
+  M: TSceneModel;
+  i: Integer;
+  O: TSceneObj;
+  Top, Bot: string;
+begin
+  Result := False;
+  M := TSceneModel.Create;
+  try
+    if not M.BuildFromJsonl(JsonlPath, PakDir) then Exit;
+    FCamera.Position.SetPoint(M.CamX, M.CamY, 10);
+    // 背景 = 两个半屏 NDC quad（back_N1 上、back_N2 下），与 Python
+    // scene_draws 的常量一致：中心 (0,±0.5)、size 2×1。
+    for i := 0 to M.BackCount - 1 do
+    begin
+      M.BackAt(i, Top, Bot);
+      if not AddHud(Top, 0, 0, 1018, 369.5, 1) then Exit;
+      if not AddHud(Bot, 0, 369.5, 1018, 369.5, 1) then Exit;
+    end;
+    for i := 0 to M.Count - 1 do
+    begin
+      O := M.ObjectAt(i);
+      if O.Space = 1 then
+      begin
+        // SceneModel 的 HUD 坐标是**中心**（设计像素，y 向下）；AddHud 收左上角。
+        if not AddHud(O.Asset, O.X + HUD_W - O.W * 0.5,
+          O.Y + HUD_H - O.H * 0.5, O.W, O.H, O.Alpha) then Exit;
+      end
+      else if not AddWorld(O.Asset, O.X, O.Y, O.Angle, O.W * 0.5, O.H * 0.5,
+        O.Alpha) then Exit;
+    end;
+    if not AddHud('mbtn_1.png', 921.5, -40.5, 127, 129, 1) then Exit;
+    if not AddHud('mbtn_2.png', 921.5, -40.5, 127, 129, 0) then Exit;
+    if not AddHiddenDots(10) then Exit;
+    Result := True;
+    FLog := FLog + 'model=' + JsonlPath + ' sprites=' + IntToStr(FSprites) + #13#10;
+  finally
+    M.Free;
+  end;
 end;
 
 end.
