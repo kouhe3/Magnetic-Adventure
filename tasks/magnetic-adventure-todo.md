@@ -1,5 +1,7 @@
 # TODO — Magnetic Adventure 复刻
 
+> 当前队列（2026-11-02 裁决）：T6.4a ✅ → T6.4b/c/d/e/f → T6.5；T6.4a-r（通用化/动画/其他关卡）与 b/d 并行；T7.2 作工作台并行，T7.3/T7.5 等 T6.4b/d 就绪。依据：`tasks/magnetic-adventure-plan.md` 变更记录 2026-11-02。
+
 ## M0/M1 资源与规格
 
 - [x] T0.1 pak 记录字段规格（动态断点） 依据：F05、F13
@@ -64,9 +66,10 @@
 - [x] T6.2 场景/渲染 + 菜单层（21/21 draw 零差） 依据：F225–F231
 - [ ] T6.3 Lua 144 绑定 + 事件 + 真实物理（a0–a2/b1/b2 已完成） 依据：F239–F243、F273、F274、F276
 - [x] T6.3c 真实物理接触：world + 14 个对象 body/shape → joint → `OnAddContact` 依据：F276、F277（oracle：The Teleport 14/14 建体逐项对齐，20 个 shape 常量已读出；剩项（真实玩法输入/力驱动）已归 T6.4）
-- [ ] T6.3d 工厂覆盖扩展（52 关扫描：**45 PASS** / 5 MISMATCH / 2 SKIP） 依据：F283–F290（`tools/phys_sweep.py` 已默认无头 `HOST_HEADLESS=1`，52 关 9.6 s；`Add_Rope` 10 关 + HammerParts 双 body 已接；剩：视觉角度/父图局部坐标 3 关、录制不可用 1 关、Looking for Keys 待归因）
+- [x] T6.3d 工厂覆盖扩展（52 关扫描：**50 PASS / 2 SKIP / 0 MISMATCH**，F336） 依据：F283–F290、F333–F336（`tools/phys_sweep.py` 已默认无头 `HOST_HEADLESS=1`，52 关 12.5 s；`Add_Rope` 10 关 + HammerParts 双 body 已接；`Good Shot!` 重录 + `Add_Ball` 已接；13/51 为 shared SKIP）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入） 依据：F204、F213
-- [ ] T6.4a 关卡渲染：场景模型 + 逐 draw 对拍（新仪器 `level_draw_ab`） 依据：F179、F181、F182、F231（判据：`mismatches=0`）
+- [x] T6.4a 关卡渲染：Introduction frame 9600 逐 draw **25/25 mismatches=0**；仪器 `level_draw_ab` 自证 A/A/负例；内存判 MENU 依据：F337–F340（菜单回归 21/21，`verify` 7/7，`phys_sweep` 50/2/0）
+- [ ] T6.4a-r 关卡场景通用化：Lua→场景生成、齿轮/提示动画、其他关卡 依据：F339、F340（第一关瞬时态已过；先做生成器）
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
