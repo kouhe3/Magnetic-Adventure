@@ -65,6 +65,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 私有桌面隔离（F346）**：`work/probe_vdesk.py` 用 `CreateDesktop`+`CreateProcess(lpDesktop)` 在 `MagVDesk_<pid>` 上跑 `game.exe`；t≈16 s 到 MENU，窗口线程直接 `sub_560880(app,299)` ⇒ `[lm+0x30]` 2→1、`[lm+8]=1`。两次独立运行都是 b2 日志 8,388,548 B / `CreateWorld 1 / CreateBody 8 / DestroyBody 0 / 1,266 steps`；用户前台窗口不变，用户光标移动 5 次期间隐藏光标 0 次变化。⇒ 批量采关可以跑在私有桌面，不抢前台、不需要鼠标。边界：无像素/音频验收，游戏仍占 CPU/GPU。
 
+- **2026-11-02 `tools/direct_drive.py` + 静音（F347/F348）**：私有桌面 + 连续 `sub_560880(app,299+index)`，判据 `[lm+0x30]=1/[lm+4]=index/[lm+0x50]!=0/[lm+8]=1`；`--levels 0,1,2` 各 200 ms、fail=0，负例 `99` 启动前 exit 2。游戏把 SOUND/MUSIC 音量持久化在 active `<Player>`（用户改成 0/0，624→616 B；`KKK` 100/100 不变）；工具只读不写存档，并用 `nircmd muteappvolume game.exe 1` 兜底。CABLE 留给音频验收。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
