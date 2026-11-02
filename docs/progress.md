@@ -111,6 +111,7 @@
 | 无头模式 | 不建窗/不建 GL，只跑 pak+Lua+物理 | `HOST_HEADLESS=1`（F290） |
 | 物理自检/诊断输入 | 建体、步进、瞬移驱动接触 | `HOST_PHYS`、`HOST_PHYS_STEPS`、`HOST_PHYS_MOVE`（F276–F281） |
 | Lua 自检/事件注入 | 52 关绑定回归、`OnAddContact` 派发 | `HOST_LUA_SELFTEST`、`HOST_LUA_LEVEL`、`HOST_LUA_FIRE`、`HOST_LUA_LOG`（F242、F273） |
+| 随机序列回放 | 随机关卡的 init 对拍（复现 retail 的 `math.random`） | `HOST_LUA_RANDOM`（F334；`mapping/phys_random.csv`） |
 | 渲染/纹理判据 | 自读帧、上传 CRC、绘制 dump | `HOST_DUMP_FRAME`、`HOST_TEX_SELFTEST`、`HOST_TEX_CRC`、`HOST_DRAW_DUMP`（F185、F230） |
 | `src/objlog` | 进程内记录 65 个工厂调用点 | 注入（F270） |
 | `b2Physics` / `opengl32` / `Squall` 代理 | 调用序列抓包 | 文件替换 + `B2PROXY_LOG`/`GLPROXY_LOG`/`SQUALL_LOG`（F138、F176） |
@@ -121,7 +122,7 @@
 
 ## 4.1 仪器纪律：全量前先抽样（2026-11-01）
 
-代价公式：一次全量（52 关 ≈ 9 min、或 52 关物理 sweep 9.6 s）之前，先在 **3 关/30 s** 的样本上验证仪器**产出的形状**：
+代价公式：一次全量（52 关 ≈ 9 min、或 52 关物理 sweep 11.3 s）之前，先在 **3 关/30 s** 的样本上验证仪器**产出的形状**：
 
 1. 每一步都在 timeout 内落到目标状态（四步 ok）；
 2. 每关的产出**非空且随关卡变化**（如 `delta_calls > 0`、`union_hits.csv` 有新增行）；
@@ -132,9 +133,9 @@
 ## 5. 判定入口汇总（改判据先改这里）
 
 ```bash
-python tools/verify.py                     # 6 门禁（exports×2 / window / squall×2 / physics 抽样）
+python tools/verify.py                     # 7 门禁（exports×2 / window / squall×2 / physics 抽样 / b2:contract）
 python tools/verify.py --full              # 追加 52 关全量重放并重生成 docs/levels.md
-python tools/phys_sweep.py                 # 52 关物理 init（无头，9.6 s）
+python tools/phys_sweep.py                 # 52 关物理 init（无头，11.3 s）
 python tools/code_match.py funcs bin/gametop/game.exe build/host_lcl/magnet.exe
 python work/ht/run.py --runs 2000          # T7.2a 形态：进程内逐函数 A/B
 ```

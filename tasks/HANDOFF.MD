@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot、五批叶子/带 call 对拍与第五批残差闭环；台账到 **F332**）。`work` 分支；未提交改动只有本文；台账到 **F332**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot、五批叶子/带 call 对拍、第五批残差闭环与 **T6.3d 收口 49 PASS / 3 SKIP / 0 MISMATCH**；台账到 **F335**）。`work` 分支；台账到 **F335**。
 
 ## 0. 一句话现状
 
@@ -17,7 +17,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 **本轮新增一条主线（2026-10-30 晚，L2-B 工具链考古）**：`requirements.md` 里「整 exe 字节级 = 明确不做」的否决理由（F01 说是 Delphi/VCL ⇒ 跨语言不可达）**前提已被证伪**——原版是 **FPC 2.2.4 [2009/12/27] + LCL 0.9.28.3 + GLScene(LCL 分支)**（F202），同语言同编译器，工具链公开可得。现在已经量到的：LCL 可自编且局部 **98.9% 逐位相同**（F206）、`.text` 在 **`0x521000`** 有断崖分界（F204）、GLScene 世系夹到 **v1.1 / trunk r5000**、11 个单元 1,043 个函数只剩 **12 个（2,448 B）sim<0.95** 且已证是原版本地补丁（F211–F213，逐单元百分比以 §0.1 为准）、宿主自有代码 **≤390 KB / 约 400–700 个函数**。**但 `requirements.md` 那行还没改**（要一个显式决定，见 §11）。
 
-台账 **332 条**（F001–F332，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
+台账 **335 条**（F001–F335，无缺号，只增不减）。**T7.0 已完成（F244–F248）**：FPC 2.2.4 的 `GetMem/FreeMem` 不是进程堆直通（F235 的"进程堆直通/无私有块头"推论已证伪）；默认 RTL 下跨模块双向 10 万次交叉分配/释放都在首 5000 次内崩/挂；装宿主 `TMemoryManager`+`TMemoryMutexManager` 后在真宿主主线程上 A/B 10 万 + 交叉 realloc 2 万 PASS；跨模块异常两向都不可捕获。
 
 - **2026-11-01 T6.3d 起点（F283/F284）**：新仪器 `tools/phys_sweep.py` 把 52 关物理 init 一次扫完（46.9 s）⇒ **5 PASS / 45 MISMATCH / 2 SKIP**（PASS = Introduction、Let's Get Acquainted、The Old Clock、Oscilloscope、The Teleport；SKIP = 两个与 Introduction 共用录制的对话关）；`b2_sites.py compare` 增 `--stop-at-step`（只比首次 `b2_World_Step` 之前的调用）。首修 `Add_SimplePhysCircle` 的 arg2/arg3 语义——是密度/弹性，不是角度（F283）⇒ The Old Clock 归零。下一步队列按「录制 body 数量差」排：`Add_GraphSprite`(49 关) → `Add_Key`/`Add_Lock`/`Add_BarDoor`(24–26 关) → `Add_WoodFormWall`(17) → `Add_Rope`(10，单次 ~12 body)。
 
@@ -51,6 +51,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 第五批带 call 10 个（F331）**：`work/pilot/callers3.pas` ⇒ **5/10 masked-equal**，累计带 call **25/30**。exact = 4 个 TSoundManager Stop/Pause（Char 守卫 + cdecl）+ TLevelMenu 四参 setter。TJointObjectList 五个同形函数只差参数求值顺序（target 先取 FField 到 ECX 再装全局到 EDX；FPC 2.2.4 反过来），重定位目标全匹配。
 - **2026-11-02 第五批残差闭环（F332）**：`work/pilot/callers4.pas` 把五个 TJointObjectList 包装的第二实参写成 retail 数值地址常量（`Pointer($647AC4)` 等）⇒ **5/5 masked-equal，累计带 call 30/30**。机制：同一编译器下数值常量的装载顺序与 retail 一致，`@G` 符号地址则相反；`$647AC4→$647AC8` 负例在 offset 0x10 被拒。⇒ 残差不要求 2009/12/27 编译器；retail 源码 token 仍未定。
+- **2026-11-02 T6.3d 收口（F333–F335）**：① `Local_ToWorld`/`World_ToLocal` 由 `(id,0)` 桩改为 body 平移+旋转；Burned Out（5）PASS。② 28/36/42 的 xform/joint 残差是 **RNG 状态**，不是视觉角度/父图局部坐标：`HOST_LUA_RANDOM` 回放录制反推的 `math.random` 返回值 + `mapping/phys_random.csv`，36/42 在 1e-6、28 在 5e-6 下三关 0 差。③ `Good Shot!`（9）的 `rec_20261029_134716` 从关卡中途开始（首 step 前 4 bodies vs 宿主 15）⇒ `mapping/phys_skip.csv` SKIP，新增 T6.3d-r 重录。④ 判据：`python tools/phys_sweep.py` ⇒ **49 PASS / 3 SKIP / 0 MISMATCH**（11.3 s）；`python tools/verify.py` ⇒ **gates=7 fail=0**。目标 50/2 只差第 9 关重录。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
