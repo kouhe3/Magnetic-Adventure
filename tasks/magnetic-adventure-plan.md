@@ -141,6 +141,7 @@
 
 
 ## 变更记录
+- 2026-11-02 依据 F332（**第五批残差闭环：5/5 exact，累计带 call 30/30**）：TJointObjectList 五个包装的残差不是编译器构建差异——同一 FPC 2.2.4 2009/10/25 下，第二实参写成 retail 数值地址常量（`Pointer($647AC4)` 等）时参数装载顺序与 retail 逐字节一致；写成 `@G` 可重定位符号则相反。负例 `$647AC4→$647AC8` 在 offset 0x10 被拒。⇒ 该残差不要求 2009/12/27 编译器；但 retail 源码 token 仍未定（`@G` + 另一构建也可能同序）。产物 `work/pilot/callers4.pas`、`callers4_results.json`、`callers4_neg.pas`。
 - 2026-11-02 依据 F331（**第五批带 call 10 个：5/10 masked-equal，累计 25/30**）：4 个 TSoundManager Stop/Pause（Char 守卫 + cdecl）+ TLevelMenu 四参 setter exact；TJointObjectList 五个同形函数只差参数求值顺序（target 先取 FField 到 ECX 再装全局到 EDX，FPC 反过来），三个重定位目标全匹配。
 - 2026-11-02 依据 F330（**第四批带 call 10 个：10/10 masked-equal，累计 20/20**）：`callers2.pas` 第一次源形态即全过；覆盖 Single/LongInt/Char 参数、零参 getter、四参 setter（`retn 8`）。方法调用形态（对象进 EBX、Self 在 EAX）对这批全部成立。
 - 2026-11-02 依据 F329（**第三批 9 个叶子：7/9 exact，累计 27/29 attempted**）：`leaves3.pas` 验证了早退 reset、standalone `GetData(Obj,Dest)` + `rep movsd`、const-record copy、三参 Boolean True、单 `Single` 空方法、`and` 表达式。残差 0x57B160 只差对齐 NOP（`89 f6` vs `90 90`，指令级相同）；0x58F620 只差栈槽序（Self/Src/Dst 排列），body 相同。0x583270 140 B 浮点循环延后。
