@@ -121,6 +121,9 @@ procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 // Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+// Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
+procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
+procedure PhysWorldToLocal(Id: Integer; WX, WY: Double; out X, Y: Double);
 // Set_PhysParams / Get_PhysParams / Set_PhysFilterData / Re_Filter。
 procedure PhysSetPhysParams(Id: Integer; Density, Friction, Restitution: Double);
 procedure PhysGetPhysParams(Id: Integer; out Density, Friction, Restitution: Double);
@@ -1058,6 +1061,32 @@ begin
   X := xf.x;
   Y := xf.y;
   Angle := xf.angle;
+end;
+
+procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
+var
+  bx, by, ba: Double;
+  c, s: Double;
+begin
+  PhysGetBodyPos(Id, bx, by, ba);
+  c := Cos(ba);
+  s := Sin(ba);
+  X := bx + LX * c - LY * s;
+  Y := by + LX * s + LY * c;
+end;
+
+procedure PhysWorldToLocal(Id: Integer; WX, WY: Double; out X, Y: Double);
+var
+  bx, by, ba: Double;
+  c, s, dx, dy: Double;
+begin
+  PhysGetBodyPos(Id, bx, by, ba);
+  c := Cos(ba);
+  s := Sin(ba);
+  dx := WX - bx;
+  dy := WY - by;
+  X := dx * c + dy * s;
+  Y := -dx * s + dy * c;
 end;
 
 // rope id 的 Set_PhysParams 逐链节生效：录制里是 密度×N（每节 SetMass）→ 摩擦×N →

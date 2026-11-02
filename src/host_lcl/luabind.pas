@@ -1631,14 +1631,16 @@ var
   v1: Integer;
   v2: Double;
   v3: Double;
+  gx, gy: Double;
 begin
   LuaLogBegin(L, 'Local_ToWorld');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   id := NextId('Local_ToWorld');
-  Lua.PushNumber(L, id);
-  Lua.PushNumber(L, 0);
+  PhysLocalToWorld(v1, v2, v3, gx, gy);
+  Lua.PushNumber(L, gx);
+  Lua.PushNumber(L, gy);
   Result := 2;
   LuaLogEnd(id);
 end;
@@ -1649,14 +1651,16 @@ var
   v1: Integer;
   v2: Double;
   v3: Double;
+  gx, gy: Double;
 begin
   LuaLogBegin(L, 'World_ToLocal');
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   v3 := LuaOptNumber(L, 3, 0.0);
   id := NextId('World_ToLocal');
-  Lua.PushNumber(L, id);
-  Lua.PushNumber(L, 0);
+  PhysWorldToLocal(v1, v2, v3, gx, gy);
+  Lua.PushNumber(L, gx);
+  Lua.PushNumber(L, gy);
   Result := 2;
   LuaLogEnd(id);
 end;

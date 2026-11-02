@@ -348,6 +348,7 @@ var
   L: TLuaState;
   Rc, i: Integer;
   Dir, Path, Content: string;
+  RandPath, RandChunk: string;
   FireSpec, EvName, Body2Expr, FireErr: string;
   P1, P2, FireObjId, Fired: Integer;
 begin
@@ -372,6 +373,24 @@ begin
       Rc := Lua.PCall(L, 0, 0, 0);
     if Rc <> 0 then
       Lua.SetTop(L, 0);
+    // 随机序列回放（只用于对拍带 math.random 的关卡）：HOST_LUA_RANDOM 指向逗号分隔的
+    // 返回值列表；每次 math.random(...) 按顺序返回下一个值，耗尽后回落真实 RNG。
+    RandPath := EnvStr('HOST_LUA_RANDOM');
+    if RandPath <> '' then
+    begin
+      RandChunk := ReadTextFile(RandPath);
+      if RandChunk <> '' then
+      begin
+        Rc := Lua.LoadString(L, PChar(
+          'local seq={' + RandChunk + '}; local i=1; local real=math.random; ' +
+          'math.random=function(...) if i<=#seq then local v=seq[i]; i=i+1; return v end; ' +
+          'return real(...) end'));
+        if Rc = 0 then
+          Rc := Lua.PCall(L, 0, 0, 0);
+        if Rc <> 0 then
+          Lua.SetTop(L, 0);
+      end;
+    end;
     ResetIds;
     EventsReset;
     PhysResetObjects;

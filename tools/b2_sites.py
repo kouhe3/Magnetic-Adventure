@@ -365,11 +365,11 @@ def cmd_compare(a):
         xa, xb = xa[:a.body_limit], xb[:a.body_limit]
     if a.shape_limit:
         sa, sb = sa[:a.shape_limit], sb[:a.shape_limit]
-    bad = cmp_list('bodies', ba, bb)
-    bad += cmp_list('xforms', xa, xb)
-    bad += cmp_list('shapes', sa, sb)
-    bad += cmp_list('joints', ja, jb)
-    bad += cmp_list('setters', ta, tb)
+    bad = cmp_list('bodies', ba, bb, a.tol)
+    bad += cmp_list('xforms', xa, xb, a.tol)
+    bad += cmp_list('shapes', sa, sb, a.tol)
+    bad += cmp_list('joints', ja, jb, a.tol)
+    bad += cmp_list('setters', ta, tb, a.tol)
     print(f'TOTAL mismatches={bad}')
     return 0 if bad == 0 else 1
 
@@ -425,6 +425,8 @@ def main():
     ap.add_argument('--setter-limit', type=int, default=0, help='compare：只比前 N 个 setter')
     ap.add_argument('--body-limit', type=int, default=0, help='compare：只比前 N 个 body/xform 组')
     ap.add_argument('--shape-limit', type=int, default=0, help='compare：只比前 N 个 shape')
+    ap.add_argument('--tol', type=float, default=1e-6,
+                    help='compare：数值容差（默认 1e-6）')
     ap.add_argument('--top', type=int, default=0)
     a = ap.parse_args()
     if a.site:

@@ -106,7 +106,37 @@ def rec_shared_map(rec_map):
     return out
 
 
-def run_host(level, host_dir, data, lua_dir, out_log, timeout):
+def load_random_map(path):
+    """level -> (sequence file, tolerance, provenance)。"""
+    out = {}
+    if not Path(path).exists():
+        return out
+    for i, line in enumerate(open(path, encoding='utf-8')):
+        if i == 0 or not line.strip():
+            continue
+        parts = [p.strip() for p in line.rstrip('\n').split(',')]
+        if len(parts) < 3:
+            continue
+        out[int(parts[0])] = (parts[1], float(parts[2]),
+                              parts[3] if len(parts) > 3 else '')
+    return out
+
+
+def load_skip_map(path):
+    """level -> reason：录制本身不可判（截断/中途开始），不是宿主差异。"""
+    out = {}
+    if not Path(path).exists():
+        return out
+    for i, line in enumerate(open(path, encoding='utf-8')):
+        if i == 0 or not line.strip():
+            continue
+        parts = [p.strip() for p in line.rstrip('\n').split(',', 1)]
+        if len(parts) == 2:
+            out[int(parts[0])] = parts[1]
+    return out
+
+
+def run_host(level, host_dir, data, lua_dir, out_log, timeout, rand_file=None):
     env = dict(os.environ)
     env.update({
         'HOST_DATA': str(data),
@@ -117,6 +147,10 @@ def run_host(level, host_dir, data, lua_dir, out_log, timeout):
         'HOST_HEADLESS': '1',
         'B2PROXY_LOG': str(out_log),
     })
+    if rand_file:
+        env['HOST_LUA_RANDOM'] = str(ROOT / rand_file)
+    else:
+        env.pop('HOST_LUA_RANDOM', None)
     env.pop('HOST_PHYS_MOVE', None)
     env.pop('HOST_PHYS_STEPS', None)
     if out_log.exists():
@@ -129,11 +163,13 @@ def run_host(level, host_dir, data, lua_dir, out_log, timeout):
     return p.returncode, (p.stderr.decode('latin1', 'replace')[-400:])
 
 
-def compare(rec_log, host_log, stop_at_step=True):
+def compare(rec_log, host_log, stop_at_step=True, tol=1e-6):
     cmd = [sys.executable, str(ROOT / 'tools' / 'b2_sites.py'), str(rec_log),
            'compare', str(host_log)]
     if stop_at_step:
         cmd.append('--stop-at-step')
+    if tol != 1e-6:
+        cmd += ['--tol', str(tol)]
     p = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
     out = p.stdout
     bad = []
@@ -161,6 +197,8 @@ def main():
     ap.add_argument('--lua-dir', default=str(ROOT / 'work' / 'pak_gametop'))
     ap.add_argument('--levels-file', default=str(ROOT / 'work' / 'pak_gametop' / 'lvl_info.lvl'))
     ap.add_argument('--rec-csv', default=str(ROOT / 'mapping' / 'levels.csv'))
+    ap.add_argument('--random-csv', default=str(ROOT / 'mapping' / 'phys_random.csv'))
+    ap.add_argument('--skip-csv', default=str(ROOT / 'mapping' / 'phys_skip.csv'))
     ap.add_argument('--out', default=str(ROOT / 'work' / 'phys_sweep.json'))
     ap.add_argument('--log-dir', default=str(ROOT / 'work' / 'phys_sweep'))
     ap.add_argument('--no-run', action='store_true', help='不跑宿主，只重解析已有日志')
@@ -170,6 +208,8 @@ def main():
 
     levels = parse_levels(a.levels_file)
     rec_map = load_rec_map(a.rec_csv)
+    rand_map = load_random_map(a.random_csv)
+    skip_map = load_skip_map(a.skip_csv)
     log_dir = Path(a.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,6 +233,11 @@ def main():
         row = {'level': idx, 'name': name}
         recs = rec_map.get(name, [])
         rec = pick_rec(recs)
+        if idx in skip_map:
+            row.update(status='SKIP', rec=rec, reason=skip_map[idx])
+            rows.append(row)
+            print(f'[{idx:2d}] {name:32s} SKIP  ({skip_map[idx]})')
+            continue
         if not rec:
             row.update(status='SKIP', reason='no usable recording' if recs else 'no recording')
             rows.append(row)
@@ -210,10 +255,16 @@ def main():
         rec_log = ROOT / 'work' / rec / 'ffi.bin'
         host_log = log_dir / f'host_lvl{idx:02d}.bin'
         row['rec'] = rec
+        rand_file, tol, provenance = rand_map.get(idx, (None, 1e-6, ''))
+        if rand_file:
+            row['random_replay'] = rand_file
+            row['random_tol'] = tol
+            row['random_provenance'] = provenance
         if shared:
             row['shared_log'] = True
         if not a.no_run:
-            code, err = run_host(idx, Path(a.host_dir), a.data, a.lua_dir, host_log, a.timeout)
+            code, err = run_host(idx, Path(a.host_dir), a.data, a.lua_dir, host_log,
+                                 a.timeout, rand_file)
             row['exit'] = code
             if code != 0 or not host_log.exists():
                 row.update(status='SKIP', reason=f'host exit={code} {err.strip()[:120]}')
@@ -226,7 +277,7 @@ def main():
             print(f'[{idx:2d}] {name:32s} SKIP  host log missing')
             continue
 
-        total, counts, bad = compare(rec_log, host_log)
+        total, counts, bad = compare(rec_log, host_log, tol=tol)
         if total is None:
             row.update(status='SKIP', reason='compare failed')
             rows.append(row)

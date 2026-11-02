@@ -96,6 +96,22 @@ CUSTOM_RET = {
          "  Lua.PushNumber(L, ga);",
          "  Result := 3;"],
     ),
+    # 对象局部坐标 ↔ 世界坐标：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale；
+    # 脚本传入的局部量已经是世界单位，例如 lvl_o19 的 13*(435-256)/256）。
+    "Local_ToWorld": (
+        ["  gx, gy: Double;"],
+        ["  PhysLocalToWorld(v1, v2, v3, gx, gy);",
+         "  Lua.PushNumber(L, gx);",
+         "  Lua.PushNumber(L, gy);",
+         "  Result := 2;"],
+    ),
+    "World_ToLocal": (
+        ["  gx, gy: Double;"],
+        ["  PhysWorldToLocal(v1, v2, v3, gx, gy);",
+         "  Lua.PushNumber(L, gx);",
+         "  Lua.PushNumber(L, gy);",
+         "  Result := 2;"],
+    ),
 }
 
 

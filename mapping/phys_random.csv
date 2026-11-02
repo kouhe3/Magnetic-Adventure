@@ -1,0 +1,4 @@
+level,file,tol,provenance
+28,mapping/phys_random/rand28.txt,5e-6,rec_20261028_231623: 42 sphere (x,y,angle) + key + 21 fireworks + tester
+36,mapping/phys_random/rand36.txt,1e-6,rec_20261029_113335: 26 cubes math.random(4)
+42,mapping/phys_random/rand42.txt,1e-6,rec_20261029_120347: 64 maze items math.random(4)
