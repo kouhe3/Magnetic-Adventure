@@ -76,7 +76,8 @@
 - [x] T6.4a-r-2a 工厂→draw 配对（graph 层 = 参数 − 有效相机、world 层 = 参数；层归属未归因） 依据：F358
 - [x] T6.4a-r-2b 归因层规则（半视图偏移 ±28.24/±20.5；front/hints=屏幕层、medium/back=世界层） 依据：F359
 - [x] T6.4a-r-2b2 给四个 graph root 赋稳定 id（1..4），probe + host 记录 parent（2,339 次调用 0 差；宿主 52/52） 依据：F360
-- [ ] T6.4a-r-2c `tools/scene_from_lua.py` Python 场景模型 + level 0/1 静态 draw 零差 依据：F358
+- [x] T6.4a-r-2c `tools/scene_from_lua.py` Python 场景模型（已实现子集：level 0 19/19、level 1 18/18 零差；负例 shift=5） 依据：F361
+- [ ] T6.4a-r-2c2 补齐齿轮/钉/螺丝/SimplePhysicObject/HudButton/HUD 烟雾（完整 25/30 静态 draw 零差） 依据：F361
 - [ ] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器 依据：F358、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
