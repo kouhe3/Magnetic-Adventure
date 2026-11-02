@@ -36,6 +36,15 @@ static FILE* g_log = NULL;
 static int g_nextId = 1000;
 static long g_calls = 0;
 
+/* 相机/视图区状态：Get_RealViewRect 的返回值由它们算（F364）。
+   零售实现（0x59be10 → 0x57B430 → 0x562510）返回相机中心 ± 适配后的半视图：
+   hx = max(a, b*W/H)、hy = hx/(W/H)，a/b = Set_CameraViewArea 的两个实参。
+   探针是一关一进程，状态只随脚本里的 Set_* 变化。
+   LUA_PROBE_VIEWRECT=0 退回 0 桩，作为负例开关。 */
+static double g_camX = 0.0, g_camY = 0.0, g_viewW = 0.0, g_viewH = 0.0;
+static bool g_viewRect = true;
+static const double kViewAspect = 1018.0 / 739.0;  /* 客户区/GL viewport（F154/F179） */
+
 static void JsonEscape(const char* s) {
     for (; *s; ++s) {
         unsigned char c = (unsigned char)*s;
@@ -48,12 +57,7 @@ static void JsonEscape(const char* s) {
     }
 }
 
-static int l_stub(lua_State* L) {
-    const char* name = lua_tostring(L, lua_upvalueindex(1));
-    int arity = (int)lua_tointeger(L, lua_upvalueindex(2));
-    int n = lua_gettop(L);
-    int ret = 0;
-    if (arity < 1) arity = 1;
+static void LogCall(const char* name, lua_State* L, int n, int ret) {
     ++g_calls;
     fprintf(g_log, "{\"call\":\"%s\",\"args\":[", name ? name : "?");
     for (int i = 1; i <= n; ++i) {
@@ -82,11 +86,55 @@ static int l_stub(lua_State* L) {
             break;
         }
     }
-    if (name && strncmp(name, "Add_", 4) == 0) ret = ++g_nextId;
     fprintf(g_log, "],\"ret\":%d}\n", ret);
+}
+
+static int l_stub(lua_State* L) {
+    const char* name = lua_tostring(L, lua_upvalueindex(1));
+    int arity = (int)lua_tointeger(L, lua_upvalueindex(2));
+    int n = lua_gettop(L);
+    int ret = 0;
+    if (arity < 1) arity = 1;
+    if (name && strncmp(name, "Add_", 4) == 0) ret = ++g_nextId;
+    LogCall(name, L, n, ret);
     lua_pushinteger(L, ret);
     for (int i = 1; i < arity; ++i) lua_pushinteger(L, 0);
     return arity;
+}
+
+static int l_set_campose(lua_State* L) {
+    g_camX = luaL_optnumber(L, 1, 0.0);
+    g_camY = luaL_optnumber(L, 2, 0.0);
+    LogCall("Set_CameraPosition", L, lua_gettop(L), 0);
+    lua_pushinteger(L, 0);
+    return 1;
+}
+
+static int l_set_viewarea(lua_State* L) {
+    g_viewW = luaL_optnumber(L, 1, 0.0);
+    g_viewH = luaL_optnumber(L, 2, 0.0);
+    LogCall("Set_CameraViewArea", L, lua_gettop(L), 0);
+    lua_pushinteger(L, 0);
+    return 1;
+}
+
+static int l_get_realviewrect(lua_State* L) {
+    double hx = 0.0, hy = 0.0;
+    if (g_viewRect && g_viewW > 0.0 && g_viewH > 0.0) {
+        hx = g_viewW > g_viewH * kViewAspect ? g_viewW : g_viewH * kViewAspect;
+        hy = hx / kViewAspect;
+    }
+    LogCall("Get_RealViewRect", L, lua_gettop(L), 0);
+    if (!g_viewRect) {
+        /* 负例：与改造前的纯桩逐字节相同（4 个 0），不能把相机漏进来。 */
+        for (int i = 0; i < 4; ++i) lua_pushinteger(L, 0);
+        return 4;
+    }
+    lua_pushnumber(L, g_camX - hx);
+    lua_pushnumber(L, g_camY - hy);
+    lua_pushnumber(L, g_camX + hx);
+    lua_pushnumber(L, g_camY + hy);
+    return 4;
 }
 
 static int Fail(const char* what, const char* detail) {
@@ -173,6 +221,19 @@ static void DefineRoots(lua_State* L) {
     }
 }
 
+/* 把相机的三个绑定从纯桩换成有状态的实现（F364）；其余 141 个仍是桩。
+   LUA_PROBE_VIEWRECT=0 时 Get_RealViewRect 退回 0 桩，供负例使用。 */
+static void RegisterViewRect(lua_State* L) {
+    const char* env = getenv("LUA_PROBE_VIEWRECT");
+    g_viewRect = !(env && !strcmp(env, "0"));
+    lua_pushcclosure(L, l_set_campose, 0);
+    lua_setglobal(L, "Set_CameraPosition");
+    lua_pushcclosure(L, l_set_viewarea, 0);
+    lua_setglobal(L, "Set_CameraViewArea");
+    lua_pushcclosure(L, l_get_realviewrect, 0);
+    lua_setglobal(L, "Get_RealViewRect");
+}
+
 static bool RunFile(lua_State* L, const std::string& dir, const char* leaf, std::string* err) {
     std::string path = dir + "/" + leaf;
     if (luaL_loadfile(L, path.c_str()) != 0 || lua_pcall(L, 0, LUA_MULTRET, 0) != 0) {
@@ -249,6 +310,7 @@ int main(int argc, char** argv) {
     ScanArity(files, known, &arity);
     RegisterAll(L, names, arity);
     DefineRoots(L);
+    RegisterViewRect(L);
 
     for (size_t i = 0; i < leaves.size(); ++i) {
         if (!RunFile(L, dir, leaves[i].c_str(), &err)) {

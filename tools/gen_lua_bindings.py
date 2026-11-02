@@ -81,6 +81,37 @@ HOOKS = {
 
 # 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
 CUSTOM_RET = {
+    # 相机/视图区状态：Get_RealViewRect = 相机中心 ± 适配后的半视图（F364）。
+    # 零售 0x59be10 → 0x57B430 → 0x562510：hx=max(a,b·W/H)、hy=hx/(W/H)。
+    # 状态在 RegisterBindings 里按关卡复位。
+    "Set_CameraPosition": (
+        [],
+        ["  g_camX := v1;",
+         "  g_camY := v2;",
+         "  Result := 0;"],
+    ),
+    "Set_CameraViewArea": (
+        [],
+        ["  g_viewW := v1;",
+         "  g_viewH := v2;",
+         "  Result := 0;"],
+    ),
+    "Get_RealViewRect": (
+        ["  hx, hy: Double;"],
+        ["  hx := 0.0;",
+         "  hy := 0.0;",
+         "  if (g_viewW > 0.0) and (g_viewH > 0.0) then",
+         "  begin",
+         "    if g_viewW > g_viewH * kViewAspect then hx := g_viewW",
+         "    else hx := g_viewH * kViewAspect;",
+         "    hy := hx / kViewAspect;",
+         "  end;",
+         "  Lua.PushNumber(L, g_camX - hx);",
+         "  Lua.PushNumber(L, g_camY - hy);",
+         "  Lua.PushNumber(L, g_camX + hx);",
+         "  Lua.PushNumber(L, g_camY + hy);",
+         "  Result := 4;"],
+    ),
     "Get_ScrObjPos": (
         ["  gx, gy, ga: Double;"],
         ["  PhysGetBodyPos(v1, gx, gy, ga);",
@@ -228,7 +259,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nvar\n  g_nextId: Integer = 1000;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"
@@ -236,6 +267,7 @@ def main():
     for row in rows:
         parts.append(gen_binding(row) + "\n")
     reg = ["procedure RegisterBindings(L: TLuaState);", "begin"]
+    reg.append("  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;")
     for row in rows:
         name = row["lua_name"]
         reg.append("  Lua.PushCClosure(L, Pointer(@bind_%s), 0);" % name)

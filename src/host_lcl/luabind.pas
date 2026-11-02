@@ -13,8 +13,13 @@ procedure RegisterBindings(L: TLuaState);
 
 implementation
 
+const
+  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）
+
 var
   g_nextId: Integer = 1000;
+  g_camX, g_camY: Double;
+  g_viewW, g_viewH: Double;
 
 function NextId(const Name: string): Integer;
 begin
@@ -2301,6 +2306,8 @@ begin
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
   id := NextId('Set_CameraPosition');
+  g_camX := v1;
+  g_camY := v2;
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2327,6 +2334,8 @@ begin
   v1 := LuaOptNumber(L, 1, 0.0);
   v2 := LuaOptNumber(L, 2, 0.0);
   id := NextId('Set_CameraViewArea');
+  g_viewW := v1;
+  g_viewH := v2;
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2334,13 +2343,22 @@ end;
 function bind_Get_RealViewRect(L: TLuaState): Integer; cdecl;
 var
   id: Integer;
+  hx, hy: Double;
 begin
   LuaLogBegin(L, 'Get_RealViewRect');
   id := NextId('Get_RealViewRect');
-  Lua.PushNumber(L, id);
-  Lua.PushNumber(L, 0);
-  Lua.PushNumber(L, 0);
-  Lua.PushNumber(L, 0);
+  hx := 0.0;
+  hy := 0.0;
+  if (g_viewW > 0.0) and (g_viewH > 0.0) then
+  begin
+    if g_viewW > g_viewH * kViewAspect then hx := g_viewW
+    else hx := g_viewH * kViewAspect;
+    hy := hx / kViewAspect;
+  end;
+  Lua.PushNumber(L, g_camX - hx);
+  Lua.PushNumber(L, g_camY - hy);
+  Lua.PushNumber(L, g_camX + hx);
+  Lua.PushNumber(L, g_camY + hy);
   Result := 4;
   LuaLogEnd(id);
 end;
@@ -2668,6 +2686,7 @@ end;
 
 procedure RegisterBindings(L: TLuaState);
 begin
+  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);
   Lua.SetField(L, LUA_GLOBALSINDEX, PChar('Do_Command'));
   Lua.PushCClosure(L, Pointer(@bind_Add_WoodBox), 0);
