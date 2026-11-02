@@ -341,6 +341,23 @@ begin
 end;
 
 // T6.3/a2：跑一关脚本并把绑定调用落成 JSONL（call+args 与 lua_probe 对拍）。
+// F359：retail 的四个 graph root 是图对象；宿主原先让它们是 nil，Add_* 的
+// parent 实参丢失层信息。固定 id：1=front、2=medium、3=hints、4=back。
+procedure DefineLuaRoots(L: TLuaState);
+const
+  kRoots: array[0..3] of PChar = ('grFrontRoot', 'grMediumRoot',
+                                  'grHintsRoot', 'grBackRoot');
+var
+  i: Integer;
+begin
+  for i := 0 to 3 do
+  begin
+    Lua.PushInteger(L, i + 1);
+    // Lua 5.1 的 lua_setglobal 是宏，不是导出；用 lua_setfield(GLOBALSINDEX)。
+    Lua.SetField(L, LUA_GLOBALSINDEX, kRoots[i]);
+  end;
+end;
+
 function LuaBindRun(Scripts: TStrings; const LogPath: string; out Log: string): string;
 const
   kEntries: array[0..2] of string = ('BaseFsBeforeCreate', 'Create', 'AttachScripts');
@@ -395,6 +412,7 @@ begin
     EventsReset;
     PhysResetObjects;
     RegisterBindings(L);
+    DefineLuaRoots(L);
     Dir := EnvStr('HOST_LUA_DIR');
     if (Dir <> '') and (Dir[Length(Dir)] <> '\') then
       Dir := Dir + '\';

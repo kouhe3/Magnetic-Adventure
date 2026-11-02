@@ -161,6 +161,18 @@ static void RegisterAll(lua_State* L, const std::vector<std::string>& names,
     fprintf(stderr, "registered=%d bindings\n", (int)names.size());
 }
 
+/* 四个 graph root 在 retail 里是图对象；探针/宿主原先让它们是 nil，于是 Add_*
+   的 parent 实参全记成 null，场景的层信息（屏幕层 vs 世界层，F359）丢失。
+   固定 id：1=grFrontRoot、2=grMediumRoot、3=grHintsRoot、4=grBackRoot。 */
+static void DefineRoots(lua_State* L) {
+    static const char* kRoots[4] = {"grFrontRoot", "grMediumRoot",
+                                    "grHintsRoot", "grBackRoot"};
+    for (int i = 0; i < 4; ++i) {
+        lua_pushinteger(L, i + 1);
+        lua_setglobal(L, kRoots[i]);
+    }
+}
+
 static bool RunFile(lua_State* L, const std::string& dir, const char* leaf, std::string* err) {
     std::string path = dir + "/" + leaf;
     if (luaL_loadfile(L, path.c_str()) != 0 || lua_pcall(L, 0, LUA_MULTRET, 0) != 0) {
@@ -236,6 +248,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < leaves.size(); ++i) files.push_back(std::string(dir) + "/" + leaves[i]);
     ScanArity(files, known, &arity);
     RegisterAll(L, names, arity);
+    DefineRoots(L);
 
     for (size_t i = 0; i < leaves.size(); ++i) {
         if (!RunFile(L, dir, leaves[i].c_str(), &err)) {
