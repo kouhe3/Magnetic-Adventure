@@ -122,7 +122,7 @@
 
 ## 4.1 仪器纪律：全量前先抽样（2026-11-01）
 
-代价公式：一次全量（52 关 ≈ 9 min、或 52 关物理 sweep 11.3 s）之前，先在 **3 关/30 s** 的样本上验证仪器**产出的形状**：
+代价公式：一次全量（52 关 ≈ 9 min、或 52 关物理 sweep 12.5 s）之前，先在 **3 关/30 s** 的样本上验证仪器**产出的形状**：
 
 1. 每一步都在 timeout 内落到目标状态（四步 ok）；
 2. 每关的产出**非空且随关卡变化**（如 `delta_calls > 0`、`union_hits.csv` 有新增行）；
@@ -135,7 +135,7 @@
 ```bash
 python tools/verify.py                     # 7 门禁（exports×2 / window / squall×2 / physics 抽样 / b2:contract）
 python tools/verify.py --full              # 追加 52 关全量重放并重生成 docs/levels.md
-python tools/phys_sweep.py                 # 52 关物理 init（无头，11.3 s）
+python tools/phys_sweep.py                 # 52 关物理 init（无头，12.5 s）
 python tools/code_match.py funcs bin/gametop/game.exe build/host_lcl/magnet.exe
 python work/ht/run.py --runs 2000          # T7.2a 形态：进程内逐函数 A/B
 ```
