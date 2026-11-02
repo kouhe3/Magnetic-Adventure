@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 10-function matching pilot、五批叶子/带 call 对拍、第五批残差闭环与 **T6.3d 收口 50 PASS / 2 SKIP / 0 MISMATCH**；台账到 **F349**）。`work` 分支；台账到 **F349**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 T6.4a-r-2f level 4 动态项与 **T6.4b level 1 拖拽首段**；此前 10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F381**。
 
 ## 0. 一句话现状
 
@@ -95,7 +95,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 T6.4a-r-2g 静态覆盖里程碑（F376）**：5 个已采集关卡的静态场景全部通过宿主渲染路径（宿主自身 Lua 日志 → SceneModel → GL）：level 0 **25/25**（t=1.49）、1 **29/29**、2 **47/47**、3 **53/53**、4 **37/37**（t=0.689），`lua_bind_ab` 55/149/193/187/285 行 0 差，`level_draw_ab` 全部 `missing=0 unmatched_ref=0`。只排除各关动态项（level 3 train/smoke、level 4 plunger/shank/smoke）与隐藏提示。
 
 - **2026-11-02 F377 level 3 train/smoke = 逐帧 `DoProgress`**：`lvl_o20.lua:1-67` 的 `DoProgress(DeltaTime)` 用 TrainTime + 三段圆弧算 `ang`，再 `Set_ScrObjPos(bTrain/bSmoke, ...)`；探针不跑 Update，记录的是 init 位姿。⇒ 这两项需要宿主逐帧 Lua 回调（T6.4d），不是静态工厂。下一刀：level 4 plunger/shank（几何连杆/物理位姿）与 smoke 动画帧。
-- **2026-11-02 T6.4a-r-2f 动态项（F378/F379）**：level 4 的 plunger/shank 是曲柄滑块（`P=G+R(ωt)·(P0−G)`，`body_y=P_y+sign·sqrt(L²−(A_x−P_x)²)−off`），smoke 是 `smoke_5.png` 4×8 at (10.19,9.70)；宿主/Python vs 2a frame 827 **44/44**（含动态项），第二份采集 2b 反推 t≈0.1887 仍 **44/44**，负例 t=0.4 ⇒ 7 失配；`verify` 7/7、`phys_sweep` 50/2/0。**下一步 T6.4b 拖拽：用户要求先商量仪器（level 2，读 Lua 目标区/刷新区 + b2 body dump 找可拖拽物）。**
+- **2026-11-02 T6.4a-r-2f 动态项（F378/F379）**：level 4 的 plunger/shank 是曲柄滑块（`P=G+R(ωt)·(P0−G)`，`body_y=P_y+sign·sqrt(L²−(A_x−P_x)²)−off`），smoke 是 `smoke_5.png` 4×8 at (10.19,9.70)；宿主/Python vs 2a frame 827 **44/44**（含动态项），第二份采集 2b 反推 t≈0.1887 仍 **44/44**，负例 t=0.4 ⇒ 7 失配；`verify` 7/7、`phys_sweep` 50/2/0。**下一步已被上方 T6.4b 拖拽首段（F380/F381）取代：实际关卡是 level 1 / `lvl_o14`，已两段拖拽过关；旧的 level 2 / 先商量作废。**
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
