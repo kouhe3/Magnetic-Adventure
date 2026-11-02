@@ -86,7 +86,8 @@
 - [x] T6.4a-r-2c8 齿轮动画机制：`w_child=-w_parent/ratio`（level 0 实测 1.699/-1.275/1.530；level 1/2 静态） 依据：F368
 - [x] T6.4a-r-2d0 Pascal 场景模型（`src/host_lcl/scenemodel.pas` + CLI）：5 关与 Python 逐对象一致（15/21/37/45/33） 依据：F369
 - [x] T6.4a-r-2d 移植到 `levelscene.pas` 通用生成器（`HOST_LEVEL_MODEL`；level 1 逐 draw 29/29 零差） 依据：F369、F370
-- [ ] T6.4a-r-2e 宿主自身 Lua 日志 → SceneModel + 动画相位（level 0 齿轮 `w·t`、level 2 摆臂、level 3/4 动态项） 依据：F368、F370
+- [x] T6.4a-r-2e0 宿主自产 Lua 日志驱动渲染（level 1：149/149 绑定、29/29 draw） 依据：F371
+- [ ] T6.4a-r-2e 动画相位：`HOST_LEVEL_TIME` + 齿轮 `w·t`/摆臂 settle、level 3/4 动态项 依据：F368、F371
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355

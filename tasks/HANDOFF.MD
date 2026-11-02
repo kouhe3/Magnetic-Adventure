@@ -81,6 +81,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2d 接渲染路径（F370）**：宿主 `HOST_LEVEL_RENDER=1 HOST_LEVEL_MODEL=<binding.jsonl>` 用 `SceneModel` 建关卡场景（世界/HUD sprite、背景 `back_N1/2`、mbtn/dot 常量、相机取模型；HUD 映射 `X=x+509−w/2, Y=y+369.5−h/2`）。level 1 与零售 frame 1060 `pairs=29 mismatches=0`；负例（level 2 模型）`mismatches=4`；无 MODEL 的硬编码 Introduction 仍 `sprites=25`。数据源仍是探针 JSONL；下一刀接宿主自身 Lua 日志 + 动画相位。
 
+- **2026-11-02 T6.4a-r-2e0 宿主自产 Lua 日志（F371）**：`HOST_LUA_SELFTEST=5 HOST_LUA_LEVEL=1` 产出的 JSONL 与探针 `lua_bind_ab` **149/149**；以它为 `HOST_LEVEL_MODEL` 渲染 level 1 仍 **29/29 零差**（`sprites=35`）。数据源不再依赖探针；剩动画相位（`HOST_LEVEL_TIME` + 齿轮 `w·t`、摆臂、level 3/4 动态项）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
