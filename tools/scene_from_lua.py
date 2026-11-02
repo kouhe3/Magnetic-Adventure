@@ -332,7 +332,12 @@ def fit_gear_angles(objects, ref, cam):
             continue
         cx, cy = obj["x"] - cam[0], obj["y"] - cam[1]
         _c, ang = min(hits, key=lambda h: (h[0][0] - cx) ** 2 + (h[0][1] - cy) ** 2)
-        obj["angle"] = ang
+        # 四边形对 π 旋转对称：ref 只能把角度定到 mod π。差为 0/π 时**保留 Lua
+        # 的 init 角**（level 1/2 的齿轮没有电机，实测角速度 0）；只有真实旋转
+        #（level 0 的电机链）才用 ref 的角。
+        delta = (ang - obj["angle"] + math.pi) % (2.0 * math.pi) - math.pi
+        if abs(abs(delta) - math.pi) > 1e-3 and abs(delta) > 1e-3:
+            obj["angle"] = ang
 
 
 def fit_arm_pose(objects, ref, cam):

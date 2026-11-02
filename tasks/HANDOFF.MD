@@ -75,6 +75,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-02 T6.4a-r-2c7 扩关 level 3/4（F367）**：两份独立 GL 采集 `work/gl_levels2a`/`2b`，A/A 只余动态项（`train_1` d=0.630、smoke 动画帧）。新增 `Add_WoodBox`（1/2/3→`wbox_N` 4.702 正方形）、`Add_PushButton`（`pbut_1` 3×1.5）、`Add_BarDoor`（`bar_1` 7×3.5）、`Add_SwitchArm` style 2（`sw_arm2` 4×2）与引擎材质名回退（`button_platform_1`→`bplatf_1.png`）。静态判据 level 3 `pairs=53 mismatches=0`、level 4 `pairs=37 mismatches=0`；level 0/1/2 无回归。plunger/shank/train/smoke 是动态项，归宿主的物理/动画。
 
+- **2026-11-02 T6.4a-r-2c8 齿轮动画机制（F368）**：短间隔（Δt<0.92 s）测角速度 ⇒ level 0 的 gear_2/7/3 = **1.699/-1.275/1.530 rad/s**，与 `Set_JointMotors(...,1.7,...)` + `Add_JointSimpleGear` 的 ratio（1.3333/-1.1111）按 `w_child=-w_parent/ratio` 吻合；level 1/2 的齿轮 **0.000**（静态；`fit_gear_angles` 的 ±π 是对称四边形歧义，已改为差 0/π 时保留 init 角）。5 关静态判据不变：25/29/47/53/37。宿主可按 `w·t` 出齿轮动画；level 0 的帧内绝对时间仍待定。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
