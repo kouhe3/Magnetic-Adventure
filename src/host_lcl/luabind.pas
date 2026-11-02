@@ -332,6 +332,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_Ball');
+  PhysAddBall(id, v2, v3, v4, v5);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);

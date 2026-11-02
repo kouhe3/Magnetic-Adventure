@@ -88,6 +88,8 @@ function PhysBodyOf(Id: Integer): Pointer;
 
 // 工厂语义（参数与原版 Lua 绑定实参一致；F276/F277）。
 function PhysAddSimplePhysicObject(Id: Integer; X, Y, Angle: Double): Pointer;
+// Add_Ball(0,x,y,ang,style)：圆 body；style 5 的常量见 Burned Out 录制（F336）。
+function PhysAddBall(Id: Integer; X, Y, Angle, Style: Double): Pointer;
 function PhysAddSimplePhysCircle(Id: Integer; Fric, Dens, Rest, X, Y, Radius: Double): Pointer;
 function PhysAddWoodGear(Id: Integer; X, Y, Angle, Size: Double): Pointer;
 function PhysAddWoodWall(Id: Integer; X, Y, Angle: Double): Pointer;
@@ -431,6 +433,19 @@ begin
   if not g_active then
     Exit(nil);
   Result := NewBody(Id, X, Y, Angle, True);
+end;
+
+function PhysAddBall(Id: Integer; X, Y, Angle, Style: Double): Pointer;
+var
+  b: Pointer;
+begin
+  if not g_active then
+    Exit(nil);
+  b := NewBody(Id, X, Y, Angle, True);
+  if b <> nil then
+    // Burned Out 录制：8 个 Add_Ball(style=5) 均为 Circle fric .7 / rest .4 / dens .3 / r .6。
+    AttachCircle(b, 0.7, 0.4, 0.3, 0.0, 0.0, 0.6);
+  Result := b;
 end;
 
 { Add_SimplePhysCircle(fric, dens, rest, x, y, radius)：录制 F283 证明第 2/3 个实参是
