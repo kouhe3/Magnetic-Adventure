@@ -71,7 +71,7 @@
 - [x] T6.4a 关卡渲染：Introduction frame 9600 逐 draw **25/25 mismatches=0**；仪器 `level_draw_ab` 自证 A/A/负例；内存判 MENU 依据：F337–F340（菜单回归 21/21，`verify` 7/7，`phys_sweep` 50/2/0）
 - [ ] T6.4a-r 关卡场景通用化：Lua→场景生成、齿轮/提示动画、其他关卡 依据：F339、F340（第一关瞬时态已过；先做生成器）
 - [x] T6.4a-r-0 逐关 GL 绘制 oracle 探测（level 1 A/A：静态 29/29 零差；动态=alpha 淡入/光标；负例 loading 帧 `unmatched_ref=29`） 依据：F356
-- [ ] T6.4a-r-1 升仪器 `tools/capture_gl_levels.py`（逐关窗口 + settled 帧 + 静态/动态分列；纹理解析缓存） 依据：F356
+- [x] T6.4a-r-1 升仪器 `tools/capture_gl_levels.py`（逐关窗口 + settled 帧 + 静态/动态分列；纹理解析缓存；level 2 A/A 47/47） 依据：F357
 - [ ] T6.4a-r-2 通用场景生成器（52 关 50 个 `Add_*` 工厂；先 level 0/1，判据静态 draw 零差） 依据：F356、F340
 - [ ] T6.4b 输入/拖拽：录轨迹 → 重放 → `b2_sites compare` 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349

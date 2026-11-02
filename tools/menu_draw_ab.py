@@ -24,27 +24,18 @@ import os
 import subprocess
 import sys
 import tempfile
-import zlib
-
 import gl_texpack
 
 
 def load_id_asset(log, pak):
     """GL 纹理 id → 素材名（按像素 CRC）。返回 (map, missed_ids)。"""
     ups = gl_texpack.load_uploads(log)
-    lab = gl_texpack.index_assets(pak)
+    tab = gl_texpack.crc_table(pak)
     out, missed = {}, []
     for tid, w, h, fmt, crc, n in ups:
-        hit = None
-        for name, im in lab.get((w, h), []):
-            for _tag, b in gl_texpack.variants(im, fmt):
-                if len(b) == n and (zlib.crc32(b) & 0xFFFFFFFF) == crc:
-                    hit = name
-                    break
-            if hit:
-                break
-        if hit:
-            out[tid] = hit
+        name = tab.get((w, h, fmt, n, crc & 0xFFFFFFFF))
+        if name:
+            out[tid] = name
         else:
             missed.append((tid, w, h))
     return out, missed

@@ -90,6 +90,54 @@ def index_assets(pak_dir):
     return lab
 
 
+def pak_fingerprint(pak_dir):
+    """pak 目录的廉价指纹：文件名 + size + mtime_ns，用于缓存失效。"""
+    import hashlib
+    h = hashlib.md5()
+    files = sorted(glob.glob(os.path.join(pak_dir, "*.png")) +
+                   glob.glob(os.path.join(pak_dir, "*.jpg")))
+    for p in files:
+        st = os.stat(p)
+        h.update(os.path.basename(p).encode("utf-8", "replace"))
+        h.update(b"|%d|%d\n" % (st.st_size, getattr(st, "st_mtime_ns", 0)))
+    return h.hexdigest()
+
+
+def crc_table(pak_dir, cache_path=None):
+    """(w,h,fmt,nbytes,crc) -> 素材名；按 pak 指纹缓存在 work/ 下。
+
+    与 `index_assets` + `variants` 的直查逐条等价：同一 (w,h) 的候选顺序、
+    同一 variants 顺序、`setdefault` 取首个命中（CRC 冲突时的旧行为）。
+    缓存文件损坏或指纹不符 ⇒ 重建，不静默返回错误表。
+    """
+    cache_path = cache_path or os.path.join("work", "pak_crc_index.json")
+    fp = pak_fingerprint(pak_dir)
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            d = json.load(f)
+        if d.get("fingerprint") == fp and isinstance(d.get("entries"), list):
+            return {(int(e[0]), int(e[1]), int(e[2]), int(e[3]), int(e[4])): e[5]
+                    for e in d["entries"]}
+    except Exception:
+        pass
+    lab = index_assets(pak_dir)
+    tab = {}
+    entries = []
+    for (w, h), items in lab.items():
+        for name, im in items:
+            for fmt in (0x1907, 0x1908):
+                for _tag, b in variants(im, fmt):
+                    crc = zlib.crc32(b) & 0xFFFFFFFF
+                    key = (w, h, fmt, len(b), crc)
+                    if key not in tab:
+                        tab[key] = name
+                        entries.append([w, h, fmt, len(b), crc, name])
+    os.makedirs(os.path.dirname(os.path.abspath(cache_path)), exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump({"fingerprint": fp, "entries": entries}, f)
+    return tab
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("log")
