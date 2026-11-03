@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-03**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`** 与力律勘误 F386；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F386**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-03**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F388**。
 
 ## 0. 一句话现状
 
@@ -102,6 +102,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 T6.4a-r-2f 动态项（F378/F379）**：level 4 的 plunger/shank 是曲柄滑块（`P=G+R(ωt)·(P0−G)`，`body_y=P_y+sign·sqrt(L²−(A_x−P_x)²)−off`），smoke 是 `smoke_5.png` 4×8 at (10.19,9.70)；宿主/Python vs 2a frame 827 **44/44**（含动态项），第二份采集 2b 反推 t≈0.1887 仍 **44/44**，负例 t=0.4 ⇒ 7 失配；`verify` 7/7、`phys_sweep` 50/2/0。**下一步已被上方 T6.4b 拖拽首段（F380/F381）取代：实际关卡是 level 1 / `lvl_o14`，已两段拖拽过关；旧的 level 2 / 先商量作废。**
 
 - **2026-11-03 T6.4b-x 收口（F385/F386）：`B2CI_FAKE_MAGNET` 让游戏自己走磁铁路径**：`src/proxydll/proxy_core.c` 在 b2 代理 DllMain 按 env `B2CI_FAKE_MAGNET` 解析 game.exe 导入表替换 IAT 槽 `0x667330`/`0x66730C`，每帧返回 `B2CI_MAG_CONFIG` 的 `world_x,world_y,button`（世界→屏幕用 F381 视口 + 运行时控件原点；`B2CI_MAG_VIEW` 可覆盖），`B2CI_MAG_TRACE` 记 10 Hz；env 未设零行为。`work/fake_magnet_drive.py run` 用游戏自己的 `mouse+0x40` 两点标定（ax=0.9986467/ay=1.0041948），按下/移动/松开全走 `sub_561C70`→`sub_561F10`→`sub_58E8DD`→`sub_58E810`→`sub_58E690`；5 次独立启动均两段 d<0.548 + 完成面板，负例 A/B 通过。**力律勘误**：trace 244 行证明实际 `|F|=min(315,30·d)`（d>10.5 时 315±4.6e-5；d≤10.5 时与 30d 差 ≤1.79，位置差一帧），F383 的 `min(315/d,30)` 置已证伪，另立 F386。边界：只跑 level 1；普通桌面 + bring_front（未接 F346 私有桌面）；`player+0x14` 对象→b2 body 偏移未定（trace 直接给 body）。
+
+- **2026-11-03 测试关卡 + 私有桌面（F387/F388）**：`tools/pak_write.py` 让 Pak v0.2 可重建/同名替换（roundtrip 逐字节相同）；`tests/levels/test_lvl_o.lua`/`test_lvl_e.lua` 用自由金属螺丝 (0,0)+chalk (5,0) 替换 level 1 的 `lvl_o14.lua`/`lvl_e14.lua`（不新增 entry/不改地图）。原版加载 5 bodies（4 墙+螺丝 (0,0)），`B2CI_FAKE_MAGNET` 在 `MagTest_<pid>` 私有桌面抓取→(5,0)，Lua 回调的 `Set_ScrObjPos(99,99,0)` 在 b2 日志出现（完成标记），`fg_same=True`；`PrintWindow` 私有桌面客户端全黑，像素不作判据。下一步：`tests/levels` 扩齿轮/障碍/运行时生成/开关，`work/test_fakemag.py` 升 `tools/ci_fake_magnet.py`。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
