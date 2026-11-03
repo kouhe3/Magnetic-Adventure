@@ -123,7 +123,7 @@
 - [ ] T7.3 双跑 A/B 依据：F233、F234
 - [ ] T7.4 纯函数输入空间扫描 依据：F233
 - [ ] T7.5 批量替换 + 覆盖率台账 依据：F204、F232
-- [ ] T7.5a 覆盖普查：1,012 函数的语料命中分布（`mapping/fn-hits.csv`；verified/covered/uncovered 三类分开报） 依据：F292、F236、F291
+- [ ] T7.5a 覆盖普查：1,012 函数的语料命中分布（`mapping/fn-hits.csv`；verified/covered/uncovered 三类分开报）。**入口探针并集 793/1,010（F417）**；剩 217：direct 80、lua 69、unreferenced 53、event 7、address 6、state_dispatch 2 依据：F292、F236、F291、F417
 - [ ] T7.6 混合产物整机回归 依据：F181、F213
 
 ## 暂缓（不在队列里）
