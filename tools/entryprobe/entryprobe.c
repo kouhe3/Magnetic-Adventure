@@ -11,7 +11,7 @@
 // ENTRY_MS   : dump period (default 1000, min 200).
 
 #include <windows.h>
-#include "targets.inc"
+#include EP_TARGETS_INC
 
 static DWORD g_count[EP_N];
 static char g_out[MAX_PATH];
