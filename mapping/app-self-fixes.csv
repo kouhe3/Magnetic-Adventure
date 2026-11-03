@@ -1,0 +1,2 @@
+rva,self_class,kind,evidence
+0x552ca0,TLogSession,method,fix(T7.2c): EAX 对象类型=TLogSession（+0x274 < 实例 0x2B0；调用 [vmt+0x50] 即 slot8=0x552d40 同簇）；method/standalone 未定

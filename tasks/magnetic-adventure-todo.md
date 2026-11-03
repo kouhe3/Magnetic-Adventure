@@ -110,6 +110,7 @@
 - [ ] T7.2 `hosttrace` 注入记录器 依据：F232–F235
 - [x] T7.2a 竖切：一个纯函数的 注入→pre/post→A/B（A/A + 负例；裁决应用层形态） 依据：F233、F234、F244–F248
 - [x] T7.2b 崩溃捕获：first-chance VEH + minidump + `#32770` 弹窗正文（默认零成本；`CRASHLOG_DIR` 开启） 依据：F315、F316、F317
+- [x] T7.2c-0 布局交叉验证仪器：`tools/app_layout.py`（1 条错分 0x552CA0→TLogSession；真实布局重建 3/3；字节冲撞普查） 依据：F389–F393
 - [ ] T7.2c 补齐剩余 472 个 direct_method 的 `Self` 类（运行时入口 EAX/VMT 采样 + 更深数据流；静态已到 540/1,012） 依据：F319、F320
 - [ ] T7.3 双跑 A/B 依据：F233、F234
 - [ ] T7.4 纯函数输入空间扫描 依据：F233

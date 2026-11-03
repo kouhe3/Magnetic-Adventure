@@ -1,0 +1,1475 @@
+{
+ "pid": 26296,
+ "manager": "0x16e75010",
+ "fields": {
+  "TLevelObjects": {
+   "04": [
+    "TlmpPak"
+   ],
+   "08": [
+    "TDebugInfo"
+   ],
+   "0c": [
+    "TCameraManager"
+   ],
+   "10": [
+    "TSoundManager"
+   ],
+   "14": [
+    "TMouseCur"
+   ],
+   "18": [
+    "TGLMaterialLibrary"
+   ],
+   "1c": [
+    "TPhysicObjectList"
+   ],
+   "20": [
+    "TGraphObjectList"
+   ],
+   "24": [
+    "TJointObjectList"
+   ],
+   "28": [
+    "TTimerObjectList"
+   ],
+   "44": [
+    "TBox2d_World"
+   ],
+   "48": [
+    "TPlayerObject"
+   ],
+   "4c": [
+    "TScriptManager"
+   ],
+   "50": [
+    "TStringList"
+   ],
+   "60": [
+    "TGlAlphaSpriteObject"
+   ],
+   "64": [
+    "TGlAlphaHudSlideObject"
+   ],
+   "68": [
+    "TGlAlphaHudSlideObject"
+   ],
+   "6c": [
+    "TGlAlphaHudSlideObject"
+   ],
+   "70": [
+    "TGlAlphaHudSpriteObject"
+   ],
+   "88": [
+    "TProfileManager"
+   ],
+   "90": [
+    "TProfileManager"
+   ],
+   "98": [
+    "TProfileManager"
+   ],
+   "a0": [
+    "TLevelManager"
+   ],
+   "a8": [
+    "TLevelManager"
+   ],
+   "b0": [
+    "TLevelManager"
+   ]
+  },
+  "TlmpPak": {
+   "04": [
+    "TMemoryStream"
+   ],
+   "08": [
+    "TMemoryStream"
+   ]
+  },
+  "TDebugInfo": {
+   "04": [
+    "TGLSphere"
+   ],
+   "08": [
+    "TGLSphere"
+   ],
+   "0c": [
+    "TGLWindowsBitmapFont"
+   ],
+   "10": [
+    "TGLHUDText"
+   ],
+   "14": [
+    "TGLHUDText"
+   ],
+   "18": [
+    "TGLHUDText"
+   ]
+  },
+  "TCameraManager": {
+   "04": [
+    "TGLSceneViewer"
+   ],
+   "08": [
+    "TGLCamera"
+   ]
+  },
+  "TSoundManager": {
+   "10": [
+    "TSampleList"
+   ]
+  },
+  "TMouseCur": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "08": [
+    "TlmpPak"
+   ],
+   "0c": [
+    "TGLMaterialLibrary"
+   ],
+   "10": [
+    "TMouseLed"
+   ],
+   "14": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TGLMaterialLibrary": {
+   "34": [
+    "TGLLibMaterials"
+   ]
+  },
+  "TPhysicObjectList": {
+   "04": [
+    "TFPList"
+   ],
+   "08": [
+    "TGLDummyCube"
+   ],
+   "0c": [
+    "TGLMaterialLibrary"
+   ],
+   "10": [
+    "TBox2d_World"
+   ],
+   "14": [
+    "TGraphObjectList"
+   ],
+   "18": [
+    "TJointObjectList"
+   ],
+   "1c": [
+    "TSoundManager"
+   ],
+   "20": [
+    "TScriptManager"
+   ]
+  },
+  "TGraphObjectList": {
+   "04": [
+    "TFPList"
+   ],
+   "08": [
+    "TGLDummyCube"
+   ],
+   "0c": [
+    "TGLMaterialLibrary"
+   ],
+   "10": [
+    "TMouseCur"
+   ],
+   "14": [
+    "TGLDirectOpenGL"
+   ],
+   "18": [
+    "TScriptManager"
+   ],
+   "1c": [
+    "TGLDummyObject"
+   ],
+   "20": [
+    "TGLDummyObject"
+   ],
+   "24": [
+    "TGLDummyObject"
+   ],
+   "28": [
+    "TGLDummyObject"
+   ],
+   "2c": [
+    "TGLDummyObject"
+   ],
+   "30": [
+    "TGLHUDSpriteObject"
+   ],
+   "34": [
+    "TGLHUDSpriteObject"
+   ]
+  },
+  "TJointObjectList": {
+   "04": [
+    "TFPList"
+   ],
+   "10": [
+    "TBox2d_World"
+   ],
+   "14": [
+    "TGraphObjectList"
+   ],
+   "18": [
+    "TScriptManager"
+   ]
+  },
+  "TTimerObjectList": {
+   "04": [
+    "TFPList"
+   ],
+   "10": [
+    "TScriptManager"
+   ]
+  },
+  "TBox2d_World": {
+   "40": [
+    "TLevelObjects"
+   ]
+  },
+  "TPlayerObject": {
+   "04": [
+    "TDebugInfo"
+   ],
+   "08": [
+    "TMouseCur"
+   ],
+   "0c": [
+    "TPhysicObjectList"
+   ],
+   "2c": [
+    "TLevelObjects"
+   ],
+   "34": [
+    "TLevelObjects"
+   ],
+   "3c": [
+    "TLevelObjects"
+   ],
+   "44": [
+    "TLevelObjects"
+   ]
+  },
+  "TScriptManager": {
+   "04": [
+    "TList"
+   ],
+   "08": [
+    "TList"
+   ],
+   "1c": [
+    "TDebugInfo"
+   ]
+  },
+  "TGlAlphaSpriteObject": {
+   "08": [
+    "TGLDummyObject"
+   ],
+   "0c": [
+    "TList"
+   ],
+   "10": [
+    "TGLSprite"
+   ],
+   "14": [
+    "TActionRegion"
+   ]
+  },
+  "TGlAlphaHudSlideObject": {
+   "08": [
+    "TGLDummyObject"
+   ],
+   "0c": [
+    "TList"
+   ],
+   "10": [
+    "TGLHUDSprite"
+   ],
+   "14": [
+    "TActionRegion"
+   ]
+  },
+  "TGlAlphaHudSpriteObject": {
+   "08": [
+    "TGLDummyObject"
+   ],
+   "0c": [
+    "TList"
+   ],
+   "10": [
+    "TGLHUDSprite"
+   ],
+   "14": [
+    "TActionRegion"
+   ]
+  },
+  "TProfileManager": {
+   "04": [
+    "TProfilesList"
+   ],
+   "14": [
+    "TlmpPak"
+   ],
+   "18": [
+    "TDebugInfo"
+   ],
+   "1c": [
+    "TGLDummyCube"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TCameraManager"
+   ],
+   "28": [
+    "TSoundManager"
+   ],
+   "2c": [
+    "TLevelManager"
+   ],
+   "30": [
+    "TMainMenuManager"
+   ],
+   "34": [
+    "TMouseCur"
+   ],
+   "3c": [
+    "TGameManager"
+   ],
+   "44": [
+    "TGameManager"
+   ]
+  },
+  "TLevelManager": {
+   "0c": [
+    "TlmpPak"
+   ],
+   "10": [
+    "TGLDummyCube"
+   ],
+   "14": [
+    "TGLDummyCube"
+   ],
+   "18": [
+    "TGLDummyCube"
+   ],
+   "1c": [
+    "TGLDummyCube"
+   ],
+   "20": [
+    "TMouseCur"
+   ],
+   "24": [
+    "TCameraManager"
+   ],
+   "28": [
+    "TSoundManager"
+   ],
+   "2c": [
+    "TGLMaterialLibrary"
+   ],
+   "38": [
+    "TList"
+   ],
+   "3c": [
+    "TLevelObjects"
+   ],
+   "40": [
+    "TLevelMenu"
+   ],
+   "44": [
+    "TLevelMap"
+   ],
+   "48": [
+    "TArrowLine"
+   ],
+   "4c": [
+    "TCurtain"
+   ],
+   "50": [
+    "TLevelInfo"
+   ],
+   "5c": [
+    "TProfileManager"
+   ],
+   "64": [
+    "TProfileManager"
+   ],
+   "6c": [
+    "TProfileManager"
+   ]
+  },
+  "TGLSphere": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDummyCube"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ]
+  },
+  "TGLWindowsBitmapFont": {
+   "14": [
+    "TList"
+   ],
+   "34": [
+    "TBitmapFontRanges"
+   ],
+   "38": [
+    "TPicture"
+   ],
+   "58": [
+    "TList"
+   ],
+   "5c": [
+    "TGLTextureHandle"
+   ],
+   "78": [
+    "TFont"
+   ]
+  },
+  "TGLHUDText": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "14": [
+    "TList"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDummyCube"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ],
+   "22c": [
+    "TGLWindowsBitmapFont"
+   ],
+   "240": [
+    "TGLColor"
+   ]
+  },
+  "TGLSceneViewer": {
+   "04": [
+    "TForm1"
+   ],
+   "40": [
+    "TAnchorSide"
+   ],
+   "44": [
+    "TAnchorSide"
+   ],
+   "48": [
+    "TAnchorSide"
+   ],
+   "4c": [
+    "TAnchorSide"
+   ],
+   "78": [
+    "TControlBorderSpacing"
+   ],
+   "98": [
+    "TSizeConstraints"
+   ],
+   "c8": [
+    "TFont"
+   ],
+   "200": [
+    "TForm1"
+   ],
+   "24c": [
+    "TGLSceneViewer"
+   ],
+   "294": [
+    "TControlChildSizing"
+   ],
+   "338": [
+    "TGLSceneBuffer"
+   ]
+  },
+  "TGLCamera": {
+   "04": [
+    "TGLSceneRootObject"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLSceneRootObject"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ]
+  },
+  "TSampleList": {
+   "04": [
+    "TFPList"
+   ]
+  },
+  "TGLDummyCube": {
+   "04": [
+    "TGLDirectOpenGL",
+    "TGLDummyCube",
+    "TGLSceneRootObject"
+   ],
+   "10": [
+    "TList"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDirectOpenGL",
+    "TGLDummyCube",
+    "TGLSceneRootObject"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1ec": [
+    "TPersistentObjectList"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ],
+   "234": [
+    "TGLColor"
+   ],
+   "23c": [
+    "TGLListHandle"
+   ]
+  },
+  "TMouseLed": {
+   "20": [
+    "TActionRegion"
+   ],
+   "48": [
+    "TGLHUDSprite"
+   ]
+  },
+  "TGLLibMaterials": {
+   "08": [
+    "TList"
+   ],
+   "18": [
+    "TGLMaterialLibrary"
+   ]
+  },
+  "TGLDirectOpenGL": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "10": [
+    "TList"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDummyCube"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1ec": [
+    "TPersistentObjectList"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ],
+   "234": [
+    "TGraphObjectList"
+   ]
+  },
+  "TGLDummyObject": {
+   "0c": [
+    "TList"
+   ],
+   "10": [
+    "TGLDummyCube"
+   ],
+   "14": [
+    "TActionRegion"
+   ]
+  },
+  "TGLHUDSpriteObject": {
+   "08": [
+    "TGLDummyObject"
+   ],
+   "0c": [
+    "TList"
+   ],
+   "10": [
+    "TGLHUDSprite"
+   ],
+   "14": [
+    "TActionRegion"
+   ]
+  },
+  "TList": {
+   "04": [
+    "TFPList"
+   ]
+  },
+  "TGLSprite": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDummyCube"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ]
+  },
+  "TGLHUDSprite": {
+   "04": [
+    "TGLDummyCube"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "60": [
+    "TGLDummyCube"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ],
+   "224": [
+    "TGLMaterial"
+   ]
+  },
+  "TProfilesList": {
+   "04": [
+    "TFPList"
+   ],
+   "0c": [
+    "TTextParser"
+   ]
+  },
+  "TMainMenuManager": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TProfileManager"
+   ],
+   "4c": [
+    "TProfileManager"
+   ],
+   "50": [
+    "TMainMenuHall"
+   ],
+   "54": [
+    "TProfileMainMenu"
+   ],
+   "58": [
+    "TLevelsMainMenu"
+   ],
+   "5c": [
+    "TOptionsMainMenu"
+   ],
+   "60": [
+    "TExitMainMenu"
+   ],
+   "64": [
+    "THelpMainMenu"
+   ],
+   "68": [
+    "TGLDummyCube"
+   ],
+   "80": [
+    "TlmpPak"
+   ],
+   "84": [
+    "TBitMapUnicodeFont"
+   ],
+   "88": [
+    "TBitMapUnicodeFont"
+   ]
+  },
+  "TGameManager": {
+   "18": [
+    "TForm1"
+   ],
+   "1c": [
+    "TGLCadencer"
+   ],
+   "20": [
+    "TGLSceneViewer"
+   ],
+   "24": [
+    "TGLScene"
+   ],
+   "28": [
+    "TGLDummyCube"
+   ],
+   "2c": [
+    "TGLDummyCube"
+   ],
+   "30": [
+    "TGLDummyCube"
+   ],
+   "34": [
+    "TProfileManager"
+   ],
+   "38": [
+    "TMouseCur"
+   ],
+   "3c": [
+    "TCameraManager"
+   ],
+   "40": [
+    "TSoundManager"
+   ],
+   "44": [
+    "TlmpPak"
+   ],
+   "48": [
+    "TLogManager"
+   ],
+   "4c": [
+    "TDebugInfo"
+   ]
+  },
+  "TLevelMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "14": [
+    "THelpButton"
+   ],
+   "28": [
+    "TlmpPak"
+   ],
+   "2c": [
+    "TGLMaterialLibrary"
+   ],
+   "30": [
+    "TGLDummyCube"
+   ],
+   "34": [
+    "TGLDummyCube"
+   ],
+   "38": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TLevelManager"
+   ],
+   "4c": [
+    "TLevelManager"
+   ]
+  },
+  "TLevelMap": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "14": [
+    "TlmpPak"
+   ],
+   "18": [
+    "TGLMaterialLibrary"
+   ],
+   "1c": [
+    "TGLDummyCube"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "30": [
+    "TLevelManager"
+   ],
+   "50": [
+    "TSimpleLabel"
+   ],
+   "60": [
+    "TSimpleLabel"
+   ],
+   "70": [
+    "TSimpleLabel"
+   ],
+   "80": [
+    "TSimpleLabel"
+   ],
+   "90": [
+    "TSimpleLabel"
+   ],
+   "a0": [
+    "TSimpleLabel"
+   ],
+   "a4": [
+    "TSimpleLabel"
+   ],
+   "a8": [
+    "TSimpleLabel"
+   ]
+  },
+  "TArrowLine": {
+   "20": [
+    "TActionRegion"
+   ],
+   "48": [
+    "TList"
+   ],
+   "4c": [
+    "TGLDummyCube"
+   ],
+   "50": [
+    "TGLMaterialLibrary"
+   ]
+  },
+  "TCurtain": {
+   "20": [
+    "TActionRegion"
+   ],
+   "48": [
+    "TGLHUDSprite"
+   ]
+  },
+  "TGLCoordinates3": {
+   "08": [
+    "TGLCamera",
+    "TGLDirectOpenGL",
+    "TGLDummyCube",
+    "TGLHUDSprite",
+    "TGLHUDText",
+    "TGLSphere",
+    "TGLSprite"
+   ]
+  },
+  "TGLScene": {
+   "04": [
+    "TForm1"
+   ],
+   "10": [
+    "TList"
+   ],
+   "14": [
+    "TList"
+   ],
+   "38": [
+    "TGLSceneRootObject"
+   ],
+   "3c": [
+    "TGLWidgetContext"
+   ],
+   "40": [
+    "TPersistentObjectList"
+   ],
+   "44": [
+    "TPersistentObjectList"
+   ],
+   "48": [
+    "TGLCamera"
+   ],
+   "4c": [
+    "TGLSceneBuffer"
+   ],
+   "5c": [
+    "TGLInitializableObjectList"
+   ]
+  },
+  "TGLMaterial": {
+   "08": [
+    "TGLDirectOpenGL",
+    "TGLDummyCube",
+    "TGLHUDSprite",
+    "TGLHUDText",
+    "TGLSphere",
+    "TGLSprite"
+   ],
+   "1c": [
+    "TGLFaceProperties"
+   ],
+   "24": [
+    "TGLDepthProperties"
+   ],
+   "2c": [
+    "TGLBlendingParameters"
+   ],
+   "38": [
+    "TGLMaterialLibrary"
+   ],
+   "48": [
+    "TGLLibMaterial"
+   ]
+  },
+  "TBitmapFontRanges": {
+   "08": [
+    "TList"
+   ],
+   "18": [
+    "TGLWindowsBitmapFont"
+   ]
+  },
+  "TPicture": {
+   "04": [
+    "TBitmap"
+   ],
+   "0c": [
+    "TGLWindowsBitmapFont"
+   ]
+  },
+  "TFont": {
+   "1c": [
+    "TGLSceneViewer",
+    "TGLWindowsBitmapFont"
+   ]
+  },
+  "TGLColor": {
+   "08": [
+    "TGLDummyCube",
+    "TGLHUDText"
+   ]
+  },
+  "TForm1": {
+   "04": [
+    "TApplication"
+   ],
+   "10": [
+    "TList"
+   ],
+   "40": [
+    "TAnchorSide"
+   ],
+   "44": [
+    "TAnchorSide"
+   ],
+   "48": [
+    "TAnchorSide"
+   ],
+   "4c": [
+    "TAnchorSide"
+   ],
+   "78": [
+    "TControlBorderSpacing"
+   ],
+   "98": [
+    "TSizeConstraints"
+   ],
+   "c8": [
+    "TFont"
+   ],
+   "1dc": [
+    "TGameManager"
+   ],
+   "24c": [
+    "TForm1"
+   ],
+   "280": [
+    "TBrush"
+   ],
+   "294": [
+    "TControlChildSizing"
+   ],
+   "298": [
+    "TFPList"
+   ],
+   "328": [
+    "TFPList"
+   ],
+   "338": [
+    "TControlCanvas"
+   ],
+   "344": [
+    "TControlScrollBar"
+   ],
+   "348": [
+    "TControlScrollBar"
+   ],
+   "38c": [
+    "TIcon"
+   ],
+   "3ac": [
+    "TGameManager"
+   ],
+   "3b4": [
+    "TGameManager"
+   ],
+   "3c4": [
+    "TForm1"
+   ],
+   "3cc": [
+    "TGameManager"
+   ],
+   "3d4": [
+    "TForm1"
+   ],
+   "3fc": [
+    "TGameManager"
+   ],
+   "404": [
+    "TGameManager"
+   ],
+   "438": [
+    "TGLCadencer"
+   ],
+   "43c": [
+    "TGLSceneViewer"
+   ],
+   "440": [
+    "TGLScene"
+   ],
+   "444": [
+    "TGameManager"
+   ]
+  },
+  "TAnchorSide": {
+   "0c": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TControlBorderSpacing": {
+   "14": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TSizeConstraints": {
+   "04": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TControlChildSizing": {
+   "04": [
+    "TGLSceneViewer"
+   ],
+   "24": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TGLSceneBuffer": {
+   "08": [
+    "TGLSceneViewer"
+   ],
+   "20": [
+    "TGLWidgetContext"
+   ],
+   "24": [
+    "TPersistentObjectList"
+   ],
+   "15c": [
+    "TGLColor"
+   ],
+   "170": [
+    "TGLFogEnvironment"
+   ],
+   "178": [
+    "TGLCamera"
+   ],
+   "1b0": [
+    "TGLSceneViewer"
+   ],
+   "1b8": [
+    "TGLSceneViewer"
+   ],
+   "1d0": [
+    "TGLSceneViewer"
+   ]
+  },
+  "TGLSceneRootObject": {
+   "04": [
+    "TGLScene"
+   ],
+   "10": [
+    "TList"
+   ],
+   "4c": [
+    "TGLCoordinates3"
+   ],
+   "50": [
+    "TGLCoordinates3"
+   ],
+   "54": [
+    "TGLCoordinates3"
+   ],
+   "58": [
+    "TGLCoordinates3"
+   ],
+   "64": [
+    "TGLScene"
+   ],
+   "1ec": [
+    "TPersistentObjectList"
+   ],
+   "1fc": [
+    "TGLCoordinates3"
+   ]
+  },
+  "TTextParser": {
+   "08": [
+    "TList"
+   ],
+   "10": [
+    "TProfilesList"
+   ]
+  },
+  "TSimpleLabel": {
+   "20": [
+    "TActionRegion"
+   ],
+   "48": [
+    "TGLHUDSprite"
+   ]
+  },
+  "TMainMenuHall": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ],
+   "50": [
+    "TBitMapUnicodeFont"
+   ]
+  },
+  "TProfileMainMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TMainMenuManager"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ],
+   "50": [
+    "TLedCustomButton"
+   ],
+   "54": [
+    "TLedCustomButton"
+   ],
+   "58": [
+    "TEditBox"
+   ],
+   "60": [
+    "TSimpleLabel"
+   ],
+   "64": [
+    "TBitMapUnicodeFont"
+   ],
+   "68": [
+    "TBitMapUnicodeFont"
+   ],
+   "74": [
+    "TProfileManager"
+   ]
+  },
+  "TLevelsMainMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TMainMenuManager"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ],
+   "50": [
+    "TGLDummyCube"
+   ],
+   "54": [
+    "TBitMapUnicodeFont"
+   ],
+   "5c": [
+    "TTextLEDAlpha"
+   ],
+   "60": [
+    "TLedPanel"
+   ]
+  },
+  "TOptionsMainMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TMainMenuManager"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ],
+   "88": [
+    "TSimpleLabel"
+   ],
+   "90": [
+    "TProfileManager"
+   ],
+   "98": [
+    "TGameManager"
+   ]
+  },
+  "TExitMainMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TMainMenuManager"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ]
+  },
+  "THelpMainMenu": {
+   "08": [
+    "TMouseCur"
+   ],
+   "10": [
+    "TList"
+   ],
+   "18": [
+    "TSimpleLabel"
+   ],
+   "1c": [
+    "TGLMaterialLibrary"
+   ],
+   "20": [
+    "TGLDummyCube"
+   ],
+   "24": [
+    "TGLDummyCube"
+   ],
+   "44": [
+    "TMainMenuManager"
+   ],
+   "4c": [
+    "TMainMenuManager"
+   ]
+  },
+  "TGLCadencer": {
+   "04": [
+    "TForm1"
+   ],
+   "14": [
+    "TList"
+   ],
+   "30": [
+    "TGLScene"
+   ],
+   "94": [
+    "TGameManager"
+   ]
+  },
+  "TLogManager": {
+   "08": [
+    "TStringList"
+   ]
+  },
+  "THelpButton": {
+   "08": [
+    "THelpLed"
+   ]
+  }
+ }
+}
