@@ -83,6 +83,7 @@ add_library(b2physics_proxy SHARED
   src/crashlog/crashlog.c
   src/proxydll/proxy.def)
 target_link_options(b2physics_proxy PRIVATE /MAP)
+target_link_libraries(b2physics_proxy PRIVATE user32)
 set_target_properties(b2physics_proxy PROPERTIES OUTPUT_NAME b2Physics
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proxy"
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

@@ -154,20 +154,38 @@ static int Readable(const void* p) {
 
 /* B2PROXY_TRACE=path：为 ApplyForce 记录「谁调用了 wrapper」。
  * 桩在入口做了 pushfd+pushad；saved EBP 在 esp0-28，[saved EBP+4] 是
- * wrapper 的调用者返回地址。仅诊断用，默认零成本。 */
+ * wrapper 的调用者返回地址。仅诊断用，默认零成本。
+ * 附带的 p/tgt/mw 让「游戏自己施磁铁力」可判（F385）：body 位置来自 b2 body
+ * 的 +8/+12；tgt/mw 来自 TLevelObjects 全局链（0x665334→+0x48 player→+8 mouse），
+ * 用来核对 body == player+0x14 的对象 body、力方向 = mouse_world − body_pos。 */
+static uint32_t SafeU32(uint32_t addr) {
+    if (!addr || IsBadReadPtr((const void*)(uintptr_t)addr, 4)) return 0;
+    return *(uint32_t*)(uintptr_t)addr;
+}
+
+static float SafeF32(uint32_t addr) {
+    if (!addr || IsBadReadPtr((const void*)(uintptr_t)addr, 4)) return 0.0f;
+    return *(float*)(uintptr_t)addr;
+}
+
 static void TraceForceCaller(uint32_t esp0, uint32_t body,
                              const unsigned char* force_mem) {
     uint32_t ebp, callers[4] = {0, 0, 0, 0};
     uint32_t fx = 0, fy = 0;
-    char buf[200];
+    float ffx = 0.0f, ffy = 0.0f;
+    uint32_t base, mgr, player, mouse, target;
+    float bx = 0.0f, by = 0.0f, mwx = 0.0f, mwy = 0.0f;
+    char buf[320];
     int n;
     int i;
     if (g_trace == INVALID_HANDLE_VALUE) return;
     if (force_mem) {
         memcpy(&fx, force_mem, 4);
         memcpy(&fy, force_mem + 4, 4);
+        memcpy(&ffx, force_mem, 4);
+        memcpy(&ffy, force_mem + 4, 4);
     }
-    if (!fx && !fy) return;          /* 只留非零力，磁铁施力才出现 */
+    if (ffx == 0.0f && ffy == 0.0f) return;  /* 只留非零力；-0.0 的位型非零 */
     if (IsBadReadPtr((const void*)(uintptr_t)(esp0 - 28), 4)) return;
     ebp = *(uint32_t*)(uintptr_t)(esp0 - 28);
     for (i = 0; i < 4; ++i) {
@@ -176,9 +194,23 @@ static void TraceForceCaller(uint32_t esp0, uint32_t body,
         if (IsBadReadPtr((const void*)(uintptr_t)ebp, 4)) break;
         ebp = *(uint32_t*)(uintptr_t)ebp;
     }
-    n = wsprintfA(buf, "body=%08x f=%08x,%08x c0=%08x c1=%08x c2=%08x c3=%08x seq=%u\r\n",
-                  body, fx, fy, callers[0], callers[1], callers[2], callers[3],
-                  (unsigned)g_count);
+    base = (uint32_t)(uintptr_t)GetModuleHandleA(NULL);
+    mgr = SafeU32(base + 0x265334);
+    player = SafeU32(mgr + 0x48);
+    mouse = SafeU32(player + 8);
+    target = SafeU32(player + 0x14);
+    if (body && !IsBadReadPtr((const void*)(uintptr_t)body, 16)) {
+        bx = *(float*)(uintptr_t)(body + 8);
+        by = *(float*)(uintptr_t)(body + 12);
+    }
+    if (mouse) {
+        mwx = SafeF32(mouse + 0x40);
+        mwy = SafeF32(mouse + 0x44);
+    }
+    n = sprintf(buf, "body=%08x f=%08x,%08x c0=%08x c1=%08x c2=%08x c3=%08x seq=%u "
+                     "p=%.4f,%.4f tgt=%08x mw=%.4f,%.4f\r\n",
+                body, fx, fy, callers[0], callers[1], callers[2], callers[3],
+                (unsigned)g_count, bx, by, target, mwx, mwy);
     {
         DWORD written = 0;
         WriteFile(g_trace, buf, (DWORD)n, &written, NULL);
@@ -269,6 +301,239 @@ static void CiApply(void) {
             WriteFile(g_ci_trace, buf, (DWORD)n, &written, NULL);
         }
     }
+}
+
+/* ---------------------------------------------------------------------------
+ * B2CI_FAKE_MAGNET：不移动真鼠标，伪造游戏的两个输入采样源，让原版自己走
+ * 「按下 → 命中测试 → target 锁定 → min(315/d,30) 施力」的磁铁路径（F385）。
+ *
+ * 采样链（bin/gametop/game.exe 反汇编）：
+ *   sub_561C70 每帧：GetCursorPos → mouse+0x30/+0x34（屏幕）
+ *                    sub_4C3DB0(控件) 转客户区 → mouse+0x38/+0x3C
+ *                    GetAsyncKeyState(1) → mouse+0x1F
+ *                    sub_561D80 → mouse+0x40/+0x44（世界光标）
+ *   sub_561F10 把当前按键存 mouse+0x1E（下一帧做边沿）
+ *   sub_58E8DD 用 sub_561BB0/sub_561B8F 判按下/松开沿：
+ *      按下 → sub_58E810 → sub_58E690（逐对象 vtable+0x74 命中测试）
+ *             → 写 player+0x14（目标对象）/+0x10（激活）
+ *   TLevelObjects.DoProgress → 0x58E5A0 → 0x58E4A0：读 mouse+0x40 施力
+ *
+ * 钩子只改 game.exe 的 IAT 槽（0x667330 / 0x66730C），env 未设时完全不动。
+ * 配置热切换：B2CI_MAG_CONFIG 文件，内容 `world_x,world_y,button`（逗号分隔），
+ * 每 15 ms 重读；button=1 表示按住左键。世界→屏幕用 F381 的 level 1 视口
+ * （B2CI_MAG_VIEW 可覆盖：xmin,xmax,ytop,ybottom），客户区原点/尺寸运行时取。
+ * 诊断：B2CI_MAG_TRACE=path 每 100 ms 记一行（world/client/screen/button）。
+ * ------------------------------------------------------------------------- */
+
+typedef BOOL (WINAPI *MagGetCursorPosFn)(LPPOINT);
+typedef SHORT (WINAPI *MagGetAsyncKeyStateFn)(int);
+
+static MagGetCursorPosFn g_real_gcp = NULL;
+static MagGetAsyncKeyStateFn g_real_gaks = NULL;
+static int g_mag_on = 0;
+static char g_mag_cfg[MAX_PATH] = {0};
+static HANDLE g_mag_trace = INVALID_HANDLE_VALUE;
+static float g_mag_xmin = -28.2395129f, g_mag_xmax = 28.2395129f;
+static float g_mag_ytop = 20.5f, g_mag_ybottom = -20.5f;
+static float g_mag_wx = 0.0f, g_mag_wy = 0.0f;
+static int g_mag_btn = 0;
+static int g_mag_cfg_ok = 0;
+static LONG g_mag_cfg_tick = 0;
+static LONG g_mag_win_tick = 0;
+static LONG g_mag_log_tick = 0;
+static HWND g_mag_hwnd = NULL;
+
+typedef struct { DWORD pid; HWND best; LONG area; } MagWinCtx;
+
+static BOOL CALLBACK MagEnumProc(HWND h, LPARAM lp) {
+    MagWinCtx* c = (MagWinCtx*)(uintptr_t)lp;
+    char title[64];
+    DWORD pid = 0;
+    RECT r;
+    LONG area;
+    GetWindowThreadProcessId(h, &pid);
+    if (pid != c->pid || !IsWindowVisible(h)) return TRUE;
+    if (!GetClientRect(h, &r)) return TRUE;
+    area = (r.right - r.left) * (r.bottom - r.top);
+    if (area < 100 * 100) return TRUE;
+    title[0] = 0;
+    GetWindowTextA(h, title, sizeof(title));
+    if (strstr(title, "Magnetic")) {
+        c->best = h;
+        c->area = 0x7fffffff;
+        return FALSE;
+    }
+    if (area > c->area) {
+        c->best = h;
+        c->area = area;
+    }
+    return TRUE;
+}
+
+static HWND MagWindow(void) {
+    DWORD now = GetTickCount();
+    MagWinCtx c;
+    if (g_mag_hwnd && now - (DWORD)g_mag_win_tick < 2000) return g_mag_hwnd;
+    g_mag_win_tick = (LONG)now;
+    c.pid = GetCurrentProcessId();
+    c.best = NULL;
+    c.area = 0;
+    EnumWindows(MagEnumProc, (LPARAM)(uintptr_t)&c);
+    g_mag_hwnd = c.best;
+    return g_mag_hwnd;
+}
+
+static void MagLogLine(const char* s) {
+    DWORD written = 0;
+    if (g_mag_trace == INVALID_HANDLE_VALUE) return;
+    WriteFile(g_mag_trace, s, (DWORD)strlen(s), &written, NULL);
+    FlushFileBuffers(g_mag_trace);
+}
+
+static void MagReload(void) {
+    DWORD now = GetTickCount();
+    FILE* f;
+    float x, y;
+    int btn;
+    if (now - (DWORD)g_mag_cfg_tick < 15) return;
+    g_mag_cfg_tick = (LONG)now;
+    if (!g_mag_cfg[0]) { g_mag_cfg_ok = 0; return; }
+    f = fopen(g_mag_cfg, "r");
+    if (!f) { g_mag_cfg_ok = 0; return; }
+    if (fscanf(f, "%f,%f,%d", &x, &y, &btn) == 3) {
+        g_mag_wx = x;
+        g_mag_wy = y;
+        g_mag_btn = btn ? 1 : 0;
+        g_mag_cfg_ok = 1;
+    } else {
+        g_mag_cfg_ok = 0;
+    }
+    fclose(f);
+}
+
+static int MagWorldToScreen(float wx, float wy, POINT* out, float* cx_out,
+                            float* cy_out) {
+    HWND h = MagWindow();
+    RECT rc;
+    POINT org;
+    float w, hh, cx, cy;
+    if (!h || !out) return 0;
+    if (!GetClientRect(h, &rc)) return 0;
+    w = (float)(rc.right - rc.left);
+    hh = (float)(rc.bottom - rc.top);
+    if (w <= 0.0f || hh <= 0.0f) return 0;
+    org.x = 0;
+    org.y = 0;
+    if (!ClientToScreen(h, &org)) return 0;
+    cx = (wx - g_mag_xmin) / (g_mag_xmax - g_mag_xmin) * w;
+    cy = (g_mag_ytop - wy) / (g_mag_ytop - g_mag_ybottom) * hh;
+    out->x = org.x + (LONG)(cx >= 0.0f ? cx + 0.5f : cx - 0.5f);
+    out->y = org.y + (LONG)(cy >= 0.0f ? cy + 0.5f : cy - 0.5f);
+    if (cx_out) *cx_out = cx;
+    if (cy_out) *cy_out = cy;
+    return 1;
+}
+
+static void MagTracePoint(const POINT* p, float cx, float cy) {
+    char buf[200];
+    DWORD now = GetTickCount();
+    int n;
+    if (g_mag_trace == INVALID_HANDLE_VALUE) return;
+    if (now - (DWORD)g_mag_log_tick < 100) return;
+    g_mag_log_tick = (LONG)now;
+    n = sprintf(buf, "t=%u btn=%d req=%.4f,%.4f client=%.2f,%.2f screen=%ld,%ld\r\n",
+                (unsigned)now, g_mag_btn, g_mag_wx, g_mag_wy, cx, cy,
+                (long)p->x, (long)p->y);
+    if (n > 0) MagLogLine(buf);
+}
+
+static BOOL WINAPI MagGetCursorPos(LPPOINT pt) {
+    POINT o;
+    float cx = 0.0f, cy = 0.0f;
+    if (!g_mag_on || !pt || !g_real_gcp) return g_real_gcp ? g_real_gcp(pt) : FALSE;
+    MagReload();
+    if (!g_mag_cfg_ok || !MagWorldToScreen(g_mag_wx, g_mag_wy, &o, &cx, &cy))
+        return g_real_gcp(pt);
+    *pt = o;
+    MagTracePoint(&o, cx, cy);
+    return TRUE;
+}
+
+static SHORT WINAPI MagGetAsyncKeyState(int vk) {
+    if (!g_mag_on || !g_real_gaks) return g_real_gaks ? g_real_gaks(vk) : 0;
+    if (vk == VK_LBUTTON) {
+        MagReload();
+        if (!g_mag_cfg_ok) return g_real_gaks(vk);
+        return g_mag_btn ? (SHORT)0x8000 : 0;
+    }
+    return g_real_gaks(vk);
+}
+
+/* 按名字在 game.exe 的导入表里找 IAT 槽；返回 &slot（槽里是已解析的函数地址）。 */
+static void** MagFindIat(HMODULE game, const char* dll, const char* name) {
+    BYTE* base = (BYTE*)game;
+    IMAGE_DOS_HEADER* dos;
+    IMAGE_NT_HEADERS* nt;
+    IMAGE_DATA_DIRECTORY* dir;
+    IMAGE_IMPORT_DESCRIPTOR* imp;
+    if (!game || !base) return NULL;
+    dos = (IMAGE_DOS_HEADER*)base;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return NULL;
+    nt = (IMAGE_NT_HEADERS*)(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return NULL;
+    dir = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!dir->VirtualAddress) return NULL;
+    imp = (IMAGE_IMPORT_DESCRIPTOR*)(base + dir->VirtualAddress);
+    for (; imp->Name; ++imp) {
+        DWORD* oft;
+        DWORD* ft;
+        int i;
+        if (_stricmp((const char*)(base + imp->Name), dll)) continue;
+        oft = (DWORD*)(base + (imp->OriginalFirstThunk ? imp->OriginalFirstThunk
+                                                        : imp->FirstThunk));
+        ft = (DWORD*)(base + imp->FirstThunk);
+        for (i = 0; oft[i]; ++i) {
+            if (oft[i] & 0x80000000u) continue;
+            if (strcmp((const char*)(base + (oft[i] & 0x7fffffffu) + 2), name))
+                continue;
+            return (void**)(ft + i);
+        }
+        return NULL;
+    }
+    return NULL;
+}
+
+static void MagInstall(void) {
+    HMODULE game = GetModuleHandleA(NULL);
+    void** s1 = MagFindIat(game, "user32.dll", "GetCursorPos");
+    void** s2 = MagFindIat(game, "user32.dll", "GetAsyncKeyState");
+    char view[128];
+    DWORD prot = 0;
+    if (!s1 || !s2) {
+        MagLogLine("fake-magnet: IAT slots not found\r\n");
+        return;
+    }
+    g_real_gcp = (MagGetCursorPosFn)*s1;
+    g_real_gaks = (MagGetAsyncKeyStateFn)*s2;
+    if (GetEnvironmentVariableA("B2CI_MAG_VIEW", view, sizeof(view)) > 0) {
+        float a, b, c, d;
+        if (sscanf(view, "%f,%f,%f,%f", &a, &b, &c, &d) == 4) {
+            g_mag_xmin = a;
+            g_mag_xmax = b;
+            g_mag_ytop = c;
+            g_mag_ybottom = d;
+        }
+    }
+    if (VirtualProtect(s1, sizeof(void*), PAGE_EXECUTE_READWRITE, &prot)) {
+        *s1 = (void*)MagGetCursorPos;
+        VirtualProtect(s1, sizeof(void*), prot, &prot);
+    }
+    if (VirtualProtect(s2, sizeof(void*), PAGE_EXECUTE_READWRITE, &prot)) {
+        *s2 = (void*)MagGetAsyncKeyState;
+        VirtualProtect(s2, sizeof(void*), prot, &prot);
+    }
+    g_mag_on = 1;
+    MagLogLine("fake-magnet: patched IAT GetCursorPos/GetAsyncKeyState\r\n");
 }
 
 /* cdecl( unsigned id, uint32_t esp0, uint32_t edx, uint32_t ecx ) */
@@ -577,6 +842,14 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
                                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         }
+        if (GetEnvironmentVariableA("B2CI_FAKE_MAGNET", ci, sizeof(ci)) > 0) {
+            GetEnvironmentVariableA("B2CI_MAG_CONFIG", g_mag_cfg, MAX_PATH);
+            if (GetEnvironmentVariableA("B2CI_MAG_TRACE", ci, sizeof(ci)) > 0)
+                g_mag_trace = CreateFileA(ci, FILE_APPEND_DATA,
+                                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            MagInstall();
+        }
         GetEnvironmentVariableA("B2CI_CONFIG", g_ci_cfg, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) JoinDir(log, self, "b2ffi.log");
         g_file = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ, NULL,
@@ -598,6 +871,11 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
             Emit(&hdr, sizeof hdr);
         }
     } else if (reason == DLL_PROCESS_DETACH) {
+        if (g_mag_trace != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(g_mag_trace);
+            CloseHandle(g_mag_trace);
+            g_mag_trace = INVALID_HANDLE_VALUE;
+        }
         if (g_ci_trace != INVALID_HANDLE_VALUE) {
             FlushFileBuffers(g_ci_trace);
             CloseHandle(g_ci_trace);

@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-02**（§0 追加 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 **CI mover 两段通关**；此前 10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F384**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-03**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`** 与力律勘误 F386；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F386**。
 
 ## 0. 一句话现状
 
@@ -92,12 +92,16 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-02 磁铁机制 + CI mover 首跑（F382–F384）**：按下金属体 → `TPlayerObject+0x14`=目标、`+0x10`=1、`TMouseCur+0x40/+0x44`=光标世界；每帧 0x57A000→0x58E5A0→0x58E4A0，力 `min(315/d,30)` 沿 mouse−target（常数 10.5/315/30），经 target VMT +0xD4。`Add_Magnet` 是 TPhysicObject 工厂，不是玩家磁铁。CI 代理 `B2CI_*` 力伺服能推动 body #4，但直线路径被箱体挡住（22.34→17.11），未到目标；下一步 waypoint/施力点。
 - **2026-11-02 CI mover 两段通关（F384）**：`B2CI_CONFIG` 热切换 + `B2CI_MODE=velocity`（max 20）在 level 1 两段到达目标（螺母 d=0.073、齿轮 d=0.176），出现 **“Excellent! Level completed!”** 对话；`start` 在 level state 后等 0.8 s 并复查 `[lm+0x30]/[lm+4]/[lm+8]/app16` 再 arm。负例：不等待时完成态退回主菜单。全程无鼠标。
 
+- **2026-11-02 下一步探索方向：IAT 假磁铁（让游戏自己施磁铁力，替掉代理直施力/写速度）**。依据：F341（输入采样唯一入口）、F346（私有桌面隔离）、F381（世界↔屏幕标定）、F382/F383（磁铁字段与力律）、F384（现行 CI 路径）。**关键前提（用户 2026-11-02 提出）**：CI 里没有真鼠标，`GetCursorPos`/`GetAsyncKeyState` 的返回值本来就没有语义（`GetAsyncKeyState(VK_LBUTTON)` 恒 0、光标位置与玩家意图无关），所以伪造这两个采样源**不会与真实输入竞争**——之前"写 `player+0x14/+0x10`/`mouse+0x1F` 每帧被清零"只在有真鼠标采样时成立。做法：改 `GetCursorPos` IAT 槽 `0x667330`、`GetAsyncKeyState` 槽 `0x66730C`（F341：应用层唯一引用，wrapper `0x401ED0`/`0x401BD0`，采样点 `sub_561C70`），每帧返回 `VK_LBUTTON=0x8000` + 目标方向的屏幕点（F381 反算 `screen_y=(20.5−world_y)/41·h`，客户区 1527×1108 @ (516,183)，视口 ±28.2395/±20.5）；命中测试、target 锁定、`min(315/d,30)` 力律与 `target VMT +0xD4` 施力全走游戏自己。建议配 F346 的 `MagVDesk_<pid>` 私有桌面跑，彻底隔离用户前台输入。**判据**：① `B2CI_FAKE_MAGNET=1` 时 trace 里出现 `b2_Body_ApplyForce`，且合力模长 ≤30、方向 = mouse−target（力来自游戏而非代理）；② level 1 两段 d<0.548 ⇒ gear 刷新 + 完成对话；③ 负例 A：`B2CI_FAKE_MAGNET=0` 同一脚本 body 不动；④ 负例 B：光标不落在金属体上 ⇒ `player+0x14` 保持 0、零 `ApplyForce`。**边界**：磁铁只有 30 N 上限、方向朝鼠标而非朝目标、远处按 `315/d` 衰减 ⇒ 仍需 waypoint（F382 的力伺服即因直线被箱体挡住停在 17.11）；私有桌面里 `GetCursorPos` 是桌面坐标，客户区换算要重标定。
+
 - **2026-11-02 T6.4a-r-2f1 level 4 齿轮相位（F375）**：模型速度 gear_7/gear_1/gear_3 = 3.0/9.0/5.0；三只齿轮反推的 `t (mod π/w)` 唯一公共解 **0.689 s**。`HOST_LEVEL_TIME=0.689` 的宿主整帧（忽略 plunger/shank/smoke 与隐藏提示）**37/37 零差**；负例 t=0.4 ⇒ gear_7 失配 1.219。下一刀：level 3 的 train/smoke 与 level 4 的 plunger/shank/smoke。
 
 - **2026-11-02 T6.4a-r-2g 静态覆盖里程碑（F376）**：5 个已采集关卡的静态场景全部通过宿主渲染路径（宿主自身 Lua 日志 → SceneModel → GL）：level 0 **25/25**（t=1.49）、1 **29/29**、2 **47/47**、3 **53/53**、4 **37/37**（t=0.689），`lua_bind_ab` 55/149/193/187/285 行 0 差，`level_draw_ab` 全部 `missing=0 unmatched_ref=0`。只排除各关动态项（level 3 train/smoke、level 4 plunger/shank/smoke）与隐藏提示。
 
 - **2026-11-02 F377 level 3 train/smoke = 逐帧 `DoProgress`**：`lvl_o20.lua:1-67` 的 `DoProgress(DeltaTime)` 用 TrainTime + 三段圆弧算 `ang`，再 `Set_ScrObjPos(bTrain/bSmoke, ...)`；探针不跑 Update，记录的是 init 位姿。⇒ 这两项需要宿主逐帧 Lua 回调（T6.4d），不是静态工厂。下一刀：level 4 plunger/shank（几何连杆/物理位姿）与 smoke 动画帧。
 - **2026-11-02 T6.4a-r-2f 动态项（F378/F379）**：level 4 的 plunger/shank 是曲柄滑块（`P=G+R(ωt)·(P0−G)`，`body_y=P_y+sign·sqrt(L²−(A_x−P_x)²)−off`），smoke 是 `smoke_5.png` 4×8 at (10.19,9.70)；宿主/Python vs 2a frame 827 **44/44**（含动态项），第二份采集 2b 反推 t≈0.1887 仍 **44/44**，负例 t=0.4 ⇒ 7 失配；`verify` 7/7、`phys_sweep` 50/2/0。**下一步已被上方 T6.4b 拖拽首段（F380/F381）取代：实际关卡是 level 1 / `lvl_o14`，已两段拖拽过关；旧的 level 2 / 先商量作废。**
+
+- **2026-11-03 T6.4b-x 收口（F385/F386）：`B2CI_FAKE_MAGNET` 让游戏自己走磁铁路径**：`src/proxydll/proxy_core.c` 在 b2 代理 DllMain 按 env `B2CI_FAKE_MAGNET` 解析 game.exe 导入表替换 IAT 槽 `0x667330`/`0x66730C`，每帧返回 `B2CI_MAG_CONFIG` 的 `world_x,world_y,button`（世界→屏幕用 F381 视口 + 运行时控件原点；`B2CI_MAG_VIEW` 可覆盖），`B2CI_MAG_TRACE` 记 10 Hz；env 未设零行为。`work/fake_magnet_drive.py run` 用游戏自己的 `mouse+0x40` 两点标定（ax=0.9986467/ay=1.0041948），按下/移动/松开全走 `sub_561C70`→`sub_561F10`→`sub_58E8DD`→`sub_58E810`→`sub_58E690`；5 次独立启动均两段 d<0.548 + 完成面板，负例 A/B 通过。**力律勘误**：trace 244 行证明实际 `|F|=min(315,30·d)`（d>10.5 时 315±4.6e-5；d≤10.5 时与 30d 差 ≤1.79，位置差一帧），F383 的 `min(315/d,30)` 置已证伪，另立 F386。边界：只跑 level 1；普通桌面 + bring_front（未接 F346 私有桌面）；`player+0x14` 对象→b2 body 偏移未定（trace 直接给 body）。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
