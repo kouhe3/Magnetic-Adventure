@@ -109,6 +109,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-03 T7.2c 调用图 + Level 1 覆盖（F395–F397）**：`tools/app_graph.py` 建 3,901 条 app 调用边、209 个未解析间接；分类 state_loop 20 / state_dispatch 159 / event_virtual 37 / lua 144 / address_taken 40 / direct 487 / unreferenced 125。实机（私有桌面前台 + 真鼠标两段拖拽过 Level 1）入口探针 1,010/1,010：**547/1,010 会话命中、212 关卡窗口**；463 未调用中 428 不在已执行子图、35 可达；前沿无全局 flag、状态门无纯 setter ⇒ 不在前沿写内存。下一步：event 分支先定位实例再 idle 调用；state 分支驱动菜单/下一关；content 用 52 关语料。
 - **2026-11-03 手动会话覆盖（F398）**：同一 1,010 入口探针，用户点遍主菜单 + NEXT ⇒ **597/1,010**（拖拽局 547），新增 51；剩余 413 中 state_dispatch 只剩关卡加载/地图 10 个 ⇒ 下一杠杆是 Level map 选普通关（毕业关捷径绕过 0x571B80），或写 [TLevelMap+0xb4]=1..5 触发纯 helper 0x579740。
 - **2026-11-03 新 Profile + 前 2 关（F400）**：641/1,010（两局并集 **663**）。`0x571B80` 只在 `LevelGroup ∈ Circle-1..5` 时走；Tutorial/End-levels 不走 ⇒ 剩余 9 个 LevelMap/加载链要 `direct_drive --levels 15` 直接进 Circle 组。
+- **2026-11-03 Circle-1 实入（F401）**：`LastCompleteLevel` 2→15 进 `lvl_o1`，LevelGroup 门确认；链路 `0x571B80/0x571A20/0x579100/0x5794B0/0x579740/0x57A930/0x582A60` 全命中；三局并集 **702/1,010**，剩 308（direct 142、lua 83、unreferenced 64、address 10、event 9、state_dispatch 2）。
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
