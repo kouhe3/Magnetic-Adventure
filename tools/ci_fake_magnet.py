@@ -36,6 +36,10 @@ bodies nearest to those points, waits SEC seconds and reads their angles; each
 body must move at least `--min-angle` rad.  With two bodies and `--gear-ratio`
 it also requires opposite signs and |(-d2/d1) - ratio| <= `--ratio-tol`.
 
+Stage angle: `--stage-angle STAGE:x,y` also watches a body's angle during a
+magnet stage and requires |delta| >= `--stage-min-angle`.  `--ignore-distance`
+drops the goal-distance requirement for pinned bodies (e.g. a switch arm).
+
 Criterion (exit 0 = PASS)
 -------------------------
 * every stage: target locked on press, body reached `done_dist` before timeout;
@@ -654,6 +658,16 @@ def run(a):
         except ValueError:
             raise SystemExit("bad --waypoint stage index in %r" % spec)
         waypoints.setdefault(k, []).append(parse_point(pt))
+    stage_angles = {}
+    for spec in a.stage_angle:
+        idx, _, pt = spec.partition(":")
+        if not pt:
+            raise SystemExit("bad --stage-angle %r (want stage:x,y)" % spec)
+        try:
+            k = int(idx)
+        except ValueError:
+            raise SystemExit("bad --stage-angle stage index in %r" % spec)
+        stage_angles.setdefault(k, []).append(parse_point(pt))
     markers = [parse_point(m) for m in a.marker]
     tag = os.path.join(WORK, "ci_fake_magnet_%d" % os.getpid())
     log = tag + ".bin"
@@ -767,6 +781,12 @@ def run(a):
                 print("stage %d: no body within %.2f of start" %
                       (si_, a.start_tol), flush=True)
                 continue
+            angle_watch = []
+            for pt in stage_angles.get(si_, []):
+                ca = nearest_body(digest.bodies, pt[0], pt[1])
+                if ca and ca[0] <= a.start_tol:
+                    angle_watch.append({"point": pt, "body": ca[2][0],
+                                        "angle0": ca[2][8]})
             d0, _, body = found
             ptr = body[0]
             used.add(ptr)
@@ -814,6 +834,11 @@ def run(a):
             rec["goal_screen"] = [round(cx, 3), round(cy, 3)]
             rec["body_pos1"] = [fb[6], fb[7]] if fb else None
             rec["angle1"] = fb[8] if fb else None
+            for aw in angle_watch:
+                _, ab = find_body(digest.bodies, aw["body"])
+                if ab is not None:
+                    aw.update(angle1=ab[8], delta=ab[8] - aw["angle0"])
+            rec["angle_watch"] = angle_watch
             print("stage %d live d %s (min %.3f)" % (si_, rec["d_live"],
                                                      d_live_min), flush=True)
         # PASS is decided on the recorded per-step trajectories: the magnet can
@@ -827,10 +852,20 @@ def run(a):
             if hit:
                 rec["d_min"], rec["step_min"], rec["pos_min"] = (
                     round(hit[0], 4), hit[1], [round(hit[2], 3), round(hit[3], 3)])
-            rec["pass"] = bool(rec["locked"] and hit and hit[0] < rec["done_dist"])
-            print("stage %d d_min %s (step %s) pass %s" %
+            angle_ok = True
+            for aw in rec.get("angle_watch", []):
+                ok_ang = (aw.get("delta") is not None and
+                          abs(aw["delta"]) >= a.stage_min_angle)
+                aw["ok"] = ok_ang
+                angle_ok = angle_ok and ok_ang
+            dist_ok = True if a.ignore_distance else bool(
+                hit and hit[0] < rec["done_dist"])
+            rec["dist_ok"] = dist_ok
+            rec["angle_ok"] = angle_ok
+            rec["pass"] = bool(rec["locked"] and dist_ok and angle_ok)
+            print("stage %d d_min %s (step %s) angle_ok %s pass %s" %
                   (rec["index"], rec.get("d_min"), rec.get("step_min"),
-                   rec["pass"]), flush=True)
+                   angle_ok, rec["pass"]), flush=True)
         time.sleep(a.completion_wait)
         out["markers"] = parse_markers(log, markers)
         out["marker_ok"] = all(any(abs(m["x"] - mx) < 0.5 and
@@ -906,6 +941,12 @@ def main():
                    help="seconds to hold the synthetic button per stage")
     r.add_argument("--waypoint", action="append", default=[],
                    help="STAGE:x,y intermediate cursor point (repeatable)")
+    r.add_argument("--stage-angle", action="append", default=[],
+                   help="STAGE:x,y body whose angle must change during the stage")
+    r.add_argument("--stage-min-angle", type=float, default=0.2,
+                   help="minimum |delta angle| (rad) for --stage-angle")
+    r.add_argument("--ignore-distance", action="store_true",
+                   help="stage PASS does not require the body to reach the goal")
     r.add_argument("--waypoint-hold", type=float, default=1.0,
                    help="max seconds to hold at one waypoint")
     r.add_argument("--waypoint-tol", type=float, default=1.5,

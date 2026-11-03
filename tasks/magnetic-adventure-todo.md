@@ -101,6 +101,7 @@
 - [x] T6.4b-x-y 假磁铁 CI 仪器 + 运行时生成夹具：`tools/ci_fake_magnet.py`（build/run、多 stage、私有桌面、逐 step digest 最小距离、marker/force/runtime 三类判据）+ `tests/levels/chain_o.lua`/`chain_e.lua`（`OnMove` 回调在关卡运行中生成第二颗螺丝与目标）。正例 pid 10048：两段 `d_min=0.2868/0.5974`、markers=2、ApplyForce 315 行、`fg_game_events=[]`、PASS；负例 `--done-dist 0.1` / `--marker 77,77` / `--runtime-stage 0` 全 FAIL。依据：F407
 - [x] T6.4b-x-z 障碍夹具 wall + waypoint 绕行：`tests/levels/wall_o.lua`/`wall_e.lua` + 仪器 `--waypoint`。直线负例 `d_min=6.8912` 无 marker ⇒ FAIL；两次正例 `d_min=0.5733/0.5900`、markers=2 ⇒ PASS。依据：F408
 - [x] T6.4b-x-g 齿轮力矩夹具 + observe 模式：`tests/levels/gear_o.lua`/`gear_e.lua`/`gear_nomotor_o.lua`/`gear_nolink_o.lua` + 仪器 `--observe/--angle/--gear-ratio`。正例 Δ1=2.55、Δ2=-3.1875、ratio=1.25000007 ⇒ PASS；no-motor/no-link 均 FAIL。依据：F409
+- [x] T6.4b-x-s 开关旋转夹具 + 阶段角度判据：`tests/levels/switch_o.lua`/`switch_e.lua` + 仪器 `--stage-angle/--stage-min-angle/--ignore-distance`。正例 Δangle=-0.5250、markers=2 ⇒ PASS；过枢轴负例 Δ≈0、markers=0 ⇒ FAIL。依据：F410
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [ ] T6.4e 关卡文本（`pt_sans*.dat` / `gulim2.dat`，判据同 T6.4a 的 draw 列表） 依据：F11、F192、F231

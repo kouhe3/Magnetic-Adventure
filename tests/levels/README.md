@@ -152,6 +152,37 @@ python tools/ci_fake_magnet.py build --out work/fakemag_gear \
 边界：`bStatic` 必须在 `Create()` 里显式赋值（`AddStaticWall`）；不赋值时
 `Add_JointNail` 静默失败——b2 日志 0 个 joint 调用，两轮都不动（本次实测）。
 
+## 开关旋转夹具（switch）
+
+| 文件 | 说明 |
+|---|---|
+| `switch_o.lua` | 静态锚点 + `AddSimpleSwitchArm(0,0,0,1,bStatic)`（枢轴 `(0,-1.6)`、限位 ±0.5）+ 自由标记螺丝 `(10,10)` |
+| `switch_e.lua` | 注册 `OnRotate`；`\|Get_JointAngle(jSwitch)\| > 0.2` 时把标记螺丝传到 `(99,99)` |
+
+这一关验证「磁铁拖拽 → 钉住物体的力矩 → 关节旋转 → `OnRotate` 回调」整条链：
+横向拖拽产生力矩，拖拽方向经过枢轴则不产生力矩。
+
+```bash
+python tools/ci_fake_magnet.py build --out work/fakemag_switch \
+  --o tests/levels/switch_o.lua --e tests/levels/switch_e.lua
+"%PY32%" tools/ci_fake_magnet.py run --dir work/fakemag_switch --level 1 \
+  --stage=0,0:5,0 --stage-angle 0:0,0 --stage-min-angle 0.2 --ignore-distance \
+  --marker 99,99 --hold 2.5 --json work/fakemag_switch.json --require-fg
+```
+
+判据：target 锁定；`--stage-angle` 指定的 body 的 `|Δangle| >= --stage-min-angle`；
+`--ignore-distance` 关闭「到 goal 的距离」判据（开关被钉住，不会平移）；marker 命中。
+
+实测（F410）：
+
+| 运行 | 结果 |
+|---|---|
+| 正例（横拖到 `(5,0)`） | `d_min=4.2036`（钉住）、`Δangle=-0.5250`、markers=2 ⇒ **PASS** |
+| 负例（拖到 `(0,-2)`，力线过枢轴） | locked=True、`Δangle≈-1.34e-19`、markers=0 ⇒ **FAIL** |
+
+机制：磁铁力作用在 body 中心，枢轴在其下方 1.6；横向力产生力矩，关节转到限位，
+`OnRotate` 回调触发。
+
 ## 边界
 
 - 私有桌面上 `PrintWindow` 返回 1 但客户端为黑；像素不是私有桌面的判据，完成用 Lua 标记。
@@ -159,5 +190,5 @@ python tools/ci_fake_magnet.py build --out work/fakemag_gear \
   否则第二段的逐 step min 会被完成时的传送截断在阈值处，判据变成同义反复。
 - 假磁铁对轻螺丝施 315 会把 body 甩到穿墙（实测终值 ~`(31,23)`，在关墙外）；
   夹具不依赖 body 留在墙内，只依赖它经过目标点。
-- 开关尚未加入（障碍/齿轮已加，见 wall/gear）；`work/test_fakemag.py` 是单段原型，已被
+- 障碍/齿轮/开关已加（wall/gear/switch）；`work/test_fakemag.py` 是单段原型，已被
   `tools/ci_fake_magnet.py`（build/run、多段、逐 step 判据）取代。
