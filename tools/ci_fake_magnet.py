@@ -31,6 +31,11 @@ cursor through intermediate points before the goal (e.g. around a static wall).
 The waypoint is "reached" when the body is within `--waypoint-tol`, or after
 `--waypoint-hold` seconds.
 
+Observe mode (no magnet): `--observe SEC --angle x,y [--angle x,y]` finds the
+bodies nearest to those points, waits SEC seconds and reads their angles; each
+body must move at least `--min-angle` rad.  With two bodies and `--gear-ratio`
+it also requires opposite signs and |(-d2/d1) - ratio| <= `--ratio-tol`.
+
 Criterion (exit 0 = PASS)
 -------------------------
 * every stage: target locked on press, body reached `done_dist` before timeout;
@@ -637,8 +642,8 @@ def run(a):
         raise SystemExit("32-bit Python required (CONTEXT is x86)")
     game_dir = os.path.abspath(a.dir)
     stages = [parse_stage(s) for s in a.stage]
-    if not stages:
-        raise SystemExit("at least one --stage required")
+    if not stages and a.observe <= 0:
+        raise SystemExit("at least one --stage required (or --observe)")
     waypoints = {}
     for spec in a.waypoint:
         idx, _, pt = spec.partition(":")
@@ -679,6 +684,64 @@ def run(a):
         print("bodies", len(digest.bodies), "seq", digest.seq, flush=True)
         initial = {b[0] for b in digest.bodies}
         note_fg("settle")
+        if a.observe > 0:
+            targets = []
+            for pt in [parse_point(v) for v in a.angle]:
+                cand = nearest_body(digest.bodies, pt[0], pt[1])
+                if not cand or cand[0] > a.start_tol:
+                    raise SystemExit("angle body not found near %s" % (pt,))
+                targets.append({"point": pt, "body": cand[2][0],
+                                "angle0": cand[2][8], "w0": cand[2][5]})
+            if not targets:
+                raise SystemExit("--observe needs at least one --angle x,y")
+            note_fg("observe:start")
+            t0 = time.time()
+            while time.time() - t0 < a.observe:
+                digest.poll()
+                time.sleep(0.05)
+            note_fg("observe:end")
+            digest.poll()
+            ok = True
+            for t in targets:
+                _, b = find_body(digest.bodies, t["body"])
+                if b is None:
+                    t["missing"] = True
+                    ok = False
+                    continue
+                t.update(angle1=b[8], w1=b[5], delta=b[8] - t["angle0"])
+                if abs(t["delta"]) < a.min_angle:
+                    ok = False
+            if (a.gear_ratio is not None and len(targets) == 2
+                    and not any(t.get("missing") for t in targets)):
+                d1, d2 = targets[0]["delta"], targets[1]["delta"]
+                ratio = (-d2 / d1) if abs(d1) > 1e-6 else None
+                sign_ok = d1 * d2 < 0
+                ratio_ok = (ratio is not None and
+                            abs(ratio - a.gear_ratio) <= a.ratio_tol)
+                ok = ok and sign_ok and ratio_ok
+                out["gear"] = {"ratio_measured": ratio,
+                               "ratio_expected": a.gear_ratio,
+                               "sign_ok": sign_ok, "ratio_ok": ratio_ok}
+            out["angles"] = targets
+            out["angles_ok"] = ok
+            out["mode"] = "observe"
+            time.sleep(a.completion_wait)
+            out["markers"] = parse_markers(log, markers)
+            out["marker_ok"] = all(any(abs(m["x"] - mx) < 0.5 and
+                                       abs(m["y"] - my) < 0.5
+                                       for m in out["markers"])
+                                   for mx, my in markers) if markers else True
+            note_fg("end")
+            out["fg_same"] = (user32.GetForegroundWindow() == prev_fg)
+            out["fg_before"] = prev_fg
+            out["fg_after"] = user32.GetForegroundWindow()
+            fg_ok = (not fg_events) or not a.require_fg
+            out["fg_ok"] = fg_ok
+            out["force_ok"] = True
+            out["pass"] = bool(ok and out["marker_ok"] and fg_ok)
+            print("SUMMARY", json.dumps(out, ensure_ascii=False)[:1600], flush=True)
+            print("PASS" if out["pass"] else "FAIL", flush=True)
+            return 0 if out["pass"] else 1
         cal = calibrate(hp, cfg)
         print("calib", cal, flush=True)
         used = set()
@@ -855,6 +918,15 @@ def main():
     r.add_argument("--settle", type=float, default=0.8)
     r.add_argument("--completion-wait", type=float, default=1.5)
     r.add_argument("--skip-forces", action="store_true")
+    r.add_argument("--observe", type=float, default=0.0,
+                   help="angle-observation seconds (no magnet stage)")
+    r.add_argument("--angle", action="append", default=[],
+                   help="x,y body to watch in --observe mode (repeatable)")
+    r.add_argument("--min-angle", type=float, default=0.1,
+                   help="minimum |delta angle| (rad) per watched body")
+    r.add_argument("--gear-ratio", type=float, default=None,
+                   help="expected |delta2/delta1| magnitude (sign must be opposite)")
+    r.add_argument("--ratio-tol", type=float, default=0.15)
     r.add_argument("--runtime-stage", type=int, action="append", default=[],
                    help="stage index whose body must not exist in the initial digest")
     r.add_argument("--require-fg", action="store_true",

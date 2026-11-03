@@ -114,6 +114,44 @@ python tools/ci_fake_magnet.py build --out work/fakemag_wall \
 边界：磁铁无阻尼，光标直达目标时 body 会绕目标转圈（per-step min 停在 2–4）；
 最后一段 waypoint 必须靠近目标（`8.4,0.4`）且逐段小步，否则到不了 0.65。
 
+## 齿轮力矩夹具（gear）
+
+| 文件 | 说明 |
+|---|---|
+| `gear_o.lua` | 两个 `Add_MetallGear` (0,0)/(5,0)；`bStatic = AddStaticWall(0,-25,0)` 后各 `Add_JointNail(0,bStatic,…)`；`Add_JointSimpleGear(g1,g2,j1,j2,0.8)`；`Set_JointMotors(j1,1,1.0,100)` |
+| `gear_e.lua` | 空 `AttachScripts`（电机/关节都在 Create 里启动） |
+| `gear_nomotor_o.lua` | 负例：`Set_JointMotors(...,1.0,0)`（扭矩 0） |
+| `gear_nolink_o.lua` | 负例：删掉 `Add_JointSimpleGear` |
+
+这一关验证 `Add_JointNail` / `Add_JointSimpleGear` / `Set_JointMotors` 的绑定语义：
+电机 1.0 rad/s 经 ratio 0.8 的齿轮关节，从动轮应为 **-1.25 rad/s**（F368 的
+`w2 = -w1/ratio`）。
+
+```bash
+python tools/ci_fake_magnet.py build --out work/fakemag_gear \
+  --o tests/levels/gear_o.lua --e tests/levels/gear_e.lua
+"%PY32%" tools/ci_fake_magnet.py run --dir work/fakemag_gear --level 1 \
+  --observe 2.5 --angle 0,0 --angle 5,0 --gear-ratio 1.25 --min-angle 0.5 \
+  --json work/fakemag_gear.json --require-fg
+```
+
+判据（`--observe` 模式不按鼠标）：每只被观察 body 的 `|Δangle| >= --min-angle`；
+两只时还要求 `Δ1·Δ2 < 0` 且 `|(-Δ2/Δ1) - --gear-ratio| <= --ratio-tol`。
+
+实测（F409）：
+
+| 运行 | 结果 |
+|---|---|
+| 正例 | `Δ1=2.5500`、`Δ2=-3.1875`、`w1=1.0`、`w2=-1.25`、`ratio_measured=1.25000007` ⇒ **PASS** |
+| 负例 no-motor | `Δ1=Δ2=0`（扭矩 0）⇒ **FAIL** |
+| 负例 no-link | `Δ1=2.53`、`Δ2=0`、`sign_ok=False`、`ratio_measured≈-0.0` ⇒ **FAIL** |
+
+机制：b2 日志里 `b2_World_Joint_Revolute`×2、`b2_World_Joint_Gear`×1、
+`b2_Joint_EnableMotor`/`SetMaxMotorTorque`/`SetMotorSpeed` 各 1。
+
+边界：`bStatic` 必须在 `Create()` 里显式赋值（`AddStaticWall`）；不赋值时
+`Add_JointNail` 静默失败——b2 日志 0 个 joint 调用，两轮都不动（本次实测）。
+
 ## 边界
 
 - 私有桌面上 `PrintWindow` 返回 1 但客户端为黑；像素不是私有桌面的判据，完成用 Lua 标记。
@@ -121,5 +159,5 @@ python tools/ci_fake_magnet.py build --out work/fakemag_wall \
   否则第二段的逐 step min 会被完成时的传送截断在阈值处，判据变成同义反复。
 - 假磁铁对轻螺丝施 315 会把 body 甩到穿墙（实测终值 ~`(31,23)`，在关墙外）；
   夹具不依赖 body 留在墙内，只依赖它经过目标点。
-- 齿轮力矩/开关尚未加入（障碍已加，见 wall）；`work/test_fakemag.py` 是单段原型，已被
+- 开关尚未加入（障碍/齿轮已加，见 wall/gear）；`work/test_fakemag.py` 是单段原型，已被
   `tools/ci_fake_magnet.py`（build/run、多段、逐 step 判据）取代。
