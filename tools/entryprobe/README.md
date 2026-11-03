@@ -37,6 +37,25 @@ B2RTLPROBE_EARLY=1 python tools/entryprobe/run.py --seconds 25
 （27 个 `0x52E750`/TDebugInfo 块 + 12 个回调/表项），即 **775/1,010**，未覆盖降到 235。
 ⇒ 晚挂载报 0 不等于没执行；`0x52E750` 及其 `0x564760` 已用 x32dbg 断点确认在启动期执行。
 
+## 自制关卡覆盖 Lua 绑定（F406）
+
+`tests/levels/cover_bindings_*.lua` 用同名替换 `lvl_o14/e14` 的方式调用未覆盖绑定；
+主关覆盖 70 个，`cover_bindings_terminal_*.lua` 分别覆盖入口后会抛异常/重启的
+`Set_VisibleRollMap`、`Add_LevelSound`、`Level_Restart`。
+
+```bash
+python tools/entryprobe/cover_build.py                 # 主关
+python tools/entryprobe/cover_build.py --o tests/levels/cover_bindings_terminal_roll.lua
+# 每次启动前设 B2RTLPROBE_EARLY=1 / ENTRY_OUT / ENTRY_LOG，然后：
+"C:/Users/K/.local/bin/python3.12.exe" tools/direct_drive.py --dir work/cover_game --levels 1 --timeout 5
+python tools/entryprobe/check_bindings.py --counts work/cover_game/counts_main.bin \
+    work/cover_game/counts_term_roll.bin work/cover_game/counts_term_sound.bin \
+    work/cover_game/counts_term_restart.bin
+```
+
+结果：`hit=73 miss=0 expected=73 helpers=73/73`；负例只给 `counts_term_roll.bin` 时
+`hit=1 miss=72`。边界：只证明入口命中，不证明参数/行为等价。
+
 ## 覆盖边界
 
 - 只覆盖 `targets.csv` 里的 361 个可挂桩目标（F299 的 363 个快照扣掉 2 个 1 字节 nullsub）；不是全 exe。
