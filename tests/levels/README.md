@@ -80,6 +80,40 @@ python tools/ci_fake_magnet.py build --out work/fakemag_chain \
 315 行（方向 ≤0.0097 rad、力律误差 ≤0.0048）、`fg_game_events=[]`、`exit_clean=True`。
 live 50 ms 轮询在同样两段上只看到 0.57–0.71，所以判据必须读逐 step digest。
 
+## 障碍夹具（wall）
+
+| 文件 | 说明 |
+|---|---|
+| `wall_o.lua` | 替换 `lvl_o14.lua`：自由金属螺丝 `(0,0)`（`Set_PhysParams(bScrew,5,0,0)` 提高密度防穿墙）+ chalk `(9,0)` + 3 段静态 `Add_WoodFormWall(…,4)`（x≈2.16..5.41，y≈-3.31..3.38） |
+| `wall_e.lua` | 替换 `lvl_e14.lua`：到 `(9,0)` 半径 0.6 后写 `(99,99)` 标记 + `DoLevelComplete()` |
+
+这一关验证「磁铁输入能不能绕开碰撞体到达目标」：直线拖会被墙挡住，必须经 waypoint
+（`--waypoint STAGE:x,y`，可重复）逐段引导。
+
+```bash
+python tools/ci_fake_magnet.py build --out work/fakemag_wall \
+  --o tests/levels/wall_o.lua --e tests/levels/wall_e.lua
+"%PY32%" tools/ci_fake_magnet.py run --dir work/fakemag_wall --level 1 \
+  --stage=0,0:9,0 \
+  --waypoint 0:0,6 --waypoint 0:6.5,6 --waypoint 0:6.5,2 \
+  --waypoint 0:7.5,1 --waypoint 0:8.4,0.4 \
+  --marker 99,99 --done-dist 0.65 --hold 3.0 \
+  --waypoint-hold 1.5 --waypoint-tol 2.0 --json work/fakemag_wall.json
+```
+
+实测（F408）：
+
+| 运行 | 路径 | 结果 |
+|---|---|---|
+| 负例 | 无 `--waypoint`，直线到 `(9,0)` | body 停在墙前 x≈2.117，`d_min=6.8912`，markers=0 ⇒ **FAIL** |
+| 正例 1 | 上表 5 个 waypoint | `d_min=0.5733`、`pos_min≈(9.28,0.50)`、markers=2 ⇒ **PASS** |
+| 正例 2 | 同上（第二次独立启动） | `d_min=0.5900`、`pos_min≈(9.26,0.53)`、markers=2 ⇒ **PASS** |
+
+两次正例的 live 50 ms 最小只有 0.6206/0.7875，again 只能靠逐 step digest 判定。
+
+边界：磁铁无阻尼，光标直达目标时 body 会绕目标转圈（per-step min 停在 2–4）；
+最后一段 waypoint 必须靠近目标（`8.4,0.4`）且逐段小步，否则到不了 0.65。
+
 ## 边界
 
 - 私有桌面上 `PrintWindow` 返回 1 但客户端为黑；像素不是私有桌面的判据，完成用 Lua 标记。
@@ -87,5 +121,5 @@ live 50 ms 轮询在同样两段上只看到 0.57–0.71，所以判据必须读
   否则第二段的逐 step min 会被完成时的传送截断在阈值处，判据变成同义反复。
 - 假磁铁对轻螺丝施 315 会把 body 甩到穿墙（实测终值 ~`(31,23)`，在关墙外）；
   夹具不依赖 body 留在墙内，只依赖它经过目标点。
-- 齿轮力矩/障碍/开关尚未加入；`work/test_fakemag.py` 是单段原型，已被
+- 齿轮力矩/开关尚未加入（障碍已加，见 wall）；`work/test_fakemag.py` 是单段原型，已被
   `tools/ci_fake_magnet.py`（build/run、多段、逐 step 判据）取代。

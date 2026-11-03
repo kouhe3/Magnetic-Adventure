@@ -26,6 +26,11 @@ body nearest to the start point (within `--start-tol`), holds the button, moves
 the synthetic cursor to the goal, and releases when the body is within
 `done_dist` (default `--done-dist`, 0.30).
 
+Obstacles: pass `--waypoint STAGE:x,y` (repeatable) to steer the synthetic
+cursor through intermediate points before the goal (e.g. around a static wall).
+The waypoint is "reached" when the body is within `--waypoint-tol`, or after
+`--waypoint-hold` seconds.
+
 Criterion (exit 0 = PASS)
 -------------------------
 * every stage: target locked on press, body reached `done_dist` before timeout;
@@ -634,6 +639,16 @@ def run(a):
     stages = [parse_stage(s) for s in a.stage]
     if not stages:
         raise SystemExit("at least one --stage required")
+    waypoints = {}
+    for spec in a.waypoint:
+        idx, _, pt = spec.partition(":")
+        if not pt:
+            raise SystemExit("bad --waypoint %r (want stage:x,y)" % spec)
+        try:
+            k = int(idx)
+        except ValueError:
+            raise SystemExit("bad --waypoint stage index in %r" % spec)
+        waypoints.setdefault(k, []).append(parse_point(pt))
     markers = [parse_point(m) for m in a.marker]
     tag = os.path.join(WORK, "ci_fake_magnet_%d" % os.getpid())
     log = tag + ".bin"
@@ -682,7 +697,8 @@ def run(a):
                 time.sleep(0.05)
             rec = {"index": si_, "start": st["start"], "goal": st["goal"],
                    "done_dist": done, "body": None, "d": None, "locked": False,
-                   "target": None, "pass": False}
+                   "target": None, "waypoints": waypoints.get(si_, []),
+                   "pass": False}
             out["stages"].append(rec)
             if not found:
                 print("stage %d: no body within %.2f of start" %
@@ -706,6 +722,22 @@ def run(a):
             if not rec["locked"]:
                 continue
             expect[rec["target"]] = ptr
+            for wx, wy in waypoints.get(si_, []):
+                wcx, wcy = cfg_world(cal, wx, wy)
+                write_cfg(cfg, wcx, wcy, 1)
+                wb = None
+                t0 = time.time()
+                while time.time() - t0 < a.waypoint_hold:
+                    digest.poll()
+                    _, wb = find_body(digest.bodies, ptr)
+                    if (wb and math.hypot(wb[6] - wx, wb[7] - wy)
+                            < a.waypoint_tol):
+                        break
+                    time.sleep(0.05)
+                print("stage %d waypoint (%.2f,%.2f) d=%.3f" %
+                      (si_, wx, wy,
+                       math.hypot(wb[6] - wx, wb[7] - wy) if wb else -1),
+                      flush=True)
             cx, cy = cfg_world(cal, *st["goal"])
             write_cfg(cfg, cx, cy, 1)
             d, d_live_min = drive_to(digest, ptr, st["goal"], done, a.hold,
@@ -809,6 +841,12 @@ def main():
     r.add_argument("--timeout", type=float, default=12.0, help="per-stage drag timeout")
     r.add_argument("--hold", type=float, default=2.5,
                    help="seconds to hold the synthetic button per stage")
+    r.add_argument("--waypoint", action="append", default=[],
+                   help="STAGE:x,y intermediate cursor point (repeatable)")
+    r.add_argument("--waypoint-hold", type=float, default=1.0,
+                   help="max seconds to hold at one waypoint")
+    r.add_argument("--waypoint-tol", type=float, default=1.5,
+                   help="body distance at which a waypoint counts as reached")
     r.add_argument("--timeout-body", type=float, default=8.0,
                    help="wait for a stage's body (runtime-generated)")
     r.add_argument("--timeout-bodies", type=float, default=10.0,
