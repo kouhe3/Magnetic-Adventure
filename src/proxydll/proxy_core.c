@@ -757,18 +757,26 @@ static void JoinDir(char* dst, const char* dir, const char* leaf) {
 /* T7.0 探针挂载：B2RTLPROBE_DLL 指向一个导出 rp_host_entry 的 FPC DLL。
  * 默认零成本（不设环境变量不建线程），只改这一处，不动导出表与日志格式。 */
 static char g_probe_dll[MAX_PATH];
+static LONG g_probe_mounted;
 
-/* 定时器回调在主线程的消息循环里执行：探针的堆操作与宿主主线程不并发，
- * 这样测到的才是 RTL 语义本身，而不是两个线程抢同一个堆。 */
-static void CALLBACK RtlProbeTimer(HWND hwnd, UINT msg, UINT_PTR id, DWORD tick) {
+/* 载入探针并调用 rp_host_entry。默认由主线程定时器触发；B2RTLPROBE_EARLY=1
+ * 时在 DllMain 里直接挂载，用来记录 exe 入口前的启动期调用（入口探针的盲区）。 */
+static void MountProbe(void) {
     HMODULE h;
     FARPROC f;
-    (void)hwnd; (void)msg; (void)tick;
-    KillTimer(NULL, id);
+    if (InterlockedExchange(&g_probe_mounted, 1) != 0) return;
     h = LoadLibraryA(g_probe_dll);
     if (!h) return;
     f = GetProcAddress(h, "rp_host_entry");
     if (f) ((void (__stdcall *)(void))f)();
+}
+
+/* 定时器回调在主线程的消息循环里执行：探针的堆操作与宿主主线程不并发，
+ * 这样测到的才是 RTL 语义本身，而不是两个线程抢同一个堆。 */
+static void CALLBACK RtlProbeTimer(HWND hwnd, UINT msg, UINT_PTR id, DWORD tick) {
+    (void)hwnd; (void)msg; (void)tick;
+    KillTimer(NULL, id);
+    MountProbe();
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
@@ -786,8 +794,13 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         CrashLogInstallFromEnv();   /* 默认零成本；CRASHLOG_DIR/CRASHLOG_LOG 才启用 */
         DisableThreadLibraryCalls(inst);
         n = GetEnvironmentVariableA("B2RTLPROBE_DLL", g_probe_dll, MAX_PATH);
-        if (n > 0 && n < MAX_PATH)
-            SetTimer(NULL, 0, 1500, RtlProbeTimer);   /* 主线程有消息循环后才回调 */
+        if (n > 0 && n < MAX_PATH) {
+            char early[8];
+            if (GetEnvironmentVariableA("B2RTLPROBE_EARLY", early, sizeof early) > 0)
+                MountProbe();                          /* 启动期调用也计数（F405） */
+            else
+                SetTimer(NULL, 0, 1500, RtlProbeTimer); /* 主线程有消息循环后才回调 */
+        }
         n = GetModuleFileNameA(inst, self, MAX_PATH);
         i = (int)(n ? n - 1 : 0);
         while (i > 0 && self[i] != '\\') --i;

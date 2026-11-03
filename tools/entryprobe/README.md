@@ -23,15 +23,31 @@ python tools/entryprobe/run.py --report work/entryprobe/counts.bin
 判据：`entry.log` 出现 `ENTRY installed=361 failed=0 targets=361`；`counts.bin` = 361×4 字节；
 `--report` 给出 `nonzero=N/361` 与逐函数计数。
 
+## 启动期挂载（F405）
+
+默认挂载点在 b2 代理的 `SetTimer(1500 ms)`，因此 **exe 入口到计时器触发之间的调用一律记 0**。
+要测启动期，设 `B2RTLPROBE_EARLY=1`：代理在 `DllMain` 里直接 `LoadLibrary` + `rp_host_entry()`，
+探针在 `start` 之前完成打桩（`counts` 里 `005afcc0 start` 会变成 1）。
+
+```bash
+B2RTLPROBE_EARLY=1 python tools/entryprobe/run.py --seconds 25
+```
+
+实测（1,010 目标版）：晚挂载四局并集 736/1,010；早挂载新增 **39** 个启动期函数
+（27 个 `0x52E750`/TDebugInfo 块 + 12 个回调/表项），即 **775/1,010**，未覆盖降到 235。
+⇒ 晚挂载报 0 不等于没执行；`0x52E750` 及其 `0x564760` 已用 x32dbg 断点确认在启动期执行。
+
 ## 覆盖边界
 
-- 只覆盖 `targets.csv` 里的 363 个目标（F299 快照）；不是全 exe。
+- 只覆盖 `targets.csv` 里的 361 个可挂桩目标（F299 的 363 个快照扣掉 2 个 1 字节 nullsub）；不是全 exe。
 - 不覆盖：函数体中间的间接入口（只扫描了直接 call/jmp 到 `(target,target+L)` 的情况）、
   通过计算跳转进入序言的代码、2 个 1 字节 nullsub（`0x5afc70`/`0x5afcd6`，长度 < 5 跳过）。
 - 计数是“进入函数的次数”，不是调用点次数；同一函数的所有调用来源合并。
 - 探针在主线程 `SetTimer(1500ms)` 安装（b2 代理的 `B2RTLPROBE_DLL`，F246）；安装前已执行的调用不计数。
 - 依赖 **无 ASLR** 的 `game.exe`（F234，ImageBase `0x400000`，md5 `059fd8f39cfd2f763e5ba1a32d22fa73`）。
   换版本/加壳/VAs 变化后必须重跑 `bin/gametop/game.exe.i64` 的清单并更新 `targets.csv`。
+- `tools/entryprobe/targets.json` 是 F299 的 **361** 目标快照；1,010 目标版在
+  `work/entryprobe_lvl1/targets.json`（同名 `targets.inc`，需用该目录的 build）。
 
 ## 失效条件
 
