@@ -43,6 +43,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -319,6 +320,61 @@ def mute_game():
     return ok
 
 
+def state_label(s):
+    """Map the raw (mgr, lm, lm30, index, level, lm54, app16) tuple to a label.
+
+    Only stable states are labelled: menu (lm30=2, index=-1) and level
+    (lm30=1, valid index, lm8=1, app16=1).  Loading transients return "other".
+    """
+    mgr, lm, lm30, idx, lvl, lm54, app16 = s
+    if not mgr or not lm:
+        return "other"
+    if lm30 == 2 and idx == 0xFFFFFFFF:
+        return "menu"
+    if lm30 == 1 and idx != 0xFFFFFFFF and app16 == 1 and lvl:
+        return "level"
+    return "other"
+
+
+def start_trace(hp, pi, hz):
+    """Sample app/level state at `hz` in a daemon thread; keep transitions only."""
+    rows = []
+    stop = threading.Event()
+    holder = {"app": None}
+    t0 = time.time()
+
+    rows.append({"t_ms": 0, "state": "boot", "lm30": None,
+                 "index": None, "lm8": None, "app16": None})
+
+    def run():
+        last = "boot"
+        while not stop.is_set():
+            if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
+                rows.append({"t_ms": int((time.time() - t0) * 1000),
+                             "state": "exit", "lm30": None,
+                             "index": None, "lm8": None, "app16": None})
+                break
+            s = state(hp, holder["app"])
+            if not s[0] or not s[1]:
+                time.sleep(1.0 / hz)
+                continue
+            label = state_label(s)
+            key = (label, s[3] if label == "level" else None)
+            if label != "other" and key != last:
+                rows.append({"t_ms": int((time.time() - t0) * 1000),
+                             "state": label,
+                             "lm30": s[2], "index": s[3],
+                             "lm8": u8(hp, s[1] + 8) if s[1] else None,
+                             "app16": s[6]})
+                last = key
+            time.sleep(1.0 / hz)
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    return {"rows": rows, "stop": stop, "holder": holder, "thread": th,
+            "t0": t0}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default=DEFAULT_DIR)
@@ -334,6 +390,10 @@ def main():
                     help="clean=remote ExitProcess; wmclose=PostMessage(WM_CLOSE) then clean fallback")
     ap.add_argument("--exit-timeout", type=float, default=15.0,
                     help="seconds to wait for WM_CLOSE to end the process")
+    ap.add_argument("--trace", default=None,
+                    help="write state transitions (JSONL) to this path")
+    ap.add_argument("--trace-hz", type=float, default=50.0,
+                    help="state sampling rate for --trace")
     a = ap.parse_args()
 
     if ctypes.sizeof(ctypes.c_void_p) != 4:
@@ -375,6 +435,7 @@ def main():
     hp = k32.OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION |
                          PROCESS_VM_OPERATION | PROCESS_VM_WRITE |
                          PROCESS_CREATE_THREAD, False, pid)
+    trace = start_trace(hp, pi, a.trace_hz) if a.trace else None
     out = open(a.out, "w", encoding="utf-8") if a.out else None
 
     def emit(obj):
@@ -401,6 +462,8 @@ def main():
             return 3
         lm = menu[1]
         app = scan_appobj(hp, lm)
+        if trace:
+            trace["holder"]["app"] = app
         emit({"event": "menu", "lm": lm, "app": app})
         if not app:
             print("appObj not found")
@@ -524,6 +587,18 @@ def main():
                     k32.TerminateProcess(ctypes.c_void_p(pi.hProcess), 0)
                 except Exception:
                     pass
+        if trace:
+            if not trace["rows"] or trace["rows"][-1]["state"] != "exit":
+                trace["rows"].append({"t_ms": int(
+                    (time.time() - trace["t0"]) * 1000), "state": "exit",
+                    "lm30": None, "index": None, "lm8": None,
+                    "app16": None})
+            trace["stop"].set()
+            trace["thread"].join(timeout=2.0)
+            with open(a.trace, "w", encoding="utf-8") as tf:
+                for row in trace["rows"]:
+                    tf.write(json.dumps(row, ensure_ascii=False) + "\n")
+            print("trace", a.trace, len(trace["rows"]), flush=True)
         if out:
             out.close()
         try:
