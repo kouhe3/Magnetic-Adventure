@@ -111,6 +111,7 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-03 新 Profile + 前 2 关（F400）**：641/1,010（两局并集 **663**）。`0x571B80` 只在 `LevelGroup ∈ Circle-1..5` 时走；Tutorial/End-levels 不走 ⇒ 剩余 9 个 LevelMap/加载链要 `direct_drive --levels 15` 直接进 Circle 组。
 - **2026-11-03 Circle-1 实入（F401）**：`LastCompleteLevel` 2→15 进 `lvl_o1`，LevelGroup 门确认；链路 `0x571B80/0x571A20/0x579100/0x5794B0/0x579740/0x57A930/0x582A60` 全命中；三局并集 **702/1,010**，剩 308（direct 142、lua 83、unreferenced 64、address 10、event 9、state_dispatch 2）。
 - **2026-11-03 Circle-1 过关（F402）**：本局 706，跨局并集 **736/1,010**，剩 274（direct 121、lua 73、unreferenced 62、address 10、event 8、state_dispatch 2）。剩余 2 个 state_dispatch 是 state=1 分支与 debug HUD 分支，正常游玩不触发。
+- **2026-11-03 调试 HUD 主线程调用（F403/F404）**：`TDebugInfo=[TGameManager+0x4C]`（2×TGLSphere + font + 3×TGLHUDText，`FText` 在 `+0x230`，WideString），默认因 `byte_622510=0` 隐藏；`work/hud_probe.py`（32 位）扫 VMT `0x6224A0` 找 manager，挂起窗口线程改 EIP 调 `0x564760(dbg,1)`，5 个 `+0x1F0` 0→1；MENU 截图 `65.17 FPS`，`--level 1` 后读回 `Start` 并截图 `85.17 FPS`+`Start`（`work/hud_after.png`）。勘误：`0x57A860` 是 `LoadLevelFile` 的 `scripts\\` 兜底，不是 HUD。注意 `[0x665334]` 是 `TLevelObjects`，不是 manager。
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
