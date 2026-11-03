@@ -6,6 +6,7 @@
   python tools/app_layout.py --check       # 交叉验证；contradictions>0 时退出码 1
   python tools/app_layout.py --dups        # 字节一致簇（exact / masked）到 work/fn_dups.json
   python tools/app_layout.py --show RVA    # 打印单函数的字段访问与调用（排查用）
+  python tools/app_layout.py --suggest     # 未知类函数的 EAX 对象候选 → work/app_self_suggest.csv
 
 判据：
   --check 打印 `functions_self=… ptr_fields=… contradictions=…`，矛盾分四类：
@@ -14,6 +15,7 @@
     direct_mismatch 直接调用的目标静态类不是该字段运行时类的祖先
     unlisted        有对象证据的字段在 `work/live_fields.json` 里没有条目（不算矛盾，单列）
   --dups 打印 `exact_groups=… masked_groups=… cross_class=… pilot_dup=…`
+  --suggest 打印 `suggest functions=… unique=… zero=… multi=…`：候选=分诊，不是结论（未做运行时 EAX/VMT 采样）
 
 输入：
   bin/gametop/game.exe（只读 oracle）、mapping/app-functions.csv、
@@ -578,6 +580,58 @@ def cmd_dups(pe, rows, vmts) -> int:
     return 0
 
 
+def cmd_suggest(pe, vmts, rows, live, outdir: Path) -> int:
+    """未知类函数：按「最大偏移 < 实例大小」+「对象证据偏移 ∈ 运行时指针表」给候选类。
+
+    这是候选，不是结论：未做运行时 EAX/VMT 采样，也没排除 standalone（EAX 可能是首参）。
+    """
+    md, accesses, calls = build(pe, vmts, rows, live)
+    sig: dict[int, dict] = {}
+    for a in accesses:
+        if a.cls != "?" or a.via != "direct":
+            continue
+        d = sig.setdefault(a.rva, {"offs": set(), "ptr": set(), "widths": {}})
+        d["offs"].add(a.off)
+        d["widths"][a.off] = max(d["widths"].get(a.off, 0), a.width)
+    for c in calls:
+        if c.cls == "?" and c.kind in ("field_vcall", "field_dcall"):
+            sig.setdefault(c.rva, {"offs": set(), "ptr": set(), "widths": {}})["ptr"].add(c.off)
+    live_off = {cls: {int(k, 16) for k in v} for cls, v in live.items()}
+    out = []
+    for rva, d in sorted(sig.items()):
+        if not d["offs"]:
+            continue
+        mx = max(d["offs"])
+        cands = []
+        for name, v in vmts.items():
+            if v.size <= mx:
+                continue
+            if any(o not in live_off.get(name, ()) for o in d["ptr"]):
+                continue
+            cands.append(name)
+        out.append({
+            "rva": hex(rva),
+            "candidates": ";".join(sorted(cands)), "n_candidates": len(cands),
+            "unique": len(cands) == 1, "max_off": hex(mx),
+            "offsets": " ".join(hex(o) for o in sorted(d["offs"])),
+            "ptr_offsets": " ".join(hex(o) for o in sorted(d["ptr"])),
+        })
+    path = outdir / "app_self_suggest.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(out[0].keys()) if out else ["rva"])
+        w.writeheader()
+        w.writerows(out)
+    hist = defaultdict(int)
+    for r in out:
+        hist[r["n_candidates"]] += 1
+    uniq = [r for r in out if r["unique"]]
+    print("suggest functions=%d unique=%d zero=%d multi=%d -> %s" % (
+        len(out), len(uniq), hist[0], len(out) - len(uniq) - hist[0], path))
+    for r in uniq:
+        print("  UNIQUE", r["rva"], r["candidates"], "ptr", r["ptr_offsets"])
+    return 0
+
+
 def cmd_show(pe, vmts, rows, live, rva: int) -> int:
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     md.detail = True
@@ -609,6 +663,7 @@ def main() -> int:
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--dups", action="store_true")
     ap.add_argument("--show", type=lambda s: int(s, 0), default=None)
+    ap.add_argument("--suggest", action="store_true")
     args = ap.parse_args()
 
     pe = PE(args.game)
@@ -630,6 +685,8 @@ def main() -> int:
         rc |= cmd_dups(pe, rows, vmts)
     if args.show is not None:
         rc |= cmd_show(pe, vmts, rows, live, args.show)
+    if args.suggest:
+        rc |= cmd_suggest(pe, vmts, rows, live, outdir)
     return rc
 
 
