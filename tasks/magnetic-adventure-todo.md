@@ -104,6 +104,7 @@
 - [x] T6.4b-x-s 开关旋转夹具 + 阶段角度判据：`tests/levels/switch_o.lua`/`switch_e.lua` + 仪器 `--stage-angle/--stage-min-angle/--ignore-distance`。正例 Δangle=-0.5250、markers=2 ⇒ PASS；过枢轴负例 Δ≈0、markers=0 ⇒ FAIL。依据：F410
 - [x] T6.4c-0 存档工具多玩家感知：`tools/profile.py` `players/get/set/diff` + `--player/--file`。A/A=0；`set SoundsVolume 7 --player KKK` 后 diff=1 且 `ooo` 不变；默认 Active 选择正确。依据：F411
 - [x] T6.4d-0 状态轨迹 + 地板：`direct_drive.py --trace` + `tools/trace_diff.py`。两次运行序列相同，dt=-62/-407/-411 ms，tol 600 PASS；exit+1000 负例 FAIL；level→exit 1765/1769。依据：F412、F413
+- [ ] T6.4d-0b win/complete 状态：`lm`/`app`/`mgr` 的 dword 在完成时无翻转；图元列表 +1 是烟花（`TGLSpriteObject`，+1.5 s），面板约 +3.2 s 可见且为预创建/切换可见性；空关卡 `DoLevelComplete` 不渲染面板。下一刀：对象可见性 `+0x1F0` 扫描或像素锚点。依据：F414
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [ ] T6.4e 关卡文本（`pt_sans*.dat` / `gulim2.dat`，判据同 T6.4a 的 draw 列表） 依据：F11、F192、F231
