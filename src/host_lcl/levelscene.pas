@@ -41,6 +41,10 @@ type
     FSyncAngleMoved: Integer;
     // T6.4b-3b：Set_CameraViewArea(a,b) 的实参（F364）；由 BuildFromModel 填。
     FViewA, FViewB: Double;
+    // T6.4f-visual：提示按钮（hintwood/helptime/numsatl）与数字图集材质库。
+    FHintLib: TGLMaterialLibrary;
+    FHintSprites: array[0..4] of TGLBaseSceneObject;
+    FHintDigits: array[0..2] of TGLHUDSprite;
     function AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
       Alpha: Single; Handle: Integer = 0): Boolean;
     function AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
@@ -73,6 +77,11 @@ type
     function AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;
     // T6.4b-4：把当前全部物理体写到 step digest（step handle x y angle）。
     procedure WriteStepDigest(Step: Integer; var F: TextFile);
+    // T6.4f-visual：建 5 个提示按钮 sprite（世界木牌 + HUD 底板 + 3 数字）；
+    // Cells='a,b,c' 指定 numsatl 图集格（0..9）；数字材质用 TextureOffset/Scale
+    // 生成与原版同形状的 TEXTURE 矩阵（F461/F463）。
+    function BuildHintVisual(const Cells: string): Boolean;
+    procedure SetHintCells(const Cells: string);
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -116,6 +125,13 @@ begin
   for i := FObjects.Count - 1 downto 0 do
     TObject(FObjects[i]).Free;
   FObjects.Clear;
+  if FHintLib <> nil then
+  begin
+    FHintLib.Free;
+    FHintLib := nil;
+  end;
+  for i := 0 to 4 do FHintSprites[i] := nil;
+  for i := 0 to 2 do FHintDigits[i] := nil;
   SetLength(FSync, 0);
   FSyncCount := 0;
   FSprites := 0;
@@ -423,6 +439,136 @@ begin
   finally
     M.Free;
   end;
+end;
+
+function ParseHintCell(const S: string; Index, Default: Integer): Integer;
+var
+  p, i: Integer;
+  Part: string;
+begin
+  Result := Default;
+  p := 1;
+  for i := 0 to Index do
+  begin
+    Part := '';
+    while (p <= Length(S)) and (S[p] <> ',') do
+    begin
+      Part := Part + S[p];
+      Inc(p);
+    end;
+    if p <= Length(S) then Inc(p);
+    if Part <> '' then Result := StrToIntDef(Trim(Part), Default);
+  end;
+end;
+
+function TLevelScene.BuildHintVisual(const Cells: string): Boolean;
+const
+  // 原版 draw 列表（work/gl_hint_l4show，F457/F461）：世界木牌 bbox (-3,2.5)-(7,7.5)；
+  // HUD 底板 NDC (0.52,-0.83)-(1.03,-0.48)；数字 NDC x 0.710/0.749/0.788，宽 0.050，
+  // y -0.719..-0.632（设计空间 1018x739）。数字 3 的右边界实测 0.839（宽 0.051）。
+  DIGIT_L: array[0..2] of Double = (870.39, 890.24, 910.09);
+  DIGIT_W: array[0..2] of Double = (25.45, 25.45, 25.96);
+var
+  Err: string;
+  k: Integer;
+  LM: TGLLibMaterial;
+  W: TGLSprite;
+  H: TGLHUDSprite;
+begin
+  Result := False;
+  if FHintLib <> nil then
+  begin
+    SetHintCells(Cells);
+    Exit(True);
+  end;
+  FHintLib := TGLMaterialLibrary.Create(nil);
+  for k := 0 to 9 do
+  begin
+    LM := FHintLib.Materials.Add;
+    LM.Name := 'hint_digit_' + IntToStr(k);
+    Err := '';
+    if not LoadPakTexture(FPak, 'numsatl.png', LM.Material.Texture, '', Err) then
+    begin
+      FLog := FLog + Err;
+      Exit;
+    end;
+    LM.Material.Texture.TextureMode := tmModulate;
+    LM.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+    LM.Material.BlendingMode := bmTransparency;
+    LM.TextureScale.SetPoint(0.1, 1, 1);
+    LM.TextureOffset.SetPoint(k * 0.1, 0, 0);
+  end;
+  // 世界木牌
+  W := TGLSprite.Create(FScene);
+  // 原版 draw bbox 是相机相对量；相机 (-2,-5) ⇒ 场景中心 = (0,0)。
+  W.Position.SetPoint(0, 0, 0);
+  W.Width := 10;
+  W.Height := 5;
+  W.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+  W.Material.BlendingMode := bmTransparency;
+  W.Material.Texture.TextureMode := tmModulate;
+  Err := '';
+  if not LoadPakTexture(FPak, 'hintwood.png', W.Material.Texture, '', Err) then
+  begin
+    FLog := FLog + Err;
+    W.Free;
+    Exit;
+  end;
+  FScene.Objects.AddChild(W);
+  FObjects.Add(W);
+  Inc(FSprites);
+  FHintSprites[0] := W;
+  // HUD 底板
+  H := TGLHUDSprite.Create(FScene);
+  H.Position.SetPoint(773.68 + 259.59 * 0.5, 546.86 + 129.33 * 0.5, 0);
+  H.Width := 259.59;
+  H.Height := 129.33;
+  H.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+  H.Material.BlendingMode := bmTransparency;
+  H.Material.Texture.TextureMode := tmModulate;
+  Err := '';
+  if not LoadPakTexture(FPak, 'helptime.png', H.Material.Texture, '', Err) then
+  begin
+    FLog := FLog + Err;
+    H.Free;
+    Exit;
+  end;
+  FScene.Objects.AddChild(H);
+  FObjects.Add(H);
+  Inc(FSprites);
+  FHintSprites[1] := H;
+  // 三个数字 sprite（材质库选格）
+  for k := 0 to 2 do
+  begin
+    H := TGLHUDSprite.Create(FScene);
+    H.Position.SetPoint(DIGIT_L[k] + DIGIT_W[k] * 0.5, 603.02 + 32.16 * 0.5, 0);
+    H.Width := DIGIT_W[k];
+    H.Height := 32.16;
+    H.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+    H.Material.BlendingMode := bmTransparency;
+    H.Material.MaterialLibrary := FHintLib;
+    H.Material.LibMaterialName := 'hint_digit_0';
+    FScene.Objects.AddChild(H);
+    FObjects.Add(H);
+    Inc(FSprites);
+    FHintDigits[k] := H;
+    FHintSprites[2 + k] := H;
+  end;
+  SetHintCells(Cells);
+  Result := True;
+end;
+
+procedure TLevelScene.SetHintCells(const Cells: string);
+var
+  a, b, c: Integer;
+begin
+  if FHintLib = nil then Exit;
+  a := ParseHintCell(Cells, 0, 0);
+  b := ParseHintCell(Cells, 1, 0);
+  c := ParseHintCell(Cells, 2, 0);
+  FHintDigits[0].Material.LibMaterialName := 'hint_digit_' + IntToStr(a);
+  FHintDigits[1].Material.LibMaterialName := 'hint_digit_' + IntToStr(b);
+  FHintDigits[2].Material.LibMaterialName := 'hint_digit_' + IntToStr(c);
 end;
 
 end.
