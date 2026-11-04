@@ -123,7 +123,7 @@
 - [x] T6.4c 存档写入对齐：原版写集 = `LastCompleteLevel=max(old,index+1)` + `CompletedLevels` 过滤；宿主同基线 `profile.py diff`=0 依据：F466
 - [x] T6.4c-3 `CompletedLevels` 过滤 + `max` 语义：`profiledata.pas` `FilterCompleted`；`15-16-17-18`+进度1 → 空，与原版一致 依据：F466
 - [x] T6.4c-4 配置写入范围核实：GameTop 无 `cfg.ini`（目录 + exe 字符串扫描）；音量/全屏是 profile `<Player>` 键（SoundsVolume/MusicVolume/FullScreen），宿主已读（F434）；写这些键属设置 UI，另立 T6.4d-8 依据：F470
-- [ ] T6.4d-8 设置菜单（音量/全屏）写 profile：键=`SoundsVolume`/`MusicVolume`/`FullScreen`；判据=host 改键后 `python tools/profile.py diff` 只报目标键 依据：F470、F434
+- [x] T6.4d-8 设置持久化写 profile（菜单 UI 未做）：`WriteProfileSetting` + `HOST_SET_PROFILE`；三键 diff 恰好三行、新键插入 KKK 块、F466 完成写集仍 3→4 依据：F471
 - [x] T6.4d-1 宿主 `HOST_CLICK` → 按档案 LastCompleteLevel 进关 + `HOST_TRACE`（进程内命令入口）：正例 index=20/3、lua_bind_ab 0 差、两次序列相同；点空白/无档案/坏档案/51 四条负例无 level 依据：F435
 - [x] T6.4d-2 LCL 真实点击 + 运行时场景切换：`THostMouseHandler` 命中 Play → `TMenuScene.Clear`/`Free` → `BuildFromModel`；正例 index=20/3、sprites=21/60、lua_bind_ab 0 差；点空白/坏档案无 level 依据：F436
 - [x] T6.4d-3 宿主进关后物理步进 + 图形同步：`PhysStart` → `HOST_PHYS_STEPS` → `SyncPhysics` → `phys.log`；level 0 bodies=3/objects=15 angle_moved=3 sync_after=0，负例无 phys.log 依据：F437

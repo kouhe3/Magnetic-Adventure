@@ -761,6 +761,45 @@ end;
 
 // T6.4c-1：HOST_PROFILE=<path> 时只读解析玩家档案（F434）。
 // 日志固定写 exe 旁的 profile.log；未设 env 时不读、不写（旧行为）。
+// T6.4d-8：HOST_SET_PROFILE="Key=Value;Key=Value" 模拟设置菜单写入（只改 HOST_PROFILE 副本）。
+procedure MaybeWriteProfileSettings(const Path: string);
+var
+  s, item, key, val, log: string;
+  p, n, eq: Integer;
+  tf: TextFile;
+begin
+  s := EnvStr('HOST_SET_PROFILE');
+  if (s = '') or (Path = '') then Exit;
+  log := '';
+  p := 1;
+  while p <= Length(s) do
+  begin
+    while (p <= Length(s)) and (s[p] in [';', ',', ' ']) do Inc(p);
+    n := p;
+    while (n <= Length(s)) and not (s[n] in [';', ',']) do Inc(n);
+    item := Trim(Copy(s, p, n - p));
+    if item <> '' then
+    begin
+      eq := Pos('=', item);
+      if eq > 0 then
+      begin
+        key := Trim(Copy(item, 1, eq - 1));
+        val := Trim(Copy(item, eq + 1, MaxInt));
+        if WriteProfileSetting(Path, key, val) then
+          log := log + key + '=' + val + ' '
+        else
+          log := log + key + '=ERR ';
+      end;
+    end;
+    p := n + 1;
+  end;
+  AssignFile(tf, ExePath('profile_set.log'));
+  Rewrite(tf);
+  WriteLn(tf, 'path=', Path);
+  WriteLn(tf, 'set=', Trim(log));
+  CloseFile(tf);
+end;
+
 procedure MaybeReadProfile;
 var
   path: string;
@@ -780,6 +819,7 @@ begin
   else
     WriteLn(tf, 'ok=0 players=', g_profile.Players, ' err=', g_profile.Error);
   CloseFile(tf);
+  MaybeWriteProfileSettings(path);
 end;
 
 // T6.4d-1：状态轨迹（JSONL，字段与 tools/direct_drive.py --trace 同构）。

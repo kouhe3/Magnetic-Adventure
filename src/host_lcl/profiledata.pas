@@ -31,6 +31,8 @@ function DefaultProfilePath: string;
 function ReadProfileFile(const Path: string; out Info: TProfileInfo): Boolean;
 // T6.4c-2：只改 active 玩家的 LastCompleteLevel，其余字节/行不变。
 function WriteLastCompleteLevel(const Path: string; Level: Integer): Boolean;
+// T6.4d-8：改 active 玩家的任意键（音量/全屏）；键不存在时插在 </Player> 前。
+function WriteProfileSetting(const Path, Key, Value: string): Boolean;
 
 implementation
 
@@ -318,18 +320,82 @@ begin
   end;
 end;
 
+// T6.4c：选出 active 玩家的 <Player> 块（单块直取；多块取唯一 Active=1）。
+function SelectActiveBlockSpan(sl: TStringList; out StartLine, StopLine: Integer): Boolean;
+var
+  i, count, activeCount, activeIndex, blockStart: Integer;
+  val, key, blockName: string;
+  inBlock, blockActive: Boolean;
+  blocks: array of TBlockSpan;
+begin
+  Result := False;
+  SetLength(blocks, 0);
+  count := 0;
+  inBlock := False;
+  blockActive := False;
+  blockStart := 0;
+  blockName := '';
+  for i := 0 to sl.Count - 1 do
+  begin
+    val := Trim(sl[i]);
+    if CompareText(val, '<Player>') = 0 then
+    begin
+      inBlock := True;
+      blockActive := False;
+      blockStart := i;
+      blockName := '';
+      Continue;
+    end;
+    if CompareText(val, '</Player>') = 0 then
+    begin
+      if inBlock then
+      begin
+        SetLength(blocks, count + 1);
+        blocks[count].StartLine := blockStart;
+        blocks[count].StopLine := i;
+        blocks[count].Active := blockActive;
+        blocks[count].UserName := blockName;
+        Inc(count);
+      end;
+      inBlock := False;
+      Continue;
+    end;
+    if (not inBlock) or (Pos('=', val) = 0) then Continue;
+    key := Trim(Copy(val, 1, Pos('=', val) - 1));
+    val := StripQuotes(Copy(val, Pos('=', val) + 1, MaxInt));
+    if CompareText(key, 'Active') = 0 then
+      blockActive := val = '1'
+    else if CompareText(key, 'UserName') = 0 then
+      blockName := val;
+  end;
+  if count = 0 then Exit;
+  if count = 1 then
+    activeIndex := 0
+  else
+  begin
+    activeCount := 0;
+    activeIndex := -1;
+    for i := 0 to count - 1 do
+      if blocks[i].Active then
+      begin
+        Inc(activeCount);
+        activeIndex := i;
+      end;
+    if activeCount <> 1 then Exit;
+  end;
+  StartLine := blocks[activeIndex].StartLine;
+  StopLine := blocks[activeIndex].StopLine;
+  Result := True;
+end;
+
 function WriteLastCompleteLevel(const Path: string; Level: Integer): Boolean;
 var
   fs: TFileStream;
   raw, enc: TByteArray;
-  size, i, count, activeCount, activeIndex, keyLine, compLine: Integer;
+  size, i, keyLine, compLine, blockStartLine, blockStopLine: Integer;
   oldLevel: Integer;
   oldList, text, err, key, val, newLine: string;
   sl: TStringList;
-  inBlock, blockActive: Boolean;
-  blockStart: Integer;
-  blockName: string;
-  blocks: array of TBlockSpan;
 begin
   Result := False;
   if not FileExists(Path) then Exit;
@@ -346,67 +412,13 @@ begin
   sl := TStringList.Create;
   try
     sl.Text := text;
-    SetLength(blocks, 0);
-    count := 0;
-    inBlock := False;
-    blockActive := False;
-    blockStart := 0;
-    blockName := '';
-    for i := 0 to sl.Count - 1 do
-    begin
-      val := Trim(sl[i]);
-      if CompareText(val, '<Player>') = 0 then
-      begin
-        inBlock := True;
-        blockActive := False;
-        blockStart := i;
-        blockName := '';
-        Continue;
-      end;
-      if CompareText(val, '</Player>') = 0 then
-      begin
-        if inBlock then
-        begin
-          SetLength(blocks, count + 1);
-          blocks[count].StartLine := blockStart;
-          blocks[count].StopLine := i;
-          blocks[count].Active := blockActive;
-          blocks[count].UserName := blockName;
-          Inc(count);
-        end;
-        inBlock := False;
-        Continue;
-      end;
-      if (not inBlock) or (Pos('=', val) = 0) then Continue;
-      key := Trim(Copy(val, 1, Pos('=', val) - 1));
-      val := StripQuotes(Copy(val, Pos('=', val) + 1, MaxInt));
-      if CompareText(key, 'Active') = 0 then
-        blockActive := val = '1'
-      else if CompareText(key, 'UserName') = 0 then
-        blockName := val;
-    end;
-
-    if count = 0 then Exit;
-    if count = 1 then
-      activeIndex := 0
-    else
-    begin
-      activeCount := 0;
-      activeIndex := -1;
-      for i := 0 to count - 1 do
-        if blocks[i].Active then
-        begin
-          Inc(activeCount);
-          activeIndex := i;
-        end;
-      if activeCount <> 1 then Exit;
-    end;
+    if not SelectActiveBlockSpan(sl, blockStartLine, blockStopLine) then Exit;
 
     keyLine := -1;
     compLine := -1;
     oldLevel := 0;
     oldList := '';
-    for i := blocks[activeIndex].StartLine + 1 to blocks[activeIndex].StopLine - 1 do
+    for i := blockStartLine + 1 to blockStopLine - 1 do
       if Pos('=', sl[i]) > 0 then
       begin
         key := Trim(Copy(sl[i], 1, Pos('=', sl[i]) - 1));
@@ -430,6 +442,80 @@ begin
     if compLine >= 0 then
       text := ReplaceLineLF(text, compLine,
         'CompletedLevels = "' + FilterCompleted(oldList, Level) + '"');
+    enc := EncodeProfile(text);
+    fs := TFileStream.Create(Path, fmCreate);
+    try
+      if Length(enc) > 0 then
+        fs.WriteBuffer(enc[0], Length(enc));
+    finally
+      fs.Free;
+    end;
+    Result := True;
+  finally
+    sl.Free;
+  end;
+end;
+
+
+// 返回第 LineIndex 行（0 基）的起始字符偏移；越界返回 0。
+function LineStartOffset(const Text: string; LineIndex: Integer): Integer;
+var
+  i, line, p: Integer;
+begin
+  line := 0;
+  p := 1;
+  for i := 1 to Length(Text) do
+    if Text[i] = #10 then
+    begin
+      if line = LineIndex then Exit(p);
+      Inc(line);
+      p := i + 1;
+    end;
+  if line = LineIndex then Exit(p);
+  Result := 0;
+end;
+
+function WriteProfileSetting(const Path, Key, Value: string): Boolean;
+var
+  fs: TFileStream;
+  raw, enc: TByteArray;
+  size, i, keyLine, blockStartLine, blockStopLine, off: Integer;
+  text, err, newLine: string;
+  sl: TStringList;
+begin
+  Result := False;
+  if (Key = '') or not FileExists(Path) then Exit;
+  fs := TFileStream.Create(Path, fmOpenRead or fmShareDenyWrite);
+  try
+    size := fs.Size;
+    SetLength(raw, size);
+    if size > 0 then
+      fs.ReadBuffer(raw[0], size);
+  finally
+    fs.Free;
+  end;
+  if not DecodeProfile(raw, text, err) then Exit;
+  sl := TStringList.Create;
+  try
+    sl.Text := text;
+    if not SelectActiveBlockSpan(sl, blockStartLine, blockStopLine) then Exit;
+    keyLine := -1;
+    for i := blockStartLine + 1 to blockStopLine - 1 do
+      if (Pos('=', sl[i]) > 0) and
+         (CompareText(Trim(Copy(sl[i], 1, Pos('=', sl[i]) - 1)), Key) = 0) then
+      begin
+        keyLine := i;
+        Break;
+      end;
+    newLine := Key + ' = "' + Value + '"';
+    if keyLine >= 0 then
+      text := ReplaceLineLF(text, keyLine, newLine)
+    else
+    begin
+      off := LineStartOffset(text, blockStopLine);
+      if off = 0 then Exit;
+      text := Copy(text, 1, off - 1) + newLine + #13#10 + Copy(text, off, MaxInt);
+    end;
     enc := EncodeProfile(text);
     fs := TFileStream.Create(Path, fmCreate);
     try
