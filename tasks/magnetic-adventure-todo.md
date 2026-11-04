@@ -109,7 +109,7 @@
 - [x] T6.4b-4d 自驱磁铁闭环：`force_timeline --cursor`（136 行）+ `HOST_MAG_SELF/LOCALX/Y/LINDAMP`；自算力/点/两类阻尼，787 步 `max_pos=6.65e-7 max_angle=2.81e-6` PASS，负例 `LINDAMP=0`/抓取点 (0,0) FAIL 依据：F454
 - [x] T6.4b-4e 把 F454 模型接进 `Tick`：`g_MagLocalX/Y`/`g_LinDamp` + 真实鼠标按下转 body-local；正例 `a=0.509722`（Δ=0.0197）、负例 `0.490000`，默认 `moved=2.511224` 不变 依据：F455
 - [x] T6.4b-4e-r 真实鼠标 local 捕获前台复测：`--active` 两次正例 local=(-0.013055,-0.024476)、trace 5 态、副本 1→2；空点负例 down-miss/无完成 依据：F456
-- [ ] T6.4b 输入/拖拽：**行为级已通过**（level 1 两段拖拽 + “Level completed”，F380/F381；`work/drag_lvl1.py`/`drag_shot.py`；真实鼠标 F448、力/step F449）；剩：`b2_sites compare` 全量（init 已 50/2/0）+ 真实关卡绕障寻路 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
+- [x] T6.4b 输入/拖拽：未截断 `b2_sites compare` TOTAL=0（bodies 14/14、xforms 14/14、shapes 20/20、setters 40/40）；EnterLevel 力回放派发 OnMove 生成运行时 gear 依据：F477
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355
 - [x] T6.4b-x IAT 假磁铁：`GetCursorPos` 槽 `0x667330` / `GetAsyncKeyState` 槽 `0x66730C` 伪造按下+光标 ⇒ 命中测试、target 锁定与力律全走游戏自己（无真鼠标 ⇒ 采样源无竞争，不会被清零）。**已收口**：实现 `src/proxydll/proxy_core.c`（`B2CI_FAKE_MAGNET`/`B2CI_MAG_CONFIG`/`B2CI_MAG_TRACE`），驱动 `work/fake_magnet_drive.py run`；判据 ① 的力幅按 F386 修正为 `min(315,30·d)`（d>10.5 时 315±4.6e-5；244 行，方向 ≤0.065 rad）；② level 1 两段 d<0.548 + 完成面板（5/5）；③ 负例 A `target_events=0`/磁铁 ApplyForce=0/body 位移 0.000；④ 负例 B 空点按住 target/flag=0。依据：F341、F346、F381、F382、F385、F386

@@ -1189,6 +1189,8 @@ var
   SelfMode: Boolean;
   LocalX, LocalY, LinDamp: Double;
   MagPX, MagPY: Double;
+  MoveId, moveCalls: Integer;
+  mpx, mpy, mpa: Double;
 begin
   Err := '';
   if g_InLevel then Exit;
@@ -1459,6 +1461,12 @@ begin
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
     DispatchEnvClick;
     ResetThresholdState;
+    // T6.4b：力时间线回放时也要派发 OnMove（原版螺丝到达目标后 Lua 会生成 gear）。
+    MoveId := TargetId;
+    if (MoveId = 0) and (ForceCount > 0) then
+      MoveId := Forces[0].Id;
+    if MoveId <> 0 then
+      PhysGetBodyPos(MoveId, g_MagLastX, g_MagLastY, mpa);
     g_lua := g_levelLua;
     for i := 1 to Steps do
     begin
@@ -1491,6 +1499,7 @@ begin
         begin
           if Forces[ForceIdx].Step = i then
           begin
+            MoveId := Forces[ForceIdx].Id;
             if Forces[ForceIdx].HasPoint then
               PhysApplyForceAt(Forces[ForceIdx].Id, Forces[ForceIdx].Fx,
                 Forces[ForceIdx].Fy, Forces[ForceIdx].Px, Forces[ForceIdx].Py)
@@ -1528,6 +1537,18 @@ begin
         PhysApplyAngularDamping(g_DampCoeff);
       PhysStep(0.01, 20, 20);
       DispatchContacts(g_lua);
+      if MoveId <> 0 then
+      begin
+        PhysGetBodyPos(MoveId, mpx, mpy, mpa);
+        if (Abs(mpx - g_MagLastX) + Abs(mpy - g_MagLastY)) > 1e-3 then
+        begin
+          moveCalls := 0;
+          if g_levelLua <> nil then
+            EventsFireMove(g_levelLua, MoveId, mpx, mpy, moveCalls);
+          g_MagLastX := mpx;
+          g_MagLastY := mpy;
+        end;
+      end;
       // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
       TimerUpdate(g_levelLua, 0.01);
       FireRotations;
