@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F431**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F433**。
 
 ## 0. 一句话现状
 
@@ -126,6 +126,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-04 T6.4a-r-2f2 收口（F427/F428）**：level 3 的 train/smoke 已是**可复现动态项**——`DoProgress` 第一段圆弧 `tt=min(t,4.8)`、`ang=1.652-0.12·tt`，train=(x,y+2,ang)，smoke=train+R(ang)·(0,1.3)，sprite 5×10；smoke 纹理帧=`smoke_60+floor((t-0.13)/0.70) mod 4`。判据：零售 `work/gl_levels2a/lvl03_gl.bin` frame 357，Python `--time 1.0208` ⇒ `pairs=55 mismatches=0`；宿主 `HOST_LEVEL_TIME=1.0208` ⇒ `pairs=54 mismatches=0`；负例 `--time 1.52` ⇒ `mismatches=2`。实现落在 `tools/scene_from_lua.py` 与 `src/host_lcl/scenemodel.pas`；回归 `phys_sweep` 50/2/0、`verify` gates=7。
 
 - **2026-11-04 T6.4d-0b2 收口（F430/F431）**：level 1 完成链 3/3 稳定——完成信号是**任一** size-0x30 `TGlAlphaHudSpriteObject` 的 `+0x2C` 相对进入关卡基线 0→1.0；`bEndLevelBox`（第一只）恒 0，`bHintComplete`（第二只）才翻转。`find_end_level_box` 之前把 `lm` 当 `mgr` 传且只取第一只，是 F426“timing2 成功、后续 3 次失败”的检测器根因。`direct_drive.hud_sprites`/`start_trace` 与 `ci_fake_magnet --require-complete` 共用；no-nudge 3/3（2.91/2.97/2.91 s）、nudge 3/3 PASS。nudge 非必要：HintState>4 后 `OnTurnOnMagnet` 拒绝重抓（target=0）。
+
+- **2026-11-04 T6.4e 范围核实（F432/F433）**：GameTop `game.exe` 引用 `font_gulim_1..4`/`gulim1`/`gulim2`，**不引用 `pt_sans`**；`pt_sans1/2.png`/`pt_sans.dat` 只出现在 baseline `AMagneticAdventure.exe`。GameTop 的菜单/地图/level 3/4/完成面板 GL 里字体纹理只有 `gulim1.png`，12 顶点文本 draw 的 UV 都是用户名 'o'；关卡名/完成面板文本是 `endbox.png`/`hint_6.png` 烘焙图。`gulim2.dat` 32 条 page-2 表（flag=1，maxdu=maxdv=0）新增 30 个 Latin Extended-A codepoint，但当前用户名固定 'ooo'，无消费者。⇒ T6.4e 对 GameTop 关单；baseline 的 pt_sans 分支转 backlog。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 

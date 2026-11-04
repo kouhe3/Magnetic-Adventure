@@ -60,3 +60,9 @@
   - 判据：一次跑完 52 行 `status.csv`；已采 25 行不重跑；MISS 带归因标签。
 - **D9 FAIL 行自动落盘定位**：`work/fail_<rec>.txt`（首个分歧 callsite/导出/两侧值/该导出直方图）。
   - 判据：任取 FAIL 行，只读该文件即可回答「哪个导出、第几次、两侧值」。
+
+## E. baseline 变体的 pt_sans 文本（T6.4e 的 baseline 分支）
+
+- **baseline `AMagneticAdventure.exe` 的 `pt_sans*.dat` 文本**
+  - 暂缓理由：L2-A 目标 `bin/gametop/game.exe` 不引用 `pt_sans`（F432）；GameTop 的关卡名/完成面板文本是烘焙图，动态文本只剩用户名（gulim1，F231/F433）。
+  - 回流条件：baseline 变体纳入交付，或需要 3DM 汉化版的文本渲染时；先补 baseline 的 GL 文本 oracle（字形 quad 的 UV/advance），再解 `pt_sans.dat`。
