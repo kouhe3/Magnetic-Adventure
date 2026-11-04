@@ -19,6 +19,9 @@ type
 
 var
   LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志
+  HintVisible: Boolean;    // T6.4f：Set_VisibleHintButton 的宿主状态
+  HintHideTime: Double;    // T6.4f：Set_HideTimeHint 的宿主状态
+  HintShown: Boolean;      // T6.4f：DoShowHint 已派发
   ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列
   ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;
   ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退
@@ -2725,6 +2728,7 @@ begin
   LuaLogBegin(L, 'Set_VisibleHintButton');
   v1 := LuaOptNumber(L, 1, 0.0);
   id := NextId('Set_VisibleHintButton');
+  HintVisible := v1 <> 0;
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2749,6 +2753,7 @@ begin
   LuaLogBegin(L, 'Set_HideTimeHint');
   v1 := LuaOptNumber(L, 1, 0.0);
   id := NextId('Set_HideTimeHint');
+  HintHideTime := v1;
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2795,6 +2800,7 @@ procedure RegisterBindings(L: TLuaState);
 begin
   g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;
   LevelComplete := False;
+  HintVisible := True; HintHideTime := 10.0; HintShown := False;
   ScrPosReset;
   SpawnReset;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);

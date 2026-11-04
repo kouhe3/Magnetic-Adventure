@@ -921,6 +921,59 @@ begin
     Result := g_Level.GetSpritePos(Id, X, Y, Angle);
 end;
 
+// T6.4f：提示按钮 hitbox（F307 实测命中 (980,650)）与 DoShowHint 派发。
+function HintHitTest(X, Y: Integer): Boolean;
+begin
+  Result := (X >= 950) and (X <= 1010) and (Y >= 620) and (Y <= 690);
+end;
+
+procedure DoShowHintNow;
+var
+  f: TextFile;
+  p: string;
+begin
+  HintShown := True;
+  if g_levelLua <> nil then
+  begin
+    Lua.GetField(g_levelLua, LUA_GLOBALSINDEX, PChar('DoShowHint'));
+    if Lua.LType(g_levelLua, -1) = 6 then
+    begin
+      Lua.PCall(g_levelLua, 0, 0, 0);
+      Lua.SetTop(g_levelLua, 0);
+    end;
+  end;
+  p := ExePath('hint.log');
+  AssignFile(f, p);
+  if FileExists(p) then Append(f) else Rewrite(f);
+  WriteLn(f, 'shown=1');
+  CloseFile(f);
+end;
+
+procedure HintClickFromEnv;
+var
+  s: string;
+  p, x, y: Integer;
+  f: TextFile;
+  fp: string;
+begin
+  s := EnvStr('HOST_HINT_CLICK');
+  if s = '' then Exit;
+  p := Pos(',', s);
+  if p = 0 then Exit;
+  x := StrToIntDef(Copy(s, 1, p - 1), 0);
+  y := StrToIntDef(Copy(s, p + 1, Length(s)), 0);
+  fp := ExePath('hint.log');
+  AssignFile(f, fp);
+  Rewrite(f);
+  if HintVisible and HintHitTest(x, y) then
+    WriteLn(f, 'hit=1')
+  else
+    WriteLn(f, 'hit=0');
+  CloseFile(f);
+  if HintVisible and HintHitTest(x, y) then
+    DoShowHintNow;
+end;
+
 // T6.4d-2：运行时切到关卡（真实 LCL 点击路径）。菜单 sprite 先清掉，
 // Cam 保留；关卡模型来自 LuaBindRunLevel 刚写的 HOST_LUA_LOG。
 procedure EnterLevel(Index: Integer; out Err: string);
@@ -1045,6 +1098,7 @@ begin
   g_LevelIndex := Index;
   g_InLevel := True;
   WriteTraceIndex('level', Index);
+  HintClickFromEnv;
   if g_Viewer <> nil then
     g_Viewer.Invalidate;
   // T6.4d-3：HOST_PHYS_STEPS>0 时步进并把 world sprite 同步到物理体。
@@ -1438,7 +1492,13 @@ begin
       WriteLn(ctf, 'x=', X, ' y=', Y, ' viewer=nil');
     CloseFile(ctf);
   end;
-  if (Button <> mbLeft) or g_InLevel then Exit;
+  if Button <> mbLeft then Exit;
+  if g_InLevel then
+  begin
+    if HintVisible and HintHitTest(X, Y) then
+      DoShowHintNow;
+    Exit;
+  end;
   if not HitPlay(X, Y) then Exit;
   if not g_profile.Ok then Exit;
   if (g_profile.LastCompleteLevel < 0) or

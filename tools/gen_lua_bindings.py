@@ -37,6 +37,8 @@ DYN_RE = re.compile(r"^(\d+)\.\.([^:]*):(\w+)=(\S+)$")
 # 钩子放在 NextId 之后、返回值 push 之前；只写 b2 状态，不改 JSONL 与返回值。
 HOOKS = {
     "Do_LevelComplete": ["  LevelComplete := True;"],
+    "Set_VisibleHintButton": ["  HintVisible := v1 <> 0;"],
+    "Set_HideTimeHint": ["  HintHideTime := v1;"],
     "Add_SimplePhysicObject": ["  PhysAddSimplePhysicObject(id, v1, v2, v3);"],
     "Add_Ball": ["  PhysAddBall(id, v2, v3, v4, v5);"],
     "Add_SimplePhysCircle": ["  PhysAddSimplePhysCircle(id, v1, v2, v3, v4, v5, v6);"],
@@ -265,7 +267,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nconst\n  SpawnMax = 32;\n\ntype\n  TSpawnRec = record\n    Id, Kind, Style: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  SpawnCount: Integer;\n  Spawn: array[0..SpawnMax - 1] of TSpawnRec;\n\nfunction SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\nprocedure SpawnReset;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  HintVisible: Boolean;    // T6.4f：Set_VisibleHintButton 的宿主状态\n  HintHideTime: Double;    // T6.4f：Set_HideTimeHint 的宿主状态\n  HintShown: Boolean;      // T6.4f：DoShowHint 已派发\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nconst\n  SpawnMax = 32;\n\ntype\n  TSpawnRec = record\n    Id, Kind, Style: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  SpawnCount: Integer;\n  Spawn: array[0..SpawnMax - 1] of TSpawnRec;\n\nfunction SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\nprocedure SpawnReset;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"
@@ -305,6 +307,7 @@ def main():
     reg = ["procedure RegisterBindings(L: TLuaState);", "begin"]
     reg.append("  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;")
     reg.append("  LevelComplete := False;")
+    reg.append("  HintVisible := True; HintHideTime := 10.0; HintShown := False;")
     reg.append("  ScrPosReset;\n  SpawnReset;")
     for row in rows:
         name = row["lua_name"]

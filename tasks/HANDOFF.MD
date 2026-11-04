@@ -175,6 +175,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4f 提示按钮判据重评（F457/F458）**：`direct_drive.py` 增 `--force-hint`/`--hint-info`/`--force-hint-show`，`capture_gl_levels.py` 透传。按钮是引擎对象 `[lm+0x3C]`（5 sprite，alpha 在 sprite+0x2C；未到可用态 alpha=0）；强制 alpha=1 后 level 4 draw 46→56（`hintwood`×2 + `numsatl`×3）。**fill 0 与 2.5 的 bbox/UV/alpha 逐字段相同** ⇒ 填充/数字状态不在 draw 列表（很可能 texture matrix）⇒ 原「强制 `+0x5C` 后逐 draw `mismatches=0`」判据被证伪。T6.4f 转 blocked，新任务 T6.4g（GLFFI02 记录 TEXTURE 矩阵 / 前台像素 A/B）。
 
+- **2026-11-04 T6.4f-dispatch 提示按钮点击派发（F459）**：`gen_lua_bindings.py` 增 `Set_VisibleHintButton`/`Set_HideTimeHint` hooks（`HintVisible`/`HintHideTime`/`HintShown` 全局），bindings=144；`magnet.pas` 增 `HintHitTest`（设计 950..1010 × 620..690）/`DoShowHintNow`/`HOST_HINT_CLICK`，关卡内 MouseDown 命中即派发。夹具 `tests/levels/hint_o.lua`/`hint_e.lua`（`DoShowHint`→`Set_ScrObjPos(99,99)`）。正例 `HOST_HINT_CLICK=980,650`：`hint.log hit=1 shown=1`、`loop scrpos_calls=1 scrpos_moved=1`、`scrpos_get id=1002 (99,99)`；负例 `100,100`：`hit=0`、marker 保持 (0,0)；不设 env 无 `hint.log`。回归 `verify` 7 门禁、`phys_sweep` 50/2/0、52 关 selftest + lvl00/01/49 `lua_bind_ab` 0 差。视觉填充仍 blocked（T6.4g）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
