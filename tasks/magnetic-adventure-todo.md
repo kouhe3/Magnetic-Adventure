@@ -127,7 +127,8 @@
 - [ ] T6.4f 提示按钮 [?]：按钮对象 `[lm+0x3C]`（5 sprite，alpha=+0x2C）；强制 alpha 后 draw 46→56。**逐 draw 与 TEXTURE 矩阵两条判据都被证伪**（F458、F460：同 fill A/A 地板 0.2 > fill A/B 0.1）；数字是 1 Hz 递减计数器（F462）→ 判据改为「同一关卡时间下 tex 66/67/68 的 `tm`/`uv_t` 相同」，先做 T6.4f-oracle-1 依据：F457、F458、F460、F461、F462
 - [x] T6.4f-dispatch 提示按钮点击派发：generator hooks `Set_VisibleHintButton/Set_HideTimeHint` + `HintHitTest`/`DoShowHintNow`/`HOST_HINT_CLICK`；夹具 `hint_o/e` marker → 正例 (99,99)、负例保持 (0,0)；7 门禁/52 关 selftest 绿 依据：F459
 - [x] T6.4g GLFFI02 的 TEXTURE 矩阵已进 draw 列表：`tools/gl_drawlist.py` 输出 `tm[16]`/`uv_t`（`--texmat`）；实证 tex 66/67/68 是 scale=0.1 的图集选格、tex 64/65 identity；fill 与时间的归因由 T6.4f-oracle-1 接力 依据：F460、F461
-- [ ] T6.4f-oracle-1 数字格锚定关卡时间：同步采样按钮字段（`--hint-info` 加 tick）与 GL 帧，拟合 `k = f(level_time)`；判据是两次采集按同一关卡时间预测的 `tm` 全同 依据：F462
+- [x] T6.4f-oracle-1 数字格锚定游戏时间：`k=(10−floor(t+p))%10`，`t=[0x665334]+0x30` float，p∈(0.375,0.394]；内部样本 75/75 依据：F463
+- [ ] T6.4f-visual 宿主渲染提示按钮与数字：按同一 `t` 算 k，画 hintwood + 3 个数字 sprite；判据=同一游戏时间下 tex 66/67/68 的 `tm`/`uv_t` 相同 依据：F461、F463
 - [x] T6.4d-4 持久 Lua state + `DoProgress`：`HOST_KEEP_LUA=1` 保留 state，`EnterLevel` 每步 `PCall('DoProgress',0.01)`；level 3 calls=100 rc=0、lua_bind_ab 187/187、sync_after=0；负例 `HOST_LUA_PROGRESS=0` 无日志、`HOST_KEEP_LUA=0` calls=0 依据：F438
 - [x] T6.4d-5 完成信号 + 返回菜单：`bind_Do_LevelComplete` 置 `LevelComplete`，`ExitLevel` 清关卡/重建菜单；trace `boot,menu,level,menu,exit`、`menu_after layers=21`；负例 `HOST_FIRE_COMPLETE=0` 无第二个 menu 依据：F439
 - [x] T6.4d-6 持续帧循环：`THostLoop` + 16 ms `TTimer`，`HOST_LOOP_MS` 到时写 `loop.log`；level 3 `steps=39 calls=39 ms=1016`；负例 `HOST_LOOP=0` 无日志 依据：F442

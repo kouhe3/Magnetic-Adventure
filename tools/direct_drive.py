@@ -512,6 +512,14 @@ def main():
                     help="T6.4f: dump the hint button object/sprite fields")
     ap.add_argument("--force-hint-show", action="store_true",
                     help="T6.4f: write alpha=1 to all five hint button sprites")
+    ap.add_argument("--hint-sample", default=None,
+                    help="T6.4f: periodically dump mgr/lm/btn fields (JSONL)")
+    ap.add_argument("--hint-sample-secs", type=float, default=8.0,
+                    help="seconds to sample the hint button fields")
+    ap.add_argument("--hint-sample-hz", type=float, default=20.0,
+                    help="hint field sampling rate")
+    ap.add_argument("--hint-hold-show", action="store_true",
+                    help="T6.4f: re-write alpha=1 to the five hint sprites every sample")
     a = ap.parse_args()
 
     if a.alpha_scan and os.path.exists(a.alpha_scan):
@@ -706,6 +714,36 @@ def main():
                             shown += 1
                 emit({"event": "force_hint_show", "index": idx,
                       "btn": btn, "sprites": shown})
+            if ok and a.hint_sample:
+                samples = []
+                t_s = time.time()
+                qpc = ctypes.c_longlong(0)
+                while time.time() - t_s < a.hint_sample_secs:
+                    mgr_now = u32(hp, 0x665334)
+                    lm_now = u32(hp, mgr_now + 0xA0) if mgr_now else 0
+                    btn = u32(hp, lm_now + 0x3C) if lm_now else 0
+                    row = {"event": "hint_sample", "index": idx,
+                           "t_ms": int((time.time() - t_s) * 1000),
+                           "tick": k32.GetTickCount(),
+                           "mgr": mgr_now, "lm": lm_now, "btn": btn}
+                    for tag, base in (("mgr", mgr_now), ("lm", lm_now), ("btn", btn)):
+                        raw = rpm(hp, base, 0x104) if base else None
+                        row[tag + "_d"] = (list(struct.unpack("<65I", raw))
+                                           if raw and len(raw) == 0x104 else [])
+                    if a.hint_hold_show and btn:
+                        for i in range(5):
+                            sp = u32(hp, btn + 0x60 + 4 * i)
+                            if sp:
+                                wf32(hp, sp + 0x2C, 1.0)
+                    k32.QueryPerformanceCounter(ctypes.byref(qpc))
+                    row["qpc"] = qpc.value
+                    samples.append(row)
+                    time.sleep(1.0 / a.hint_sample_hz)
+                with open(a.hint_sample, "a", encoding="utf-8") as hf:
+                    for row in samples:
+                        hf.write(json.dumps(row, ensure_ascii=False) + "\n")
+                emit({"event": "hint_sample_summary", "index": idx,
+                      "samples": len(samples)})
             if ok and a.alpha_scan:
                 alpha_rows = []
                 t_a = time.time()

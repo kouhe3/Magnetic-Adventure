@@ -103,7 +103,8 @@ def frame_draw_counts(log):
 
 
 def capture_one(level, out_dir, game_dir, t0, t1, timeout, gap, force_hint=None,
-                force_hint_show=False):
+                force_hint_show=False, hint_sample=False, hint_sample_secs=8.0,
+                hint_sample_hz=20.0, hint_hold_show=False):
     log = (out_dir / ("lvl%02d_gl.bin" % level)).resolve()
     drive = out_dir / ("lvl%02d_drive.jsonl" % level)
     env = os.environ.copy()
@@ -118,6 +119,15 @@ def capture_one(level, out_dir, game_dir, t0, t1, timeout, gap, force_hint=None,
         cmd += ["--force-hint", str(force_hint)]
     if force_hint_show:
         cmd += ["--force-hint-show"]
+    if hint_sample:
+        hint_path = out_dir / ("lvl%02d_hint.jsonl" % level)
+        if hint_path.exists():
+            hint_path.unlink()
+        cmd += ["--hint-sample", str(hint_path),
+                "--hint-sample-secs", str(hint_sample_secs),
+                "--hint-sample-hz", str(hint_sample_hz)]
+        if hint_hold_show:
+            cmd += ["--hint-hold-show"]
     r = subprocess.run(cmd, env=env, capture_output=True, text=True, errors="replace")
     tail = (r.stdout or "") + (r.stderr or "")
     ok = r.returncode == 0 and log.exists() and log.stat().st_size > 0
@@ -205,6 +215,12 @@ def main():
                     help="T6.4f: write [0x665334]+0x5C after level entry")
     ap.add_argument("--force-hint-show", action="store_true",
                     help="T6.4f: write alpha=1 to the hint button sprites")
+    ap.add_argument("--hint-sample", action="store_true",
+                    help="T6.4f: dump mgr/lm/btn fields at 20 Hz while logging GL")
+    ap.add_argument("--hint-sample-secs", type=float, default=8.0)
+    ap.add_argument("--hint-sample-hz", type=float, default=20.0)
+    ap.add_argument("--hint-hold-show", action="store_true",
+                    help="T6.4f: keep the five hint sprites at alpha=1 while sampling")
     ap.add_argument("--settle-offset", type=int, default=25,
                     help="判据帧 = settled + offset（淡入/入场动画稳定后）")
     ap.add_argument("--retries", type=int, default=1,
@@ -244,7 +260,9 @@ def main():
         for attempt in range(1 + a.retries):
             print("lvl%02d capture ..." % level, flush=True)
             row = capture_one(level, out_dir, a.dir, a.t0, a.t1, a.timeout,
-                              a.gap, a.force_hint, a.force_hint_show)
+                              a.gap, a.force_hint, a.force_hint_show,
+                              a.hint_sample, a.hint_sample_secs, a.hint_sample_hz,
+                              a.hint_hold_show)
             row = summarize(row, a.settle_offset)
             if row["ok"] and not row.get("error"):
                 break
