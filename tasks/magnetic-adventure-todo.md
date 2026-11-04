@@ -112,6 +112,7 @@
 - [x] T6.4d-2 LCL 真实点击 + 运行时场景切换：`THostMouseHandler` 命中 Play → `TMenuScene.Clear`/`Free` → `BuildFromModel`；正例 index=20/3、sprites=21/60、lua_bind_ab 0 差；点空白/坏档案无 level 依据：F436
 - [x] T6.4d-3 宿主进关后物理步进 + 图形同步：`PhysStart` → `HOST_PHYS_STEPS` → `SyncPhysics` → `phys.log`；level 0 bodies=3/objects=15 angle_moved=3 sync_after=0，负例无 phys.log 依据：F437
 - [x] T6.4d-4 持久 Lua state + `DoProgress`：`HOST_KEEP_LUA=1` 保留 state，`EnterLevel` 每步 `PCall('DoProgress',0.01)`；level 3 calls=100 rc=0、lua_bind_ab 187/187、sync_after=0；负例 `HOST_LUA_PROGRESS=0` 无日志、`HOST_KEEP_LUA=0` calls=0 依据：F438
+- [x] T6.4d-5 完成信号 + 返回菜单：`bind_Do_LevelComplete` 置 `LevelComplete`，`ExitLevel` 清关卡/重建菜单；trace `boot,menu,level,menu,exit`、`menu_after layers=21`；负例 `HOST_FIRE_COMPLETE=0` 无第二个 menu 依据：F439
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [x] T6.4e 关卡文本：范围核实（GameTop 不引用 `pt_sans`；关卡名/完成文本是烘焙图；动态文本只剩用户名；gulim2 无消费者） 依据：F432、F433
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196

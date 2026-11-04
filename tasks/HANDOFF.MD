@@ -139,6 +139,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-4 持久 Lua state + `DoProgress`（F438）**：`LuaBindRun` 的 finally 在 `HOST_KEEP_LUA=1` 时保留 `g_levelLua`；`EnterLevel` 在 `LuaBindRunLevel` 期间临时清空 `HOST_PHYS_STEPS`（修正 T6.4d-3 内外层重复步进），之后外层每步 `PhysStep` + `PCall('DoProgress',0.01)`。正例 level 3：`lua_progress.log calls=100 rc=0`；`phys.log bodies=7 objects=38 steps=100 angle_moved=5 sync_first=5.429629803 sync_after=0`；`lua_bind_ab` 187/187 0 差。负例 `HOST_LUA_PROGRESS=0` → 无日志；`HOST_KEEP_LUA=0` → `calls=0`。回归 verify 7/7、phys_sweep 50/2/0。边界：只证 state 存活与调用返回；`DoProgress` 对 sprite 的副作用未接渲染。
 
+- **2026-11-04 T6.4d-5 完成信号 + 返回菜单（F439）**：`bind_Do_LevelComplete` 置 `LevelComplete`（生成器 hook，`luabind.pas` 重新生成 bindings=144）；`TLevelScene.Clear` 释放 AddWorld/AddHud sprite；`ExitLevel` 清关卡、重建菜单并写 `menu_after.log`。正例 level 3：trace `boot,menu,level(index=3),menu,exit`、`level_init.log sprites=60`、`menu_after.log layers=21`、`lua_progress calls=100 rc=0`、`phys.log bodies=7 sync_after=0`。负例 `HOST_FIRE_COMPLETE=0` → 无第二个 menu。回归 verify 7/7、phys_sweep 50/2/0。边界：完成是注入的 `Do_LevelComplete()`；`Set_ScrObjPos` 对 sprite 的副作用仍未接渲染。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

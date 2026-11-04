@@ -7,6 +7,9 @@ interface
 
 uses LuaDll, LuaLog, LuaEvents, PhysWorld;
 
+var
+  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志
+
 function NextId(const Name: string): Integer;
 procedure ResetIds;
 procedure RegisterBindings(L: TLuaState);
@@ -2606,6 +2609,7 @@ var
 begin
   LuaLogBegin(L, 'Do_LevelComplete');
   id := NextId('Do_LevelComplete');
+  LevelComplete := True;
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2687,6 +2691,7 @@ end;
 procedure RegisterBindings(L: TLuaState);
 begin
   g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;
+  LevelComplete := False;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);
   Lua.SetField(L, LUA_GLOBALSINDEX, PChar('Do_Command'));
   Lua.PushCClosure(L, Pointer(@bind_Add_WoodBox), 0);

@@ -34,6 +34,7 @@ type
     FCamera: TGLCamera;
     FLog: string;
     FSprites: Integer;
+    FObjects: TList;   // T6.4d-5：AddWorld/AddHud 新建的 sprite（Clear 时释放）
     FSync: array of TLevelSync;
     FSyncCount: Integer;
     FSyncMaxErr: Double;
@@ -44,6 +45,9 @@ type
     function AddHiddenDots(Count: Integer): Boolean;
   public
     constructor Create(Scene: TGLScene; Pak: TPakFile; Camera: TGLCamera);
+    destructor Destroy; override;
+    // 释放本单元建的 sprite（Cam 不在其中），供 menu→level→menu 状态切换用。
+    procedure Clear;
     function BuildIntroduction: Boolean;
     // 从 SceneModel 的图元列表建场景（T6.4a-r-2d）：世界坐标 + 相机来自模型，
     // HUD 按钮走设计空间，末尾补 mbtn/dot 引擎常量（与 BuildIntroduction 一致）。
@@ -70,10 +74,31 @@ begin
   FCamera := Camera;
   FLog := '';
   FSprites := 0;
+  FObjects := TList.Create;
   FSyncCount := 0;
   FSyncMaxErr := 0;
   FSyncAngleMoved := 0;
   SetLength(FSync, 0);
+end;
+
+destructor TLevelScene.Destroy;
+begin
+  Clear;
+  FObjects.Free;
+  inherited Destroy;
+end;
+
+procedure TLevelScene.Clear;
+var
+  i: Integer;
+begin
+  if FObjects = nil then Exit;
+  for i := FObjects.Count - 1 downto 0 do
+    TObject(FObjects[i]).Free;
+  FObjects.Clear;
+  SetLength(FSync, 0);
+  FSyncCount := 0;
+  FSprites := 0;
 end;
 
 function TLevelScene.AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
@@ -103,6 +128,7 @@ begin
   if CompareText(ExtractFileExt(Asset), '.jpg') = 0 then
     Sprite.Material.Texture.ImageAlpha := tiaOpaque;
   FScene.Objects.AddChild(Sprite);
+  FObjects.Add(Sprite);
   Inc(FSprites);
   if Handle > 0 then
   begin
@@ -142,6 +168,7 @@ begin
   if CompareText(ExtractFileExt(Asset), '.jpg') = 0 then
     Sprite.Material.Texture.ImageAlpha := tiaOpaque;
   FScene.Objects.AddChild(Sprite);
+  FObjects.Add(Sprite);
   Inc(FSprites);
   Result := True;
 end;

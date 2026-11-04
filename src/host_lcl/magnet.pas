@@ -852,6 +852,8 @@ begin
   CloseFile(f);
 end;
 
+procedure ExitLevel; forward;
+
 // T6.4d-2：运行时切到关卡（真实 LCL 点击路径）。菜单 sprite 先清掉，
 // Cam 保留；关卡模型来自 LuaBindRunLevel 刚写的 HOST_LUA_LOG。
 procedure EnterLevel(Index: Integer; out Err: string);
@@ -923,6 +925,15 @@ begin
     Err := 'model produced 0 sprites: ' + EnvStr('HOST_LUA_LOG');
     Exit;
   end;
+  AssignFile(tf, ExePath('level_init.log'));
+  Rewrite(tf);
+  WriteLn(tf, 'sprites=', g_Level.Sprites);
+  Write(tf, g_Level.Log);
+  CloseFile(tf);
+  g_InLevel := True;
+  WriteTraceIndex('level', Index);
+  if g_Viewer <> nil then
+    g_Viewer.Invalidate;
   // T6.4d-3：HOST_PHYS_STEPS>0 时步进并把 world sprite 同步到物理体。
   // 第一次 SyncPhysics 记录"同步前 sprite 与 body 的位置差"（即物理位移），
   // 第二次记录同步后残差（应为 0），用于判据 sync_after。
@@ -967,16 +978,68 @@ begin
     CloseFile(ptf);
     EnterStage('stage=phys bodies=' + IntToStr(SyncCount) +
       ' angle_moved=' + IntToStr(g_Level.SyncAngleMoved));
+    // T6.4d-5：注入 Do_LevelComplete()（Lua 全局存在则调用；无论是否存在都置标志），
+    // 然后走 menu→level→menu 的状态切换。
+    if EnvFlag('HOST_FIRE_COMPLETE') then
+    begin
+      if g_levelLua <> nil then
+      begin
+        Lua.GetField(g_levelLua, LUA_GLOBALSINDEX, PChar('Do_LevelComplete'));
+        if Lua.LType(g_levelLua, -1) = 6 then
+        begin
+          rc2 := Lua.PCall(g_levelLua, 0, 0, 0);
+          EnterStage('stage=fire_complete rc=' + IntToStr(rc2));
+        end;
+        Lua.SetTop(g_levelLua, 0);
+      end;
+      LevelComplete := True;
+    end;
+    if LevelComplete then
+      ExitLevel;
   end;
-  AssignFile(tf, ExePath('level_init.log'));
-  Rewrite(tf);
-  WriteLn(tf, 'sprites=', g_Level.Sprites);
-  Write(tf, g_Level.Log);
-  CloseFile(tf);
-  g_InLevel := True;
-  WriteTraceIndex('level', Index);
+end;
+
+// T6.4d-5：清关卡 sprite、重建菜单、写 trace menu；HOST_EXIT_AFTER_COMPLETE 供测试退出。
+procedure ExitLevel;
+var
+  menuOk: Boolean;
+  tf: TextFile;
+begin
+  if g_Level <> nil then
+  begin
+    g_Level.Clear;
+    g_Level.Free;
+    g_Level := nil;
+  end;
+  if g_Menu = nil then
+  begin
+    g_Menu := TMenuScene.Create(g_Scene, g_Pak);
+    if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+      g_Viewer.Buffer.RenderingContext.Activate;
+    try
+      menuOk := g_Menu.Build(True, 900, 700);
+    finally
+      if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+        g_Viewer.Buffer.RenderingContext.Deactivate;
+    end;
+    if menuOk then
+      WriteLn(StdErr, 'menu rebuilt')
+    else
+      WriteLn(StdErr, 'menu rebuild failed');
+    AssignFile(tf, ExePath('menu_after.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'layers=', g_Menu.Layers);
+    CloseFile(tf);
+  end;
+  g_InLevel := False;
+  WriteTrace('menu');
   if g_Viewer <> nil then
     g_Viewer.Invalidate;
+  if EnvFlag('HOST_EXIT_AFTER_COMPLETE') then
+  begin
+    WriteTrace('exit');
+    ExitProcess(0);
+  end;
 end;
 
 // 客户区坐标 = 设计像素（客户区 1018×739，F154/F188）。
