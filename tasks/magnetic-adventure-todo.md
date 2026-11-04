@@ -104,7 +104,8 @@
 - [x] T6.4b-x-s 开关旋转夹具 + 阶段角度判据：`tests/levels/switch_o.lua`/`switch_e.lua` + 仪器 `--stage-angle/--stage-min-angle/--ignore-distance`。正例 Δangle=-0.5250、markers=2 ⇒ PASS；过枢轴负例 Δ≈0、markers=0 ⇒ FAIL。依据：F410
 - [x] T6.4c-0 存档工具多玩家感知：`tools/profile.py` `players/get/set/diff` + `--player/--file`。A/A=0；`set SoundsVolume 7 --player KKK` 后 diff=1 且 `ooo` 不变；默认 Active 选择正确。依据：F411
 - [x] T6.4d-0 状态轨迹 + 地板：`direct_drive.py --trace` + `tools/trace_diff.py`。两次运行序列相同，dt=-62/-407/-411 ms，tol 600 PASS；exit+1000 负例 FAIL；level→exit 1765/1769。依据：F412、F413
-- [ ] T6.4d-0b win/complete 状态：`lm`/`app`/`mgr` dword 无翻转；图元 +1 是烟花；`+0x1F0` 可见性无翻转；候选信号 = `TGlAlphaHudSlideObject`（`mgr+0x68/0x6c`）的 `+0x30`/`+0x2f0` 4→0 计数（F416）。下一刀：证明正常游玩恒 0，再并入 trace。依据：F414、F415、F416
+- [x] T6.4d-0b win/complete 状态：`lm`/`app`/`mgr` dword 无翻转；图元 +1 是烟花；`+0x1F0` 可见性无翻转；F416 的 `+0x30`/`+0x2f0` 候选**已证伪**（F425：未完成 4 关 nonzero=98/99/99/99，通用滑动倒计时）。**完成锚点 = `TGraphObjectList` 里的 `TGlAlphaHudSpriteObject`（bEndLevelBox，size 0x30）的 `+0x2C` 0→1.0**（F426：`Do_ShowCommand` 0x59A0B0 → vmt[0x50] 0x5937C0 case 0x17 写 +0x2C；原版完成 timing2 +5.01 s 0→1.0），已并入 `direct_drive --trace` 的 `complete`（正例写字段 1.0 后 1.0 s 记录、1.5 s 复位回 level；负例未完成 6 s 无）。依据：F414、F415、F416、F425、F426
+- [ ] T6.4d-0b2 完成链 CI 驱动稳定性：`bGearOnMove` 需**第二次 OnMove** 把 `HintState` 3→4 才 `StartFireWorks`；fake magnet 松手后物体静止，微动 0.08/0.3/0.4 均未稳定触发（timing2 成功、后续 3 次失败）。候选：代理直施力/velocity、或按住后在目标内持续移动的闭环。依据：F426
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [ ] T6.4e 关卡文本（`pt_sans*.dat` / `gulim2.dat`，判据同 T6.4a 的 draw 列表） 依据：F11、F192、F231

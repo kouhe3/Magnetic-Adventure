@@ -9,10 +9,19 @@ Usage (32-bit Python):
   python tools/direct_drive.py --dir work/e2e_game --levels 0,1,2
   python tools/direct_drive.py --dir work/e2e_game --levels 0-51 --out work/drive.jsonl
   python tools/direct_drive.py --dir work/e2e_game --levels 0 --no-desktop   # debug
+  python tools/direct_drive.py --levels 0,1,2 --alpha-scan work/alpha.jsonl
+      # after each level settles, sample TLevelObjects+0x68 / +0x6c at
+      # +0x30 / +0x2f0 (u32) for --alpha-secs at --alpha-hz; JSONL rows
+      # {"event":"alpha","index":N,"t_ms":T,"objs":{"68":{"ptr","c30","c2f0","vis"}}}
 
 Criterion: for every requested index, within --timeout seconds the game reaches
   [lm+0x30]==1, [lm+4]==index, [lm+0x50]!=0, [lm+8]==1, and the process stays alive.
 Exit code 0 iff all requested indices pass; JSONL records every step.
+
+Alpha scan criterion (T6.4d-0b): on an unfinished level every sample must read
+  c30==0 and c2f0==0 (F424 pre-registration).  The scan is a probe: it does not
+  change game state; both objects are read from [0x665334] each sample so a
+  rebuilt TLevelObjects between levels cannot alias an old pointer.
 
 Coverage boundary:
   * indices are dispatcher order 0..51 (0 = Introduction, 1 = Let's Get
@@ -336,6 +345,38 @@ def state_label(s):
     return "other"
 
 
+def find_end_level_box(hp, mgr):
+    """Return bEndLevelBox = the TGlAlphaHudSpriteObject in TGraphObjectList.
+
+    Do_ShowCommand (0x59A0B0) calls object->vmt[0x50](&1.0, 0x17, 0) and
+    0x5937C0 (case 0x17) writes +0x2C = 1.0.  basefs.lua calls
+    ShowEndLevelBox() from OnFireWorksLastFrame when stFireWorks reaches 24;
+    unfinished levels keep +0x2C = 0 (F425/F426).
+    """
+    gl = u32(hp, mgr + 0x20)
+    tl = u32(hp, gl + 4) if gl else None
+    arr = u32(hp, tl + 4) if tl else None
+    cnt = u32(hp, tl + 8) if tl else None
+    if not arr or not cnt or not (0 < cnt < 4096):
+        return None
+    for i in range(cnt):
+        p = u32(hp, arr + i * 4)
+        if not p:
+            continue
+        vmt = u32(hp, p)
+        if not vmt:
+            continue
+        size = u32(hp, vmt + 4)
+        size = (-size) & 0xFFFFFFFF if size & 0x80000000 else size
+        if size != 0x30:
+            continue
+        name = u32(hp, vmt + 0xC)
+        raw = rpm(hp, name, 64) if name else None
+        if raw and raw[1:1 + raw[0]] == b"TGlAlphaHudSpriteObject":
+            return p
+    return None
+
+
 def start_trace(hp, pi, hz):
     """Sample app/level state at `hz` in a daemon thread; keep transitions only."""
     rows = []
@@ -348,6 +389,8 @@ def start_trace(hp, pi, hz):
 
     def run():
         last = "boot"
+        box = None
+        box_checked = 0.0
         while not stop.is_set():
             if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
                 rows.append({"t_ms": int((time.time() - t0) * 1000),
@@ -359,7 +402,14 @@ def start_trace(hp, pi, hz):
                 time.sleep(1.0 / hz)
                 continue
             label = state_label(s)
-            key = (label, s[3] if label == "level" else None)
+            if label == "level":
+                now = time.time()
+                if box is None or now - box_checked > 1.0:
+                    box = find_end_level_box(hp, s[0])
+                    box_checked = now
+                if box and u32(hp, box + 0x2C) == 0x3F800000:
+                    label = "complete"
+            key = (label, s[3] if label in ("level", "complete") else None)
             if label != "other" and key != last:
                 rows.append({"t_ms": int((time.time() - t0) * 1000),
                              "state": label,
@@ -394,7 +444,16 @@ def main():
                     help="write state transitions (JSONL) to this path")
     ap.add_argument("--trace-hz", type=float, default=50.0,
                     help="state sampling rate for --trace")
+    ap.add_argument("--alpha-scan", default=None,
+                    help="scan TLevelObjects+0x68/0x6c +0x30/+0x2f0 (JSONL)")
+    ap.add_argument("--alpha-secs", type=float, default=5.0,
+                    help="seconds to observe alpha counters after each level")
+    ap.add_argument("--alpha-hz", type=float, default=20.0,
+                    help="alpha counter sampling rate")
     a = ap.parse_args()
+
+    if a.alpha_scan and os.path.exists(a.alpha_scan):
+        os.remove(a.alpha_scan)
 
     if ctypes.sizeof(ctypes.c_void_p) != 4:
         raise SystemExit("32-bit Python required (CONTEXT is x86)")
@@ -530,6 +589,42 @@ def main():
                     break
             emit({"index": idx, "ok": ok, "ms": int((time.time() - t0) * 1000),
                   "state": last, "lm8": u8(hp, lm + 8)})
+            if ok and a.alpha_scan:
+                alpha_rows = []
+                t_a = time.time()
+                prev = None
+                while time.time() - t_a < a.alpha_secs:
+                    if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
+                        break
+                    mgr_now = u32(hp, 0x665334)
+                    objs = {}
+                    for off in (0x68, 0x6C):
+                        p = u32(hp, mgr_now + off) if mgr_now else None
+                        if not p:
+                            continue
+                        objs["%02x" % off] = {
+                            "ptr": p,
+                            "c30": u32(hp, p + 0x30),
+                            "c2f0": u32(hp, p + 0x2F0),
+                            "vis": u8(hp, p + 0x1F0),
+                        }
+                    row = {"event": "alpha", "index": idx,
+                           "t_ms": int((time.time() - t_a) * 1000),
+                           "objs": objs}
+                    alpha_rows.append(row)
+                    cur = {k: (v["c30"], v["c2f0"]) for k, v in objs.items()}
+                    if prev is not None and cur != prev:
+                        emit(row)
+                    prev = cur
+                    time.sleep(1.0 / a.alpha_hz)
+                with open(a.alpha_scan, "a", encoding="utf-8") as af:
+                    for row in alpha_rows:
+                        af.write(json.dumps(row, ensure_ascii=False) + "\n")
+                emit({"event": "alpha_summary", "index": idx,
+                      "samples": len(alpha_rows),
+                      "nonzero": sum(1 for r in alpha_rows
+                                     if any(v["c30"] or v["c2f0"]
+                                            for v in r["objs"].values()))})
             if not ok:
                 fails += 1
                 if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
