@@ -25,7 +25,7 @@ uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
   GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents,
-  PhysWorld, LevelScene, ProfileData;
+  PhysWorld, LevelScene, ProfileData, ExtCtrls;
 
 type
   TCameraEvents = class
@@ -836,10 +836,20 @@ begin
 end;
 
 type
+  THostLoop = class
+    procedure Tick(Sender: TObject);
+  end;
+
   THostMouseHandler = class
     procedure MouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
   end;
+
+var
+  g_Loop: THostLoop = nil;
+  g_LoopTimer: TTimer = nil;
+  g_LoopSteps, g_LoopCalls, g_LoopStartMs, g_LoopMs: Integer;
+  g_LuaProgressOn: Boolean = False;
 
 procedure EnterStage(const S: string);
 var
@@ -1039,6 +1049,24 @@ begin
       ExitLevel;
     end;
   end;
+  // T6.4d-6：持续帧循环（16 ms TTimer）；HOST_LOOP_MS 到时写 loop.log。
+  if EnvFlag('HOST_LOOP') then
+  begin
+    g_LoopMs := StrToIntDef(EnvStr('HOST_LOOP_MS'), 2000);
+    g_LoopStartMs := Integer(GetTickCount);
+    g_LoopSteps := 0;
+    g_LoopCalls := 0;
+    g_LuaProgressOn := EnvFlag('HOST_LUA_PROGRESS');
+    if g_Loop = nil then
+      g_Loop := THostLoop.Create;
+    if g_LoopTimer = nil then
+    begin
+      g_LoopTimer := TTimer.Create(nil);
+      g_LoopTimer.Interval := 16;
+      g_LoopTimer.OnTimer := @g_Loop.Tick;
+    end;
+    g_LoopTimer.Enabled := True;
+  end;
 end;
 
 // T6.4d-5：清关卡 sprite、重建菜单、写 trace menu；HOST_EXIT_AFTER_COMPLETE 供测试退出。
@@ -1114,6 +1142,45 @@ begin
   begin
     WriteTrace('exit');
     ExitProcess(0);
+  end;
+end;
+
+
+procedure THostLoop.Tick(Sender: TObject);
+var
+  rc2: Integer;
+  tf: TextFile;
+  elapsed: Integer;
+begin
+  if (not g_InLevel) or (g_Level = nil) then Exit;
+  PhysStep(0.01, 20, 20);
+  Inc(g_LoopSteps);
+  if g_LuaProgressOn and (g_levelLua <> nil) then
+  begin
+    Lua.GetField(g_levelLua, LUA_GLOBALSINDEX, PChar('DoProgress'));
+    if Lua.LType(g_levelLua, -1) = 6 then
+    begin
+      Lua.PushNumber(g_levelLua, 0.01);
+      rc2 := Lua.PCall(g_levelLua, 1, 0, 0);
+      Inc(g_LoopCalls);
+    end;
+    Lua.SetTop(g_levelLua, 0);
+  end;
+  g_Level.SyncPhysics;
+  elapsed := Integer(GetTickCount) - g_LoopStartMs;
+  if (g_LoopMs > 0) and (elapsed >= g_LoopMs) then
+  begin
+    g_LoopTimer.Enabled := False;
+    AssignFile(tf, ExePath('loop.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'steps=', g_LoopSteps, ' calls=', g_LoopCalls,
+      ' ms=', elapsed);
+    CloseFile(tf);
+    if EnvFlag('HOST_EXIT_AFTER_LOOP') then
+    begin
+      WriteTrace('exit');
+      ExitProcess(0);
+    end;
   end;
 end;
 
