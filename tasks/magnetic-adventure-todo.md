@@ -109,6 +109,7 @@
 - [x] T6.4d-0b2 完成链 CI 驱动稳定性：完成信号修正为任一 size-0x30 HUD sprite 的 `+0x2C` 相对基线 0→1（`bHintComplete`；`bEndLevelBox` 恒 0）；no-nudge 3/3 + nudge 3/3 PASS，检测 2.91–2.97 s。依据：F430、F431
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
 - [x] T6.4d-1 宿主 `HOST_CLICK` → 按档案 LastCompleteLevel 进关 + `HOST_TRACE`（进程内命令入口）：正例 index=20/3、lua_bind_ab 0 差、两次序列相同；点空白/无档案/坏档案/51 四条负例无 level 依据：F435
+- [x] T6.4d-2 LCL 真实点击 + 运行时场景切换：`THostMouseHandler` 命中 Play → `TMenuScene.Clear`/`Free` → `BuildFromModel`；正例 index=20/3、sprites=21/60、lua_bind_ab 0 差；点空白/坏档案无 level 依据：F436
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [x] T6.4e 关卡文本：范围核实（GameTop 不引用 `pt_sans`；关卡名/完成文本是烘焙图；动态文本只剩用户名；gulim2 无消费者） 依据：F432、F433
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196

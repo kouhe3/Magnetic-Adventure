@@ -736,6 +736,13 @@ var
   g_profileRead: Boolean = False;
   g_tracePath: string = '';
   g_t0: DWORD = 0;
+  g_Menu: TMenuScene = nil;
+  g_Level: TLevelScene = nil;
+  g_Scene: TGLScene = nil;
+  g_Cam: TGLCamera = nil;
+  g_Pak: TPakFile = nil;
+  g_Viewer: TGLSceneViewer = nil;
+  g_InLevel: Boolean = False;
 
 // 崩溃捕获（F315–F317）：设 CRASHLOG_DIR/CRASHLOG_LOG 时加载 crashlog.dll，它在 DllMain 里装 VEH。
 // 默认零成本；代理（HOST_PHYS）路径也会带同一份记录器，二者用进程级互斥量只装一个。
@@ -824,6 +831,119 @@ begin
     (Y >= 224) and (Y < 224 + 128);
 end;
 
+type
+  THostMouseHandler = class
+    procedure MouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+  end;
+
+procedure EnterStage(const S: string);
+var
+  f: TextFile;
+begin
+  if EnvStr('HOST_ENTER_LOG') = '' then Exit;
+  AssignFile(f, EnvStr('HOST_ENTER_LOG'));
+  if FileExists(EnvStr('HOST_ENTER_LOG')) then Append(f) else Rewrite(f);
+  WriteLn(f, S);
+  CloseFile(f);
+end;
+
+// T6.4d-2：运行时切到关卡（真实 LCL 点击路径）。菜单 sprite 先清掉，
+// Cam 保留；关卡模型来自 LuaBindRunLevel 刚写的 HOST_LUA_LOG。
+procedure EnterLevel(Index: Integer; out Err: string);
+var
+  runLog, rc: string;
+  BuildOk: Boolean;
+  tf: TextFile;
+begin
+  Err := '';
+  if g_InLevel then Exit;
+  runLog := '';
+  rc := LuaBindRunLevel(Index, runLog);
+  EnterStage('stage=lua rc=' + rc + ' menu_nil=' + BoolToStr(g_Menu = nil, True));
+  if rc <> 'level=' + IntToStr(Index) + ' ok' then
+  begin
+    Err := runLog + ' rc=' + rc;
+    Exit;
+  end;
+  if (g_Menu <> nil) and not EnvFlag('HOST_NO_MENU_CLEAR') then
+  begin
+    EnterStage('stage=pre_clear');
+    g_Menu.Clear;
+    EnterStage('stage=post_clear');
+    g_Menu.Free;
+    g_Menu := nil;
+    EnterStage('stage=post_free');
+  end;
+  g_Level := TLevelScene.Create(g_Scene, g_Pak, g_Cam);
+  EnterStage('stage=pre_build');
+  // 运行时 GL 上下文在消息循环里不是 current；纹理创建/上传要先激活，
+  // 否则 TGLTexture.Image 赋值失败、AddHud/AddWorld 直接 Exit（启动分支
+  // 没有这个问题：那时上下文还没创建，上传被延迟到首帧）。
+  if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+    g_Viewer.Buffer.RenderingContext.Activate;
+  BuildOk := False;
+  try
+    BuildOk := g_Level.BuildFromModel(EnvStr('HOST_LUA_LOG'), EnvStr('HOST_PAK_DIR'),
+      StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0));
+  finally
+    if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+      g_Viewer.Buffer.RenderingContext.Deactivate;
+  end;
+  EnterStage('stage=post_build ok=' + BoolToStr(BuildOk, True) +
+    ' sprites=' + IntToStr(g_Level.Sprites));
+  // 已知缺失素材（level 20 的 symbol_back）会让 BuildFromModel 返回 False，
+  // 但已建出的 sprite 是有效的；与启动分支的判据一致：sprites>0 就算进关。
+  if g_Level.Sprites = 0 then
+  begin
+    EnterStage('level_log=' + g_Level.Log);
+    Err := 'model produced 0 sprites: ' + EnvStr('HOST_LUA_LOG');
+    Exit;
+  end;
+  AssignFile(tf, ExePath('level_init.log'));
+  Rewrite(tf);
+  WriteLn(tf, 'sprites=', g_Level.Sprites);
+  Write(tf, g_Level.Log);
+  CloseFile(tf);
+  g_InLevel := True;
+  WriteTraceIndex('level', Index);
+  if g_Viewer <> nil then
+    g_Viewer.Invalidate;
+end;
+
+// 客户区坐标 = 设计像素（客户区 1018×739，F154/F188）。
+procedure THostMouseHandler.MouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+  err: string;
+  ctf: TextFile;
+begin
+  if EnvStr('HOST_CLICK_LOG') <> '' then
+  begin
+    AssignFile(ctf, EnvStr('HOST_CLICK_LOG'));
+    if FileExists(EnvStr('HOST_CLICK_LOG')) then Append(ctf) else Rewrite(ctf);
+    if g_Viewer <> nil then
+      WriteLn(ctf, 'x=', X, ' y=', Y, ' cw=', g_Viewer.ClientWidth,
+        ' ch=', g_Viewer.ClientHeight)
+    else
+      WriteLn(ctf, 'x=', X, ' y=', Y, ' viewer=nil');
+    CloseFile(ctf);
+  end;
+  if (Button <> mbLeft) or g_InLevel then Exit;
+  if not HitPlay(X, Y) then Exit;
+  if not g_profile.Ok then Exit;
+  if (g_profile.LastCompleteLevel < 0) or
+     (g_profile.LastCompleteLevel >= 51) then Exit;
+  EnterLevel(g_profile.LastCompleteLevel, err);
+  if err <> '' then
+    WriteLn(StdErr, 'enter level failed: ', err);
+  if g_InLevel and EnvFlag('HOST_EXIT_AFTER_LEVEL') then
+  begin
+    WriteTrace('exit');
+    ExitProcess(0);
+  end;
+end;
+
 var
   F: TForm;
   S: TGLScene;
@@ -843,6 +963,7 @@ var
   Headless, PakOpened, LevelMode: Boolean;
   ClickLevel, ClickOk, HasClick: Boolean;
   ClickX, ClickY: Integer;
+  MouseHandler: THostMouseHandler;
 begin
   MaybeLoadCrashLog;
   g_t0 := GetTickCount;
@@ -874,6 +995,7 @@ begin
   // pak 与纹理自检不需要窗口（有头/无头共用）。
   Pak := TPakFile.Create;
   PakOpened := Pak.Open(DataPath);
+  g_Pak := Pak;
   if PakOpened and EnvFlag('HOST_TEX_SELFTEST') then
     RunTexSelfTest(Pak);
 
@@ -891,12 +1013,14 @@ begin
   F.BorderStyle := bsNone;
 
   S := TGLScene.Create(F);
+  g_Scene := S;
   // GLScene 默认 ObjectsSorting=osRenderBlendedLast：会把"混合对象"排到最后重排
   // 绘制顺序，菜单的 painter 顺序（背景→黑板→按钮→标题→光标）就乱了——
   // 实测背景被排到黑板之后，把黑板上半截盖掉。原版是严格按对象顺序画的。
   S.ObjectsSorting := osNone;
   CamEvents := TCameraEvents.Create;
   Cam := TGLCamera.Create(S);
+  g_Cam := Cam;
   Cam.Position.SetPoint(0, 0, 10);
   Cam.CameraStyle := csCustom;
   Cam.OnCustomPerspective := @CamEvents.Ortho;
@@ -904,6 +1028,7 @@ begin
   if PakOpened and LevelMode then
   begin
     Level := TLevelScene.Create(S, Pak, Cam);
+    g_Level := Level;
     if EnvStr('HOST_LEVEL_MODEL') <> '' then
     begin
       // T6.4a-r-2d：从 SceneModel 的图元列表建场景（相机由模型里的
@@ -941,6 +1066,7 @@ begin
     MouseX := 900;
     MouseY := 700;
     Menu := TMenuScene.Create(S, Pak);
+    g_Menu := Menu;
     Menu.Build(True, MouseX, MouseY);
     AssignFile(tf, ExePath('gl_init.log'));
     Rewrite(tf);
@@ -949,6 +1075,7 @@ begin
     CloseFile(tf);
   end;
   V := TGLSceneViewer.Create(F);
+  g_Viewer := V;
   V.Parent := F;
   V.Align := alClient;
   V.Camera := Cam;
@@ -972,6 +1099,8 @@ begin
   V.SetBounds(0, 0, r.Right, r.Bottom);
   V.Show;
   V.BringToFront;
+  MouseHandler := THostMouseHandler.Create;
+  V.OnMouseDown := @MouseHandler.MouseDown;
 
   V.Invalidate;
   Application.ProcessMessages;

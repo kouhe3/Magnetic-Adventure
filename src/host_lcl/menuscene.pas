@@ -96,6 +96,7 @@ type
     FIndex: Integer;
     FTint: Boolean;    // HOST_MENU_TINT=1：所有层染红（判 alpha 是"没画"还是"画成不透明"）
     FFont: TFontTable;
+    FObjects: TList;   // Build 新增的 sprite（Clear 时释放，Cam 不在其中）
     function LoadTexture(const Asset: string; Tex: TGLTexture): Boolean;
     procedure AddLayer(const Asset: string; X, Y, W, H, Alpha: Single);
     procedure AddText(const S: string; X, Y, Alpha: Single);
@@ -104,6 +105,8 @@ type
     destructor Destroy; override;
     // 建 19 条静态层；Cursor=false 时不建光标（原版鼠标离开窗口时不画）。
     function Build(Cursor: Boolean; CursorX, CursorY: Single): Boolean;
+    // T6.4d-2：运行时切到关卡前清掉菜单 sprite（Free 会从场景 parent 移除）。
+    procedure Clear;
     property Log: string read FLog;
     property Layers: Integer read FLayers;
     property Font: TFontTable read FFont;
@@ -396,6 +399,7 @@ begin
     FOnly := StrToIntDef(buf, -1);
   FTint := Windows.GetEnvironmentVariable('HOST_MENU_TINT', @buf[0], MAX_PATH) > 0;
   FIndex := 0;
+  FObjects := TList.Create;
   FFont := TFontTable.Create;
   FFont.Load(Pak, 'gulim1.dat');
   FLog := FLog + 'font=' + IntToStr(FFont.Count) + #13#10;
@@ -403,8 +407,21 @@ end;
 
 destructor TMenuScene.Destroy;
 begin
+  Clear;
+  FObjects.Free;
   FFont.Free;
   inherited Destroy;
+end;
+
+procedure TMenuScene.Clear;
+var
+  i: Integer;
+begin
+  if FObjects = nil then Exit;
+  for i := FObjects.Count - 1 downto 0 do
+    TObject(FObjects[i]).Free;
+  FObjects.Clear;
+  FLayers := 0;
 end;
 
 procedure TMenuScene.AddText(const S: string; X, Y, Alpha: Single);
@@ -444,6 +461,7 @@ begin
     Exit;
   end;
   FScene.Objects.AddChild(Sprite);
+  FObjects.Add(Sprite);
   Inc(FLayers);
 end;
 
@@ -559,6 +577,7 @@ begin
   if CompareText(ExtractFileExt(Asset), '.jpg') = 0 then
     Sprite.Material.Texture.ImageAlpha := tiaOpaque;
   FScene.Objects.AddChild(Sprite);
+  FObjects.Add(Sprite);
   Inc(FLayers);
 end;
 

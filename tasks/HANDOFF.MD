@@ -133,6 +133,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-1 宿主点击进关 + trace（F435）**：`magnet.pas` 加 `HOST_CLICK`（设计像素，命中 Play 矩形 223,224,256,128）、`HOST_TRACE`（JSONL `t_ms/state/index`）、`HOST_EXIT_AFTER_RENDER`；命中后 `LuaBindRunLevel(LastCompleteLevel)` → `HOST_LUA_LOG` → `TLevelScene.BuildFromModel`。正例档案 20 → `boot,menu,level(index=20),exit`、sprites=21、lua_bind_ab 195/195 0 差；档案 3 → index=3、sprites=60、187/187；两次序列相同。负例点空白/无档案/坏档案/51 结局页 → 只到 menu、无 level_init.log。回归 verify 7/7、phys_sweep 50/2/0。流程偏差：本轮未先落 `待证`（F435 补记），下一刀先预注册。边界：进程内命令入口，不是 LCL 消息；未做运行时场景切换。
 
+- **2026-11-04 T6.4d-2 LCL 真实点击 + 运行时场景切换（F436）**：`magnet.pas` 绑定 `TGLSceneViewer.OnMouseDown`（`THostMouseHandler`，客户区=设计像素），命中 Play 后 `LuaBindRunLevel(LastCompleteLevel)` → `TMenuScene.Clear`/`Free`（只释放 Build 新增 sprite，Cam 保留）→ `TLevelScene.BuildFromModel` → `V.Invalidate`。正例：`click_play.py <pid> --x 350 --y 290` → trace `boot,menu,level(index=20),exit`、sprites=21、lua_bind_ab 195/195 0 差；档案 3 → index=3、sprites=60、187/187。负例点 (100,100)/坏档案 → 只到 menu、无 JSONL。坑：运行时 GL 上下文不是 current，`BuildFromModel` 前后要 `RenderingContext.Activate/Deactivate`；level 20 的 `symbol_back` 缺失使 `BuildFromModel=False`，但 sprites=21，判据按 sprites>0。回归 verify 7/7、phys_sweep 50/2/0。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
