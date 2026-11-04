@@ -165,6 +165,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-0c 宿主 vs 原版轨迹（F452）**：`trace_diff.py` 增 `--sequence-only`/`--index`；宿主私有桌面 `HOST_AUTOCLICK=1 HOST_LEVEL_INDEX=1` 两次运行 `boot/menu/level(index=1)/exit`，与原版 `work/trace_a.jsonl`/`trace_b.jsonl` 序列+索引 PASS，A/A PASS；负例改 index / 删 menu FAIL。边界：不比绝对时刻。
 
+- **2026-11-04 T6.4b-4c 宿主 loop 全局角阻尼（F453）**：`physworld.pas` 增 `PhysGetBodyOmega`（`b2_Body_GetOmega`）与 `PhysApplyAngularDamping`；`magnet.pas` 读 `HOST_MAG_DAMPING`，`EnterLevel` 回放与 `THostLoop.Tick` 都在 `PhysStep` 前施加。正例：力时间线 + 阻尼 30、**不回放扭矩** → `max_pos=6.648791e-07 max_angle=4.96997833e-07` PASS（与扭矩回放同值）；负例阻尼 0 → `max_angle=56.60` FAIL。回归 `phys_sweep` 50/2/0、6 门禁 PASS、env 磁铁 `target=1001 moved=2.511224`。边界：系数 30 只在 level 1 观测；施力点仍按记录回放，抓取点语义与光标反算归 T6.4b-4d。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

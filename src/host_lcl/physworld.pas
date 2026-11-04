@@ -131,6 +131,10 @@ procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
 procedure PhysApplyForceAt(Id: Integer; Fx, Fy, Px, Py: Double);
 // T6.4b-4：施加扭矩（原版 magnet 同一步还有 ApplyTorque，影响角度）。
 procedure PhysApplyTorque(Id: Integer; Torque: Double);
+// T6.4b-4c：读 body 角速度（b2_Body_GetOmega 返回 float）。
+function PhysGetBodyOmega(Id: Integer): Double;
+// T6.4b-4c：对全部已注册 body 施加 -Coeff*w（原版全局角阻尼，F451）。
+procedure PhysApplyAngularDamping(Coeff: Double);
 // T6.4b-4：把当前所有已注册 body 写一行 digest（step id x y angle）。
 procedure PhysDumpBodies(Step: Integer; var F: TextFile);
 // Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
@@ -169,6 +173,7 @@ type
   TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
   TApplyForceFn = procedure(Body, Force, Point: Pointer); cdecl;
   TApplyTorqueFn = procedure(Body: Pointer; Torque: Single); cdecl;
+  TBodyFloatFn = function(Body: Pointer): Single; cdecl;
   TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
@@ -244,6 +249,7 @@ var
   g_getXForm: TGetXFormFn;
   g_applyForce: TApplyForceFn;
   g_applyTorque: TApplyTorqueFn;
+  g_getOmega: TBodyFloatFn;
   g_shapeSetDensity: TShapeFloatFn;
   g_shapeSetFriction: TShapeFloatFn;
   g_shapeSetRestitution: TShapeFloatFn;
@@ -1150,6 +1156,34 @@ begin
   g_applyTorque(b, Torque);
 end;
 
+function PhysGetBodyOmega(Id: Integer): Double;
+var
+  b: Pointer;
+begin
+  Result := 0.0;
+  if not g_active then Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then Exit;
+  Result := g_getOmega(b);
+end;
+
+procedure PhysApplyAngularDamping(Coeff: Double);
+var
+  i: Integer;
+  b: Pointer;
+  w: Double;
+begin
+  if not g_active then Exit;
+  for i := 0 to g_objCount - 1 do
+  begin
+    b := g_objs[i].Body;
+    if b = nil then Continue;
+    w := g_getOmega(b);
+    if w <> 0 then
+      g_applyTorque(b, -Coeff * w);
+  end;
+end;
+
 procedure PhysDumpBodies(Step: Integer; var F: TextFile);
 var
   i: Integer;
@@ -1392,6 +1426,7 @@ begin
   g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
   g_applyForce := TApplyForceFn(GetProcAddress(g_dll, 'b2_Body_ApplyForce'));
   g_applyTorque := TApplyTorqueFn(GetProcAddress(g_dll, 'b2_Body_ApplyTorque'));
+  g_getOmega := TBodyFloatFn(GetProcAddress(g_dll, 'b2_Body_GetOmega'));
   g_shapeSetDensity := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetDensity'));
   g_shapeSetFriction := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetFriction'));
   g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));

@@ -102,7 +102,8 @@
 - [x] T6.4b-3b 宿主真实鼠标磁铁：`Tick` 轮询 `GetCursorPos`/`GetAsyncKeyState` + `b2_Shape_TestPoint` 命中；正例两次完成测试关、`mag_real.log down target=1002`、副本 `1→2`；负例空点 `down-miss` 依据：F448
 - [x] T6.4b-4 力/step 对拍：原版 fake-magnet 日志逐 step `ApplyForce` → 宿主 `HOST_MAG_FORCE`；`tools/force_timeline.py` + `tools/step_ab.py`；螺丝 787 步 `max_pos=6.65e-7` PASS 依据：F449
 - [x] T6.4b-4b 磁铁施力点 + 角度闭合：力时间线六列（m2 光标点）、`PhysApplyForceAt`、`step_ab --angle-tol`；787 步 `max_pos=6.65e-7 max_angle=4.97e-7` PASS，两条负例 FAIL 依据：F450
-- [ ] T6.4b-4c 宿主自驱 loop 的全局 `-30·w` 角阻尼 + 光标点施力：用原版光标时间线驱动宿主自身力律后比 digest（不再回放力） 依据：F451
+- [x] T6.4b-4c 宿主 loop 全局 `-30·w` 角阻尼：`PhysApplyAngularDamping` + `HOST_MAG_DAMPING`；力时间线 + 阻尼 30（无扭矩时间线）787 步 `max_angle=4.97e-7` PASS，负例 0 → 56.60 FAIL 依据：F453
+- [ ] T6.4b-4d 自驱力律闭环：光标路径由力向量反算、抓取点语义归因（P-B 均值 0.014、最大 0.040），再用宿主自算力/点比 digest 依据：F450、F453
 - [ ] T6.4b 输入/拖拽：**行为级已通过**（level 1 两段拖拽 + “Level completed”，F380/F381；`work/drag_lvl1.py`/`drag_shot.py`；真实鼠标 F448、力/step F449）；剩：`b2_sites compare` 全量（init 已 50/2/0）+ 真实关卡绕障寻路 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355

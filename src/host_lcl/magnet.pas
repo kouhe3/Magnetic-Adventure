@@ -868,6 +868,8 @@ var
   g_MagReal: Boolean = False;
   g_MagRealDown: Boolean = False;
   g_MagRealCalls: Integer = 0;
+  // T6.4b-4c：原版全局角阻尼系数（每步 -Coeff*w）。
+  g_DampCoeff: Double = 0.0;
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
   g_LevelIndex: Integer = -1;
@@ -1011,6 +1013,7 @@ begin
   g_MagReal := EnvFlag('HOST_MAG_REAL');
   g_MagRealDown := False;
   g_MagRealCalls := 0;
+  g_DampCoeff := StrToFloatDef(EnvStr('HOST_MAG_DAMPING'), 0.0);
   if g_MagReal then
     g_MagOn := False;
   if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
@@ -1185,6 +1188,9 @@ begin
           PhysApplyTorque(Torques[TorqueIdx].Id, Torques[TorqueIdx].T);
         Inc(TorqueIdx);
       end;
+      // T6.4b-4c：原版每步对全部动态体施加 -30*w（F451）；与扭矩时间线二选一。
+      if g_DampCoeff > 0 then
+        PhysApplyAngularDamping(g_DampCoeff);
       PhysStep(0.01, 20, 20);
       if stepOn then
         g_Level.WriteStepDigest(i, stepLog);
@@ -1439,6 +1445,8 @@ begin
       PhysApplyForce(g_MagTargetId, f * dx / d, f * dy / d);
     end;
   end;
+  if g_DampCoeff > 0 then
+    PhysApplyAngularDamping(g_DampCoeff);
   PhysStep(0.01, 20, 20);
   Inc(g_LoopSteps);
   // T6.4b-2a：target 位移 >1e-3 时按 (PosX,PosY) 派发 OnMove。
