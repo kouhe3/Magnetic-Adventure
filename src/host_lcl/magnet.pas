@@ -1015,6 +1015,36 @@ begin
   EventsFireRotations(g_levelLua, @HostBodyAngle, n);
 end;
 
+// T6.3：设计像素点击 → 命中的 HUD sprite 若登记了 OnClick 就派发。
+procedure HostDispatchClick(X, Y: Integer);
+var
+  h, calls: Integer;
+  tf: TextFile;
+begin
+  h := 0;
+  calls := 0;
+  if (g_Level <> nil) and (g_levelLua <> nil) then
+    if g_Level.HudHit(X, Y, h) and EventsHasEvent(h, 'OnClick') then
+      EventsFireClick(g_levelLua, h, calls);
+  AssignFile(tf, ExePath('click.log'));
+  Rewrite(tf);
+  WriteLn(tf, 'x=', X, ' y=', Y, ' handle=', h, ' calls=', calls);
+  CloseFile(tf);
+end;
+
+procedure DispatchEnvClick;
+var
+  s: string;
+  p: Integer;
+begin
+  s := EnvStr('HOST_CLICK_POINT');
+  if s = '' then Exit;
+  p := Pos(',', s);
+  if p > 0 then
+    HostDispatchClick(StrToIntDef(Copy(s, 1, p - 1), 0),
+      StrToIntDef(Copy(s, p + 1, MaxInt), 0));
+end;
+
 // T6.4b-2b-0：Lua Get_ScrObjPos 对无物理体的 graph 对象回退到这里。
 function LookupSpritePos(Id: Integer; out X, Y, Angle: Double): Boolean;
 begin
@@ -1377,6 +1407,7 @@ begin
     end
     else if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
+    DispatchEnvClick;
     g_lua := g_levelLua;
     for i := 1 to Steps do
     begin
@@ -1618,7 +1649,9 @@ begin
   if g_InLevel then
   begin
     if HintVisible and HintHitTest(X, Y) then
-      DoShowHintNow;
+      DoShowHintNow
+    else
+      HostDispatchClick(X, Y);
     Exit;
   end;
   if not HitPlay(X, Y) then Exit;

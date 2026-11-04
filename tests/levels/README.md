@@ -188,6 +188,18 @@ python tools/ci_fake_magnet.py build --out work/fakemag_switch \
 `python work/run_vdesk_host.py rotpos work/profile_test.prf 1 0 200 0 1004 HOST_PHYS_STEPS=200 HOST_MAG_BUTTON=1 HOST_MAG_X=5 HOST_MAG_Y=0 HOST_STEP_LOG=<abs>/host_rot_pos.log HOST_LUA_DIR=work/pak_switch_lua HOST_PAK_DIR=work/pak_switch_lua`
 ⇒ marker body 在 step 7 起为 (99,99)；负例 `HOST_MAG_X=0 HOST_MAG_Y=-2`（力线过枢轴）⇒ 无 marker、臂角恒 0。
 
+## 点击事件夹具（click）
+
+`click_o.lua` / `click_e.lua`：`Add_HudButton` 放在设计中心 (500,300)，`OnClick`
+回调把 marker 移到 (99,99)。宿主用 `HOST_CLICK_POINT=x,y` 模拟设计像素点击
+（`click.log` 记 hit handle/calls）。
+
+- 构建/解包：`python tools/ci_fake_magnet.py build --out work/fakemag_click --o tests/levels/click_o.lua --e tests/levels/click_e.lua`；`python tools/pak.py extract work/fakemag_click/data work/pak_click_lua`。
+- 正例：`python work/run_vdesk_host.py clickpos work/profile_test.prf 1 0 50 0 1004 HOST_PHYS_STEPS=10 HOST_CLICK_POINT=1000,660 HOST_STEP_LOG=<abs>/host_click_pos.log HOST_LUA_DIR=work/pak_click_lua HOST_PAK_DIR=work/pak_click_lua` ⇒ marker 1003 从 step 1 起为 (99,99)。
+- 负例：`HOST_CLICK_POINT=100,100` ⇒ handle=0、marker 保持 (10,10)。
+
+边界（F475）：原版 OnClick 的独立 A/B 未做（需要真实/伪造光标点击，属鼠标验收）。
+
 ## 接触事件夹具（persist）
 
 `persist_o.lua` / `persist_e.lua`：自由螺丝嵌在静态 WoodWall 内，b2 每步产生

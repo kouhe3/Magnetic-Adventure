@@ -20,6 +20,12 @@ uses Classes, SysUtils, Math, GLScene, GLObjects, GLHUDObjects, GLTexture,
   MenuScene, PakFile, SceneModel;
 
 type
+  // T6.3：可点击 HUD sprite 的设计像素矩形（Add_HudButton 等）。
+  THudClick = record
+    Handle: Integer;
+    X, Y, W, H: Single;
+  end;
+
   // T6.4d-3：world sprite ↔ b2 body 的同步项（Handle = Lua 工厂返回的 id）。
   TLevelSync = record
     Handle: Integer;
@@ -46,9 +52,12 @@ type
     FHintLib: TGLMaterialLibrary;
     FHintSprites: array[0..9] of TGLBaseSceneObject;
     FHintDigits: array[0..5] of TGLHUDSprite;
+    FHudClicks: array of THudClick;
+    FHudClickCount: Integer;
     function AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
       Alpha: Single; Handle: Integer = 0): Boolean;
-    function AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
+    function AddHud(const Asset: string; X, Y, W, H, Alpha: Single;
+      Handle: Integer = 0): Boolean;
     function AddHiddenDots(Count: Integer): Boolean;
   public
     constructor Create(Scene: TGLScene; Pak: TPakFile; Camera: TGLCamera);
@@ -74,6 +83,8 @@ type
     function SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
     // T6.4b-2b-0：按句柄读 sprite 位置/角度（graph 对象的 Get_ScrObjPos 回退）。
     function GetSpritePos(Handle: Integer; out X, Y, Angle: Double): Boolean;
+    // T6.3：设计像素命中可点击 HUD sprite（OnClick 派发用）。
+    function HudHit(X, Y: Integer; out Handle: Integer): Boolean;
     // T6.4b-3a：运行时 Add_MetallGear 生成了新物理体；这里补 sprite 并记入 FSync。
     function AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;
     // T6.4b-4：把当前全部物理体写到 step digest（step handle x y angle）。
@@ -133,6 +144,8 @@ begin
   end;
   for i := 0 to 9 do FHintSprites[i] := nil;
   for i := 0 to 5 do FHintDigits[i] := nil;
+  SetLength(FHudClicks, 0);
+  FHudClickCount := 0;
   SetLength(FSync, 0);
   FSyncCount := 0;
   FSprites := 0;
@@ -182,7 +195,8 @@ begin
   Result := True;
 end;
 
-function TLevelScene.AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
+function TLevelScene.AddHud(const Asset: string; X, Y, W, H, Alpha: Single;
+  Handle: Integer): Boolean;
 var
   Sprite: TGLHUDSprite;
   Err: string;
@@ -207,7 +221,33 @@ begin
   FScene.Objects.AddChild(Sprite);
   FObjects.Add(Sprite);
   Inc(FSprites);
+  if Handle <> 0 then
+  begin
+    SetLength(FHudClicks, FHudClickCount + 1);
+    FHudClicks[FHudClickCount].Handle := Handle;
+    FHudClicks[FHudClickCount].X := X;
+    FHudClicks[FHudClickCount].Y := Y;
+    FHudClicks[FHudClickCount].W := W;
+    FHudClicks[FHudClickCount].H := H;
+    Inc(FHudClickCount);
+  end;
   Result := True;
+end;
+
+// T6.3：按设计像素命中可点击 HUD sprite（后建的在上层，优先）。
+function TLevelScene.HudHit(X, Y: Integer; out Handle: Integer): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  Handle := 0;
+  for i := FHudClickCount - 1 downto 0 do
+    if (X >= FHudClicks[i].X) and (X <= FHudClicks[i].X + FHudClicks[i].W) and
+       (Y >= FHudClicks[i].Y) and (Y <= FHudClicks[i].Y + FHudClicks[i].H) then
+    begin
+      Handle := FHudClicks[i].Handle;
+      Exit(True);
+    end;
 end;
 
 function TLevelScene.AddHiddenDots(Count: Integer): Boolean;
@@ -427,7 +467,7 @@ begin
       begin
         // SceneModel 的 HUD 坐标是**中心**（设计像素，y 向下）；AddHud 收左上角。
         if not AddHud(O.Asset, O.X + HUD_W - O.W * 0.5,
-          O.Y + HUD_H - O.H * 0.5, O.W, O.H, O.Alpha) then Exit;
+          O.Y + HUD_H - O.H * 0.5, O.W, O.H, O.Alpha, O.Handle) then Exit;
       end
       else if not AddWorld(O.Asset, O.X, O.Y, O.Angle, O.W * 0.5, O.H * 0.5,
         O.Alpha, O.Handle) then Exit;

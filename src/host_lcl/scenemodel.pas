@@ -1015,7 +1015,8 @@ begin
         O.H := 2.0 * Huds[i].H;
         O.Alpha := Huds[i].Alpha;
         O.Space := 1;
-        AddObject(O);
+        // T6.3：AddObject 会清零 Handle；用 AddHandle 记回 Lua 句柄（OnClick 命中用）。
+        AddHandle(Huds[i].Handle, AddObject(O));
       end;
     end;
     Result := True;
