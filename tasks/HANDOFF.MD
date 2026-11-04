@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-03**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F388**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F428**。
 
 ## 0. 一句话现状
 
@@ -123,6 +123,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-03 Circle-1 实入（F401）**：`LastCompleteLevel` 2→15 进 `lvl_o1`，LevelGroup 门确认；链路 `0x571B80/0x571A20/0x579100/0x5794B0/0x579740/0x57A930/0x582A60` 全命中；三局并集 **702/1,010**，剩 308（direct 142、lua 83、unreferenced 64、address 10、event 9、state_dispatch 2）。
 - **2026-11-03 Circle-1 过关（F402）**：本局 706，跨局并集 **736/1,010**，剩 274（direct 121、lua 73、unreferenced 62、address 10、event 8、state_dispatch 2）。剩余 2 个 state_dispatch 是 state=1 分支与 debug HUD 分支，正常游玩不触发。
 - **2026-11-03 调试 HUD 主线程调用（F403/F404）**：`TDebugInfo=[TGameManager+0x4C]`（2×TGLSphere + font + 3×TGLHUDText，`FText` 在 `+0x230`，WideString），默认因 `byte_622510=0` 隐藏；`work/hud_probe.py`（32 位）扫 VMT `0x6224A0` 找 manager，挂起窗口线程改 EIP 调 `0x564760(dbg,1)`，5 个 `+0x1F0` 0→1；MENU 截图 `65.17 FPS`，`--level 1` 后读回 `Start` 并截图 `85.17 FPS`+`Start`（`work/hud_after.png`）。勘误：`0x57A860` 是 `LoadLevelFile` 的 `scripts\\` 兜底，不是 HUD。注意 `[0x665334]` 是 `TLevelObjects`，不是 manager。
+- **2026-11-04 T6.4a-r-2f2 收口（F427/F428）**：level 3 的 train/smoke 已是**可复现动态项**——`DoProgress` 第一段圆弧 `tt=min(t,4.8)`、`ang=1.652-0.12·tt`，train=(x,y+2,ang)，smoke=train+R(ang)·(0,1.3)，sprite 5×10；smoke 纹理帧=`smoke_60+floor((t-0.13)/0.70) mod 4`。判据：零售 `work/gl_levels2a/lvl03_gl.bin` frame 357，Python `--time 1.0208` ⇒ `pairs=55 mismatches=0`；宿主 `HOST_LEVEL_TIME=1.0208` ⇒ `pairs=54 mismatches=0`；负例 `--time 1.52` ⇒ `mismatches=2`。实现落在 `tools/scene_from_lua.py` 与 `src/host_lcl/scenemodel.pas`；回归 `phys_sweep` 50/2/0、`verify` gates=7。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

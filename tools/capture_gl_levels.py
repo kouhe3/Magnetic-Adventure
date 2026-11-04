@@ -239,9 +239,12 @@ def main():
             if row["ok"] and not row.get("error"):
                 break
             if attempt < a.retries:
+                tail = row.get("tail", "")
+                if not isinstance(tail, str):
+                    tail = json.dumps(tail, ensure_ascii=False)
                 print("lvl%02d retry %d/%d: %s"
                       % (level, attempt + 1, a.retries,
-                         row.get("tail", "")[-240:].replace("\n", " ")), flush=True)
+                         tail[-240:].replace("\n", " ")), flush=True)
         sfile.write_text(json.dumps(row, ensure_ascii=False, indent=1) + "\n",
                          encoding="utf-8")
         print("lvl%02d ok=%s bytes=%d frames=%d settled=%s draws=%d %s"

@@ -18,6 +18,18 @@ const
   ARM_RADIUS = 1.6;
   HUD_HALF_W = 509.0;
   HUD_HALF_H = 369.5;
+  // level 3 DoProgress 第一段圆弧（F427/F428）。
+  TRAIN_CAP = 4.8;
+  TRAIN_ANG0 = 1.652;
+  TRAIN_OMEGA = 0.12;
+  TRAIN_CIRCLE_X = 127.0;
+  TRAIN_CIRCLE_Y = -183.0;
+  TRAIN_RADIUS = 500.0;
+  TRAIN_SCL_X = 24.0;
+  TRAIN_SCL_Y = 12.0;
+  TRAIN_SMOKE_OFFSET = 1.3;
+  SMOKE_PHASE = 0.13;
+  SMOKE_PERIOD = 0.70;
 
 type
   TArgKind = (akNone, akNum, akStr, akBool);
@@ -45,6 +57,10 @@ type
     CrankPlunger, CrankGear: Integer;
     CrankAX, CrankAY, CrankBX, CrankBY, CrankL: Double;
     CrankOff, CrankSign, CrankBodyX: Double;
+    // level 3：DoProgress 的 bTrain/bSmoke（F427/F428）。
+    IsTrain: Boolean;
+    IsTrainSmoke: Boolean;
+    SmokeFrames: array of string;
   end;
 
   TSceneModel = class
@@ -98,6 +114,16 @@ const
     ('wbox_1.png', 'wbox_2.png', 'wbox_3.png');
   WOOD_BOX_SIDE = 4.702;
   NAIL_SIZE = 1.6;
+
+function AllDigits(const S: string): Boolean;
+var
+  q: Integer;
+begin
+  Result := S <> '';
+  for q := 1 to Length(S) do
+    if not (S[q] in ['0'..'9']) then
+      Exit(False);
+end;
 
 function NumArg(const Args: TArgs; Idx: Integer): Double;
 begin
@@ -284,6 +310,9 @@ begin
   O.CrankOff := 0.0;
   O.CrankSign := 1.0;
   O.CrankBodyX := 0.0;
+  O.IsTrain := False;
+  O.IsTrainSmoke := False;
+  SetLength(O.SmokeFrames, 0);
 end;
 
 procedure TSceneModel.Clear;
@@ -309,9 +338,10 @@ end;
 
 procedure TSceneModel.ApplyTime(t: Double);
 var
-  i, gp: Integer;
+  i, gp, TrainIdx, Idx: Integer;
   G: TSceneObj;
   Delta, GX, GY, DX, DY, PX, PY, RX, Rem, AY, BodyY: Double;
+  TT, Ang, CX, CY, TX, TY: Double;
 begin
   for i := 0 to High(FObjects) do
     if FObjects[i].HasSpeed and
@@ -344,6 +374,41 @@ begin
       FObjects[i].Y := (AY + PY) * 0.5;
       FObjects[i].Angle := ArcTan2(PY - AY, PX - FObjects[i].CrankAX);
     end;
+  // level 3：bTrain 按 DoProgress 第一段圆弧；bSmoke = train + R(ang)·(0,1.3)，
+  // 纹理帧 = smoke_60 + floor((t-0.13)/0.70) mod 4（F427/F428）。
+  TrainIdx := -1;
+  for i := 0 to High(FObjects) do
+    if FObjects[i].IsTrain then
+    begin
+      TrainIdx := i;
+      Break;
+    end;
+  if TrainIdx >= 0 then
+  begin
+    TT := t;
+    if TT > TRAIN_CAP then TT := TRAIN_CAP;
+    Ang := TRAIN_ANG0 - TRAIN_OMEGA * TT;
+    CX := TRAIN_CIRCLE_X + TRAIN_RADIUS * Cos(Ang);
+    CY := TRAIN_CIRCLE_Y + TRAIN_RADIUS * Sin(Ang);
+    TX := TRAIN_SCL_X * (CX - 512.0) / 1024.0 * 2.0;
+    TY := TRAIN_SCL_Y * (CY - 256.0) / 512.0 * 2.0;
+    FObjects[TrainIdx].X := TX;
+    FObjects[TrainIdx].Y := TY + 2.0;
+    FObjects[TrainIdx].Angle := Ang;
+    for i := 0 to High(FObjects) do
+      if FObjects[i].IsTrainSmoke then
+      begin
+        FObjects[i].X := TX - Sin(Ang) * TRAIN_SMOKE_OFFSET;
+        FObjects[i].Y := TY + 2.0 + Cos(Ang) * TRAIN_SMOKE_OFFSET;
+        FObjects[i].Angle := Ang;
+        if Length(FObjects[i].SmokeFrames) >= 4 then
+        begin
+          Idx := Integer(Floor((t - SMOKE_PHASE) / SMOKE_PERIOD));
+          Idx := ((Idx mod 4) + 4) mod 4;
+          FObjects[i].Asset := FObjects[i].SmokeFrames[Idx];
+        end;
+      end;
+  end;
 end;
 
 function TSceneModel.AddObject(const O: TSceneObj): Integer;
@@ -374,7 +439,9 @@ var
   Args: TArgs;
   ArgCount, Ret, i, j, k, m, n: Integer;
   O: TSceneObj;
-  Materials: TStringList;
+  Materials, SFrames: TStringList;
+  Nm: string;
+  HasTrain: Boolean;
   Huds: array of THud;
   Bodies: array of TBody;
   PendingArm: Integer;
@@ -547,6 +614,8 @@ begin
           O.H := 2.0 * NumArg(Args, 3);
           O.Alpha := 1.0;
           O.Root := IntArg(Args, 1);
+          if O.Asset = 'train_1.png' then
+            O.IsTrain := True;
           m := AddObject(O);
           AddHandle(Ret, m);
           k := Length(BodyObjs);
@@ -759,20 +828,50 @@ begin
       end
       else if Name = 'Add_AnimateSmoke' then
       begin
-        // F379 只取样了 world root（0）；HUD 烟（root=3）在 1/2/3 关的判据帧不可见。
-        if IntArg(Args, 0) = 0 then
+        // F428：尺寸 = (2·arg4, 4·arg4)；纹理帧取本关登记的 smoke_* 材质。
+        // root=0 是静态世界烟；root≠0 只有本关已有 bTrain 时才建（level 3 车头烟），
+        // 否则是 HUD 烟（level 1/2），本判据帧不可见。
+        HasTrain := False;
+        for j := 0 to High(FObjects) do
+          if FObjects[j].IsTrain then
+          begin
+            HasTrain := True;
+            Break;
+          end;
+        if (IntArg(Args, 0) = 0) or HasTrain then
         begin
-          InitObj(O);
-          O.Kind := Name;
-          O.Asset := 'smoke_5.png';
-          O.X := NumArg(Args, 1);
-          O.Y := NumArg(Args, 2);
-          O.Angle := NumArg(Args, 3);
-          O.W := NumArg(Args, 4) + 2.0;
-          O.H := NumArg(Args, 5) + 2.0;
-          O.Alpha := 1.0;
-          O.Root := IntArg(Args, 0);
-          AddHandle(Ret, AddObject(O));
+          SFrames := TStringList.Create;
+          try
+            SFrames.Sorted := True;
+            for j := 0 to Materials.Count - 1 do
+            begin
+              Nm := Materials.Names[j];
+              if (Copy(Nm, 1, 6) = 'smoke_') and
+                 (Copy(Nm, 7, Length(Nm) - 6) <> '') and
+                 AllDigits(Copy(Nm, 7, Length(Nm) - 6)) then
+                SFrames.Add(Materials.ValueFromIndex[j]);
+            end;
+            if SFrames.Count = 0 then
+              SFrames.Add('smoke_5.png');
+            InitObj(O);
+            O.Kind := Name;
+            SetLength(O.SmokeFrames, SFrames.Count);
+            for j := 0 to SFrames.Count - 1 do
+              O.SmokeFrames[j] := SFrames[j];
+            O.Asset := O.SmokeFrames[0];
+            O.X := NumArg(Args, 1);
+            O.Y := NumArg(Args, 2);
+            O.Angle := NumArg(Args, 3);
+            O.W := 2.0 * NumArg(Args, 4);
+            O.H := 4.0 * NumArg(Args, 4);
+            O.Alpha := 1.0;
+            O.Root := IntArg(Args, 0);
+            if IntArg(Args, 0) <> 0 then
+              O.IsTrainSmoke := True;
+            AddHandle(Ret, AddObject(O));
+          finally
+            SFrames.Free;
+          end;
         end;
       end
       else if Name = 'Set_JointMotors' then

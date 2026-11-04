@@ -32,9 +32,9 @@
   Add_PushButton        style 1→pbut_1.png，3×1.5（平台 button_platform_1→bplatf_1.png）
   Add_BarDoor           style 1→bar_1.png，7×3.5
   mbtn_1/2 + 10×dot_1   引擎/HUD 常量（level 0/1 同坐标）
-未接（用 --ignore 排除）: HUD 烟雾/level_end_box、未知 style，以及**动态项**——
-level 3/4 的 train_1（移动，A/A 地板 0.630）、smoke（动画帧）、plunger/shank
-（物理体静止后位姿 ≠ init）。动态项归宿主的物理/动画，不进静态工厂判据。
+未接（用 --ignore 排除）: HUD 烟雾/level_end_box 与未知 style。动态项：
+level 3 的 train_1/smoke 已由 `apply_time` 按 `DoProgress` 第一段圆弧复现
+（F427/F428）；level 4 的 plunger/shank 由曲柄滑块复现（F378）。
 
 用法:
   python tools/scene_from_lua.py --level 0 --ref work/level0_gl.bin --frame 9600 \\
@@ -100,6 +100,18 @@ BAR_DOOR = {1: ("bar_1.png", 7.0, 3.5)}
 SHANK_ASSET = "shank_1.png"
 SHANK_LONG = 1.3          # 杆绘制长边 = 1.3·L、短边 = 0.65·L（F378）
 SMOKE_ASSET = "smoke_5.png"
+# level 3 DoProgress 的第一段圆弧（F427）：TrainTime 在 4.8 s 封顶；
+# ang = 1.652 - 60·t/500；圆心 (127,-183)、半径 500；Scl(24,12)。
+TRAIN_CAP = 4.8
+TRAIN_ANG0 = 1.652
+TRAIN_OMEGA = 0.12          # 60/500
+TRAIN_CIRCLE = (127.0, -183.0, 500.0)
+TRAIN_SCL = (24.0, 12.0)
+TRAIN_SMOKE_OFFSET = 1.3
+# smoke 纹理帧的实测相位/周期（F428）：smoke_60 在 t=0.13 首次出现，之后
+# 每 0.70 s 进一帧。4 帧循环；单帧关（level 4 的 smoke_5）保持首帧。
+SMOKE_PHASE = 0.13
+SMOKE_PERIOD = 0.70
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
 HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
@@ -205,6 +217,10 @@ def build(calls, pak_dir="", settle=True):
                            "x": body[0], "y": body[1], "angle": body[2],
                            "w": 2.0 * float(sx), "h": 2.0 * float(sy),
                            "root": int(parent)}, ret)
+                if obj["asset"] == "train_1.png":
+                    # bTrain：Lua 的 Set_ScrObjPos 在 DoProgress 里逐帧移动它；
+                    # probe 不跑 Update，所以 init 固定在 body (0,0)，由 apply_time 改写。
+                    obj["_train"] = True
                 body_obj[int(h)] = obj
         elif fn in ("Add_MetallScrew", "Add_MetallGear") and len(args) >= 5:
             parent, x, y, ang, style = args[:5]
@@ -295,15 +311,22 @@ def build(calls, pak_dir="", settle=True):
             hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
                         "x": 0.0, "y": 0.0, "alpha": 1.0}
         elif fn == "Add_AnimateSmoke" and len(args) >= 6:
-            # F379：level 4 的样本 = (x,y) 为中心、绘制尺寸 (args[4]+2, args[5]+2)；
-            # 只对 world root（0）取样；root=3 的 HUD 烟在 1/2/3 关的判据帧不可见，
-            # 尺寸/可见性规则未取样，不建图元。
-            if int(args[0]) == 0:
-                add({"kind": fn, "asset": SMOKE_ASSET,
-                     "x": float(args[1]), "y": float(args[2]),
-                     "angle": float(args[3]),
-                     "w": float(args[4]) + 2.0, "h": float(args[5]) + 2.0,
-                     "root": int(args[0])}, ret)
+            # F428：绘制尺寸 = (2·arg4, 4·arg4)，arg5 不参与（level 3 5×10、
+            # level 4 4×8）。root=0 是静态世界烟；root≠0 且本关有 bTrain 时
+            # 是 DoProgress 驱动的车头烟（level 3）。
+            has_train = any(o.get("_train") for o in objects)
+            if int(args[0]) == 0 or has_train:
+                frames = sorted(k for k in materials
+                                if k.startswith("smoke_") and k[6:].isdigit())
+                seq = [materials[k] for k in frames] or [SMOKE_ASSET]
+                obj = {"kind": fn, "asset": seq[0],
+                       "x": float(args[1]), "y": float(args[2]),
+                       "angle": float(args[3]),
+                       "w": 2.0 * float(args[4]), "h": 4.0 * float(args[4]),
+                       "root": int(args[0]), "_smoke_frames": seq}
+                if int(args[0]) != 0:
+                    obj["_train_smoke"] = True
+                add(obj, ret)
         elif fn == "Set_ScrObjPos" and len(args) >= 3:
             if args[0] in hud:
                 hud[args[0]]["x"] = float(args[1])
@@ -373,6 +396,28 @@ def apply_time(objects, t):
         obj["x"] = (meta["ax"] + px) * 0.5
         obj["y"] = (ay + py) * 0.5
         obj["angle"] = math.atan2(py - ay, px - meta["ax"])
+    train = next((o for o in objects if o.get("_train")), None)
+    if train is not None:
+        # F427：DoProgress 的 TrainTime 在 4.8 s 封顶；位置/角度都用封顶后的
+        # 时间，纹理动画用真实关卡时间。
+        tt = min(t, TRAIN_CAP)
+        ang = TRAIN_ANG0 - TRAIN_OMEGA * tt
+        cx0, cy0, r = TRAIN_CIRCLE
+        cx = cx0 + r * math.cos(ang)
+        cy = cy0 + r * math.sin(ang)
+        x = TRAIN_SCL[0] * (cx - 512.0) / 1024.0 * 2.0
+        y = TRAIN_SCL[1] * (cy - 256.0) / 512.0 * 2.0
+        train["x"], train["y"], train["angle"] = x, y + 2.0, ang
+        for obj in objects:
+            if not obj.get("_train_smoke"):
+                continue
+            obj["x"] = x - math.sin(ang) * TRAIN_SMOKE_OFFSET
+            obj["y"] = y + 2.0 + math.cos(ang) * TRAIN_SMOKE_OFFSET
+            obj["angle"] = ang
+            seq = obj.get("_smoke_frames") or [SMOKE_ASSET]
+            if len(seq) >= 4:
+                idx = int(math.floor((t - SMOKE_PHASE) / SMOKE_PERIOD)) % 4
+                obj["asset"] = seq[idx]
 
 
 def ref_labeled(log, pak, frame):
