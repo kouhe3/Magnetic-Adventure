@@ -7,8 +7,10 @@
 用法:
   python tools/gl_drawlist.py <log> --frame K [--limit 40] [--json out.json]
   python tools/gl_drawlist.py <log> --frame K --summary        # 只出统计
+  python tools/gl_drawlist.py <log> --frame K --texmat         # 每条 draw 带 TEXTURE 矩阵
 
-输出字段：prim / tex / rgba / n / v[i]=(x,y,z) / uv[i]=(u,v)（世界坐标，列主序矩阵）。
+输出字段：prim / tex / rgba / n / v[i]=(x,y,z) / uv[i]=(u,v)（世界坐标，列主序矩阵）
+          / tm[16]（glEnd 时的 TEXTURE 栈顶）/ uv_t[i]（经纹理矩阵并做 q 归一化后的 UV）。
 
 覆盖边界：
   - 只处理 `GLFFI02`（v01 没有 payload，矩阵/颜色/UV 都读不到）。
@@ -17,6 +19,8 @@
   - `glTexCoord2f/glVertex2f/glVertex3f` 的实参在栈上（v02 的 args[12] 够），
     `*fv` 变体读 mem0。
   - 光照/材质（`glLight*`/`glMaterial*`）只记录不模拟；纹理像素只有 192 B 前缀（F179）。
+  - `tm` 只反映日志窗口内发生的矩阵设置；窗口前设置且此后未触碰时记 identity。
+  - `--pack` 仍是 GLDRW02，不含 `tm`/`uv_t`（宿主侧未消费，避免动格式）。
 
 依据：docs/facts.md F178（一帧 25 个 quad、100 顶点、24 次 BindTexture）、
       F179（payload 与相机）。
@@ -64,6 +68,16 @@ def xform(m, p):
             m[2] * x + m[6] * y + m[10] * z + m[14])
 
 
+def xform_tex(m, u, v):
+    """纹理矩阵：u' = (M·(u,v,0,1)) / w（列主序，w=0 当 1）。"""
+    x = m[0] * u + m[4] * v + m[12]
+    y = m[1] * u + m[5] * v + m[13]
+    w = m[3] * u + m[7] * v + m[15]
+    if w == 0.0:
+        w = 1.0
+    return [x / w, y / w]
+
+
 def f32(x):
     return struct.unpack("<f", struct.pack("<I", x & 0xFFFFFFFF))[0]
 
@@ -109,10 +123,13 @@ def vertex(st, x, y, z):
 def flush(st):
     if not st.verts:
         return
+    tm = list(st.stacks["TEXTURE"][-1])
     st.draws.append({"prim": st.in_begin, "prim_enum": st.prim, "tex": st.tex, "rgba": st.rgba,
                      "caps": st.caps, "blend": st.blend,
                      "n": len(st.verts),
-                     "v": [p[0] for p in st.verts], "uv": [p[1] for p in st.verts]})
+                     "v": [p[0] for p in st.verts], "uv": [p[1] for p in st.verts],
+                     "tm": tm,
+                     "uv_t": [xform_tex(tm, u, v) for (u, v) in (p[1] for p in st.verts)]})
     st.verts = []
 
 
@@ -124,6 +141,7 @@ def main():
     ap.add_argument("--json")
     ap.add_argument("--pack", help="写宿主用的二进制绘制列表（GLDRW01）")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--texmat", action="store_true", help="打印每条 draw 的 TEXTURE 矩阵")
     a = ap.parse_args()
 
     nm = gl_ffi.names()
@@ -242,6 +260,8 @@ def main():
         xs = [p[0] for p in v]; ys = [p[1] for p in v]
         print("%-10s tex=%-4s n=%-2d bbox=(%.2f,%.2f)-(%.2f,%.2f) rgba=(%.2f,%.2f,%.2f,%.2f)"
               % (d["prim"], d["tex"], d["n"], min(xs), min(ys), max(xs), max(ys), *d["rgba"]))
+        if a.texmat:
+            print("      tm=" + " ".join("%.4g" % x for x in d["tm"]))
         if d["n"] <= 6:
             for (p, uv) in list(zip(v, d["uv"]))[:6]:
                 print("      v=(%8.3f,%8.3f,%6.2f) uv=(%.3f,%.3f)" % (p[0], p[1], p[2], uv[0], uv[1]))
