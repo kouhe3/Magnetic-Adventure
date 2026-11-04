@@ -143,6 +143,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-1 宿主磁铁力（F440）**：`physworld.pas` 封装 `b2_Body_ApplyForce(body,force*,point*)`（作用点=body 中心）；`TLevelScene.NearestBody` 选最近有 body 的 world sprite；`EnterLevel` 步进循环第一步锁 target，之后每步按 `min(315,30·d)` 施力并写 `mag.log`。正例 level 1：`target=1001 moved=2.511224`、`phys.log sync_first=2.511223793 sync_after=0`；负例 `HOST_MAG_BUTTON=0` → `target=0 moved=0`。回归 verify 7/7、phys_sweep 50/2/0。边界：目标选择不判材质；力在 body 中心；只跑 level 1。
 
+- **2026-11-04 T6.4c-2 宿主完成写副本档案（F441）**：`profiledata.pas` 加 `WriteLastCompleteLevel`（decode → active 块 → 逐行替换保留换行 → encode 写回）；`EnterLevel` 在 `LevelComplete` 且 `HOST_SAVE_PROFILE=1` 时写 `index+1` 再 `ExitLevel`。正例：`work/profile_save.prf`（KKK level=3）完成 level 3 → `LastCompleteLevel=4`，`profile.py diff` 只报 `KKK.LastCompleteLevel: '3' -> '4'`；trace `boot,menu,level(3),menu,exit`。负例 `HOST_SAVE_PROFILE=0` → diff 0。回归 verify 7/7、phys_sweep 50/2/0。边界：只写 `HOST_PROFILE` 指定副本，不碰真实档案。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

@@ -1028,7 +1028,16 @@ begin
       LevelComplete := True;
     end;
     if LevelComplete then
+    begin
+      if EnvFlag('HOST_SAVE_PROFILE') and (EnvStr('HOST_PROFILE') <> '') then
+      begin
+        if WriteLastCompleteLevel(EnvStr('HOST_PROFILE'), Index + 1) then
+          EnterStage('stage=save_profile level=' + IntToStr(Index + 1))
+        else
+          EnterStage('stage=save_profile failed');
+      end;
       ExitLevel;
+    end;
   end;
 end;
 
