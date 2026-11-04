@@ -854,11 +854,20 @@ procedure EnterLevel(Index: Integer; out Err: string);
 var
   runLog, rc: string;
   BuildOk: Boolean;
-  tf: TextFile;
+  i, Steps, SyncCount: Integer;
+  SyncFirst, SyncAfter: Double;
+  tf, ptf: TextFile;
 begin
   Err := '';
   if g_InLevel then Exit;
   runLog := '';
+  // T6.4d-3：先建 b2 world（4 面世界墙），LuaBindRunLevel 的工厂再往里建关卡体。
+  if EnvFlag('HOST_PHYS') and not PhysActive then
+    if not PhysStart then
+    begin
+      Err := 'PhysStart failed';
+      Exit;
+    end;
   rc := LuaBindRunLevel(Index, runLog);
   EnterStage('stage=lua rc=' + rc + ' menu_nil=' + BoolToStr(g_Menu = nil, True));
   if rc <> 'level=' + IntToStr(Index) + ' ok' then
@@ -899,6 +908,28 @@ begin
     EnterStage('level_log=' + g_Level.Log);
     Err := 'model produced 0 sprites: ' + EnvStr('HOST_LUA_LOG');
     Exit;
+  end;
+  // T6.4d-3：HOST_PHYS_STEPS>0 时步进并把 world sprite 同步到物理体。
+  // 第一次 SyncPhysics 记录"同步前 sprite 与 body 的位置差"（即物理位移），
+  // 第二次记录同步后残差（应为 0），用于判据 sync_after。
+  if EnvFlag('HOST_PHYS') and (StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0) > 0) then
+  begin
+    Steps := StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0);
+    for i := 1 to Steps do
+      PhysStep(0.01, 20, 20);
+    SyncCount := g_Level.SyncPhysics;
+    SyncFirst := g_Level.SyncMaxErr;
+    g_Level.SyncPhysics;
+    SyncAfter := g_Level.SyncMaxErr;
+    AssignFile(ptf, ExePath('phys.log'));
+    Rewrite(ptf);
+    WriteLn(ptf, 'bodies=', SyncCount, ' objects=', g_Level.SyncObjects,
+      ' steps=', Steps, ' angle_moved=', g_Level.SyncAngleMoved,
+      ' sync_first=', FormatFloat('0.000000000', SyncFirst),
+      ' sync_after=', FormatFloat('0.000000000', SyncAfter));
+    CloseFile(ptf);
+    EnterStage('stage=phys bodies=' + IntToStr(SyncCount) +
+      ' angle_moved=' + IntToStr(g_Level.SyncAngleMoved));
   end;
   AssignFile(tf, ExePath('level_init.log'));
   Rewrite(tf);

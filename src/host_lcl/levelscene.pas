@@ -20,6 +20,13 @@ uses Classes, SysUtils, Math, GLScene, GLObjects, GLHUDObjects, GLTexture,
   MenuScene, PakFile, SceneModel;
 
 type
+  // T6.4d-3：world sprite ↔ b2 body 的同步项（Handle = Lua 工厂返回的 id）。
+  TLevelSync = record
+    Handle: Integer;
+    Sprite: TGLSprite;
+    InitAngle: Double;
+  end;
+
   TLevelScene = class
   private
     FScene: TGLScene;
@@ -27,8 +34,12 @@ type
     FCamera: TGLCamera;
     FLog: string;
     FSprites: Integer;
+    FSync: array of TLevelSync;
+    FSyncCount: Integer;
+    FSyncMaxErr: Double;
+    FSyncAngleMoved: Integer;
     function AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
-      Alpha: Single): Boolean;
+      Alpha: Single; Handle: Integer = 0): Boolean;
     function AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
     function AddHiddenDots(Count: Integer): Boolean;
   public
@@ -37,11 +48,19 @@ type
     // 从 SceneModel 的图元列表建场景（T6.4a-r-2d）：世界坐标 + 相机来自模型，
     // HUD 按钮走设计空间，末尾补 mbtn/dot 引擎常量（与 BuildIntroduction 一致）。
     function BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;
+    // 把 world sprite 的位置同步到物理体；返回有效 body 数。
+    // FSyncMaxErr = 同步前 sprite 与 body 的最大位置差；FSyncAngleMoved = 角度变化数。
+    function SyncPhysics: Integer;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
+    property SyncObjects: Integer read FSyncCount;
+    property SyncMaxErr: Double read FSyncMaxErr;
+    property SyncAngleMoved: Integer read FSyncAngleMoved;
   end;
 
 implementation
+
+uses PhysWorld;
 
 constructor TLevelScene.Create(Scene: TGLScene; Pak: TPakFile; Camera: TGLCamera);
 begin
@@ -51,13 +70,19 @@ begin
   FCamera := Camera;
   FLog := '';
   FSprites := 0;
+  FSyncCount := 0;
+  FSyncMaxErr := 0;
+  FSyncAngleMoved := 0;
+  SetLength(FSync, 0);
 end;
 
 function TLevelScene.AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
-  Alpha: Single): Boolean;
+  Alpha: Single; Handle: Integer): Boolean;
 var
   Sprite: TGLSprite;
   Err: string;
+  k: Integer;
+  bx, by, ba: Double;
 begin
   Result := False;
   Sprite := TGLSprite.Create(FScene);
@@ -79,6 +104,16 @@ begin
     Sprite.Material.Texture.ImageAlpha := tiaOpaque;
   FScene.Objects.AddChild(Sprite);
   Inc(FSprites);
+  if Handle > 0 then
+  begin
+    k := Length(FSync);
+    SetLength(FSync, k + 1);
+    FSync[k].Handle := Handle;
+    FSync[k].Sprite := Sprite;
+    PhysGetBodyPos(Handle, bx, by, ba);
+    FSync[k].InitAngle := ba;
+    Inc(FSyncCount);
+  end;
   FLog := FLog + 'world ' + Asset + ' ' + FormatFloat('0.###', X) + ',' +
     FormatFloat('0.###', Y) + ' a=' + FormatFloat('0.###', Alpha) + #13#10;
   Result := True;
@@ -150,6 +185,27 @@ begin
   FLog := FLog + 'sprites=' + IntToStr(FSprites) + #13#10;
 end;
 
+function TLevelScene.SyncPhysics: Integer;
+var
+  i: Integer;
+  x, y, a, d: Double;
+begin
+  Result := 0;
+  FSyncMaxErr := 0;
+  FSyncAngleMoved := 0;
+  for i := 0 to High(FSync) do
+  begin
+    if PhysBodyOf(FSync[i].Handle) = nil then Continue;
+    PhysGetBodyPos(FSync[i].Handle, x, y, a);
+    d := Abs(FSync[i].Sprite.Position.X - x) +
+      Abs(FSync[i].Sprite.Position.Y - y);
+    if d > FSyncMaxErr then FSyncMaxErr := d;
+    if Abs(a - FSync[i].InitAngle) > 1e-3 then Inc(FSyncAngleMoved);
+    FSync[i].Sprite.Position.SetPoint(x, y, 0);
+    Inc(Result);
+  end;
+end;
+
 function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;
 const
   HUD_W = 509.0;   // 设计空间半宽（F188）
@@ -185,7 +241,7 @@ begin
           O.Y + HUD_H - O.H * 0.5, O.W, O.H, O.Alpha) then Exit;
       end
       else if not AddWorld(O.Asset, O.X, O.Y, O.Angle, O.W * 0.5, O.H * 0.5,
-        O.Alpha) then Exit;
+        O.Alpha, O.Handle) then Exit;
     end;
     if not AddHud('mbtn_1.png', 921.5, -40.5, 127, 129, 1) then Exit;
     if not AddHud('mbtn_2.png', 921.5, -40.5, 127, 129, 0) then Exit;

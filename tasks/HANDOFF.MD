@@ -135,6 +135,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-2 LCL 真实点击 + 运行时场景切换（F436）**：`magnet.pas` 绑定 `TGLSceneViewer.OnMouseDown`（`THostMouseHandler`，客户区=设计像素），命中 Play 后 `LuaBindRunLevel(LastCompleteLevel)` → `TMenuScene.Clear`/`Free`（只释放 Build 新增 sprite，Cam 保留）→ `TLevelScene.BuildFromModel` → `V.Invalidate`。正例：`click_play.py <pid> --x 350 --y 290` → trace `boot,menu,level(index=20),exit`、sprites=21、lua_bind_ab 195/195 0 差；档案 3 → index=3、sprites=60、187/187。负例点 (100,100)/坏档案 → 只到 menu、无 JSONL。坑：运行时 GL 上下文不是 current，`BuildFromModel` 前后要 `RenderingContext.Activate/Deactivate`；level 20 的 `symbol_back` 缺失使 `BuildFromModel=False`，但 sprites=21，判据按 sprites>0。回归 verify 7/7、phys_sweep 50/2/0。
 
+- **2026-11-04 T6.4d-3 宿主进关后物理步进 + 图形同步（F437）**：`TLevelScene.AddWorld` 记录 `Handle`（JSONL 工厂 ret）与 sprite；`SyncPhysics` 返回有效 body 数、同步前最大位置差、角度变化数。`EnterLevel` 在 `LuaBindRunLevel` 前 `PhysStart`（`HOST_PHYS=1`），之后按 `HOST_PHYS_STEPS` 步进，两次同步并写 `phys.log`。正例 level 0：`bodies=3 objects=15 steps=100 angle_moved=3 sync_first=0 sync_after=0`；`lua_bind_ab` 55/55 0 差；两次重复逐字段相同。负例 `HOST_PHYS=0` / `HOST_PHYS_STEPS=0` → 无 `phys.log`。回归 verify 7/7、phys_sweep 50/2/0。边界：只同步 `PhysBodyOf(handle)<>nil` 的 world sprite（level 0 为 3/15）；`Add_SimplePhysicObject`+Attach 的图对象未同步；完成信号未接。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
