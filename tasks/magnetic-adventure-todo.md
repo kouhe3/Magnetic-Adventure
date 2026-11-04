@@ -105,7 +105,7 @@
 - [x] T6.4b-4c 宿主 loop 全局 `-30·w` 角阻尼：`PhysApplyAngularDamping` + `HOST_MAG_DAMPING`；力时间线 + 阻尼 30（无扭矩时间线）787 步 `max_angle=4.97e-7` PASS，负例 0 → 56.60 FAIL 依据：F453
 - [x] T6.4b-4d 自驱磁铁闭环：`force_timeline --cursor`（136 行）+ `HOST_MAG_SELF/LOCALX/Y/LINDAMP`；自算力/点/两类阻尼，787 步 `max_pos=6.65e-7 max_angle=2.81e-6` PASS，负例 `LINDAMP=0`/抓取点 (0,0) FAIL 依据：F454
 - [x] T6.4b-4e 把 F454 模型接进 `Tick`：`g_MagLocalX/Y`/`g_LinDamp` + 真实鼠标按下转 body-local；正例 `a=0.509722`（Δ=0.0197）、负例 `0.490000`，默认 `moved=2.511224` 不变 依据：F455
-- [ ] T6.4b-4e-r 真实鼠标按下边沿的 local 捕获前台复测（需当前输入桌面） 依据：F455
+- [x] T6.4b-4e-r 真实鼠标 local 捕获前台复测：`--active` 两次正例 local=(-0.013055,-0.024476)、trace 5 态、副本 1→2；空点负例 down-miss/无完成 依据：F456
 - [ ] T6.4b 输入/拖拽：**行为级已通过**（level 1 两段拖拽 + “Level completed”，F380/F381；`work/drag_lvl1.py`/`drag_shot.py`；真实鼠标 F448、力/step F449）；剩：`b2_sites compare` 全量（init 已 50/2/0）+ 真实关卡绕障寻路 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355

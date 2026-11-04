@@ -1514,7 +1514,9 @@ begin
           Cos(-pa) * (wy - g_MagLastY);
         MagRealLog('down target=' + IntToStr(g_MagTargetId) +
           ' wx=' + FormatFloat('0.000000', wx) +
-          ' wy=' + FormatFloat('0.000000', wy));
+          ' wy=' + FormatFloat('0.000000', wy) +
+          ' local=' + FormatFloat('0.000000', g_MagLocalX) + ',' +
+          FormatFloat('0.000000', g_MagLocalY));
         Inc(g_MagRealCalls);
       end
       else

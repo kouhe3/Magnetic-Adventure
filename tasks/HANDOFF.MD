@@ -171,6 +171,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-4e F454 模型接 Tick（F455）**：`magnet.pas` 全局 `g_MagLocalX/Y`/`g_LinDamp`；真实鼠标按下边沿把世界命中点转 **body-local**；`Tick` 按 `bodyPos+R(angle)·local` 施力并在 `PhysStep` 前施加 `-12v`/`-30w`。正例 level 1 环境磁铁 local (0.032670,0.023154)+`LINDAMP=12`+`DAMPING=30` → `a=0.509722`（Δ=0.019722）；负例 local 0、无阻尼 → `a=0.490000`；默认路径 `target=1001 moved=2.511224` 与 graph 回退 `id=1004 x=-9 y=10.19 a=1.75` 不变。`HOST_SCRPOS_GET` 对物理体改读 body（`SyncPhysics` 只写 Position）。边界：真实鼠标按下边沿的 local 捕获未在前台复测（T6.4b-4e-r）；sprite 旋转仍不同步。
 
+- **2026-11-04 T6.4b-4e-r 真实鼠标 local 捕获（F456）**：`MagRealLog` 增 `local=`；用户离开后 `--active` 用真实 SendInput 两次正例 `down target=1002 local=-0.013055,-0.024476`（|local|=0.0277）、trace `boot,menu,level,menu,exit`、副本 `1→2`、PASS；空点负例 `down-miss`、无第二个 menu、diff 0、FAIL。顺带补跑 `window` 门禁：**全量 `verify.py` 7 门禁 PASS**（window 1.7 s `diffs=0`）、`phys_sweep` 50/2/0。边界：只覆盖 test level；sprite 旋转同步仍缺。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
