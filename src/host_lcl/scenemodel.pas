@@ -68,6 +68,8 @@ type
     FObjects: array of TSceneObj;
     FBacks: array of record Top, Bottom: string; end;
     FCamX, FCamY: Double;
+    // T6.4b-3b：Set_CameraViewArea(a,b) 的实参；屏幕→世界换算用（F364）。
+    FViewA, FViewB: Double;
     function AddObject(const O: TSceneObj): Integer;
     function FindHandle(H: Integer): Integer;
   public
@@ -82,6 +84,8 @@ type
     procedure BackAt(Index: Integer; out Top, Bottom: string);
     property CamX: Double read FCamX;
     property CamY: Double read FCamY;
+    property ViewA: Double read FViewA;
+    property ViewB: Double read FViewB;
   end;
 
 function ParseCallLine(const Line: string; out Name: string;
@@ -336,6 +340,8 @@ begin
   SetLength(FBacks, 0);
   FCamX := 0.0;
   FCamY := 0.0;
+  FViewA := 0.0;
+  FViewB := 0.0;
 end;
 
 function TSceneModel.Count: Integer;
@@ -548,6 +554,11 @@ begin
       begin
         FCamX := NumArg(Args, 0);
         FCamY := NumArg(Args, 1);
+      end
+      else if Name = 'Set_CameraViewArea' then
+      begin
+        FViewA := NumArg(Args, 0);
+        FViewB := NumArg(Args, 1);
       end
       else if Name = 'Add_LevelMaterial' then
       begin

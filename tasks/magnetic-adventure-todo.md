@@ -99,6 +99,7 @@
 - [x] T6.4b-2b-0 `Get_ScrObjPos` graph 回退：`ScrPosLookup` + `TLevelScene.GetSpritePos`；level 1 `id=1004 x=-9 y=10.19`，负例 id=0 无日志 依据：F445
 - [x] T6.4b-2b 测试关真实完成链：`test_lvl_o/e` + `Tick` 检测 `LevelComplete` → 存档 `1→2` → 回菜单；正例 trace `boot,menu,level,menu,exit`，负例 mag=0 无完成 依据：F446
 - [x] T6.4b-3a 运行时 gear 图形：`Spawn` 队列 + `TLevelScene.AddRuntimeGear`；`spawn.log calls=1 created=1`、`scrpos_get id=1004` 可读；负例 mag=0 无日志 依据：F447
+- [x] T6.4b-3b 宿主真实鼠标磁铁：`Tick` 轮询 `GetCursorPos`/`GetAsyncKeyState` + `b2_Shape_TestPoint` 命中；正例两次完成测试关、`mag_real.log down target=1002`、副本 `1→2`；负例空点 `down-miss` 依据：F448
 - [ ] T6.4b 输入/拖拽：**行为级已通过**（level 1 两段拖拽 + “Level completed”，F380/F381；`work/drag_lvl1.py`/`drag_shot.py`）；剩：宿主重放 + `b2_sites compare` 力/step + 绕障寻路 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355

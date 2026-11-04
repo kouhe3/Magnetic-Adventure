@@ -853,6 +853,10 @@ var
   g_LoopMoveCalls: Integer;
   g_LoopSpawnCalls, g_LoopSpawnCreated: Integer;
   g_MagOn: Boolean = False;
+  // T6.4b-3b：真实鼠标磁铁（GetCursorPos/GetAsyncKeyState 轮询）。
+  g_MagReal: Boolean = False;
+  g_MagRealDown: Boolean = False;
+  g_MagRealCalls: Integer = 0;
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
   g_LevelIndex: Integer = -1;
@@ -865,6 +869,19 @@ begin
   if EnvStr('HOST_ENTER_LOG') = '' then Exit;
   AssignFile(f, EnvStr('HOST_ENTER_LOG'));
   if FileExists(EnvStr('HOST_ENTER_LOG')) then Append(f) else Rewrite(f);
+  WriteLn(f, S);
+  CloseFile(f);
+end;
+
+// T6.4b-3b：真实鼠标磁铁的事件日志（down/up/down-miss）。
+procedure MagRealLog(const S: string);
+var
+  f: TextFile;
+  p: string;
+begin
+  p := ExePath('mag_real.log');
+  AssignFile(f, p);
+  if FileExists(p) then Append(f) else Rewrite(f);
   WriteLn(f, S);
   CloseFile(f);
 end;
@@ -970,6 +987,11 @@ begin
   g_MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
   g_MagY := StrToFloatDef(EnvStr('HOST_MAG_Y'), 0.0);
   g_MagTargetId := 0;
+  g_MagReal := EnvFlag('HOST_MAG_REAL');
+  g_MagRealDown := False;
+  g_MagRealCalls := 0;
+  if g_MagReal then
+    g_MagOn := False;
   if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
     PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, MagIA);
   g_LevelIndex := Index;
@@ -986,6 +1008,8 @@ begin
     ProgressRc := 0;
     // T6.4b-1：磁铁 target 在第一步锁定，之后每步按 min(315,30d) 朝鼠标施力。
     MagOn := EnvFlag('HOST_MAG_BUTTON');
+    if g_MagReal then
+      MagOn := False;
     TargetId := 0;
     MagMoved := 0;
     MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
@@ -1189,6 +1213,9 @@ var
   elapsed: Integer;
   n, pid, moveCalls, sid, skind, sstyle: Integer;
   px, py, pa, dx, dy, d, f, sx, sy, sa: Double;
+  pt: TPoint;
+  down, hasPos: Boolean;
+  wx, wy: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
   if EnvStr('HOST_SCRPOS_GET') <> '' then
@@ -1202,6 +1229,44 @@ begin
         ' y=', FormatFloat('0.000000', py), ' a=', FormatFloat('0.000000', pa));
       CloseFile(tf);
     end;
+  end;
+  // T6.4b-3b：真实鼠标磁铁。轮询与 F385 的原版输入采样一致；按下点用
+  // b2_Shape_TestPoint 命中，只有落在金属体形状内才锁定（空点不吸引）。
+  if g_MagReal and (g_Viewer <> nil) then
+  begin
+    GetCursorPos(pt);
+    ScreenToClient(g_Viewer.Handle, pt);
+    down := (GetAsyncKeyState(VK_LBUTTON) and $8000) <> 0;
+    hasPos := g_Level.ClientToWorld(pt.X, pt.Y, g_Viewer.ClientWidth,
+      g_Viewer.ClientHeight, wx, wy);
+    if hasPos then
+    begin
+      g_MagX := wx;
+      g_MagY := wy;
+    end;
+    if down and (not g_MagRealDown) and hasPos then
+    begin
+      g_MagTargetId := 0;
+      if g_Level.PickBody(wx, wy, g_MagTargetId) then
+      begin
+        g_MagOn := True;
+        PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, pa);
+        MagRealLog('down target=' + IntToStr(g_MagTargetId) +
+          ' wx=' + FormatFloat('0.000000', wx) +
+          ' wy=' + FormatFloat('0.000000', wy));
+        Inc(g_MagRealCalls);
+      end
+      else
+        MagRealLog('down-miss wx=' + FormatFloat('0.000000', wx) +
+          ' wy=' + FormatFloat('0.000000', wy));
+    end
+    else if (not down) and g_MagRealDown then
+    begin
+      MagRealLog('up target=' + IntToStr(g_MagTargetId));
+      g_MagOn := False;
+      g_MagTargetId := 0;
+    end;
+    g_MagRealDown := down;
   end;
   if g_MagOn and (g_MagTargetId <> 0) then
   begin

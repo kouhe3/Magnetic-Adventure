@@ -123,6 +123,8 @@ procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 // Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+// T6.4b-3b：b2_Shape_TestPoint(shape, point, xform) 遍历该 body 的全部形状。
+function PhysTestPoint(Id: Integer; X, Y: Double): Boolean;
 // T6.4b-1：在 body 中心施加世界力（不产生力矩；原版磁铁力律见 F386）。
 procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
 // Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
@@ -164,6 +166,7 @@ type
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
   TPolyShapeFn = function(Def: Pointer): Pointer; cdecl;
+  TShapeTestPointFn = function(Shape, Point, XForm: Pointer): Integer; cdecl;
 
 type
   TPhysObj = record
@@ -238,6 +241,7 @@ var
   g_shapeSetRestitution: TShapeFloatFn;
   g_shapeSetFilter: TSetFilterFn;
   g_reFilter: TReFilterFn;
+  g_shapeTestPoint: TShapeTestPointFn;
   g_objs: array[0..MAX_OBJECTS - 1] of TPhysObj;
   g_objCount: Integer;
   g_joints: array[0..MAX_OBJECTS - 1] of TPhysJoint;
@@ -1082,6 +1086,29 @@ begin
   Angle := xf.angle;
 end;
 
+// F385 的命中测试：原版按下时用 b2 的形状判定光标是否落在金属体上。
+function PhysTestPoint(Id: Integer; X, Y: Double): Boolean;
+var
+  i, idx: Integer;
+  bx, by, ba: Double;
+  p: TPhysVec2;
+  xf: TPhysXForm;
+begin
+  Result := False;
+  if not g_active then Exit;
+  idx := ObjIndex(Id);
+  if idx < 0 then Exit;
+  PhysGetBodyPos(Id, bx, by, ba);
+  xf.x := bx;
+  xf.y := by;
+  xf.angle := ba;
+  p.x := X;
+  p.y := Y;
+  for i := 0 to g_objs[idx].ShapeCount - 1 do
+    if g_shapeTestPoint(g_objs[idx].Shapes[i], @p, @xf) <> 0 then
+      Exit(True);
+end;
+
 procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
 var
   b: Pointer;
@@ -1330,6 +1357,7 @@ begin
   g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));
   g_shapeSetFilter := TSetFilterFn(GetProcAddress(g_dll, 'b2_Shape_SetFilter'));
   g_reFilter := TReFilterFn(GetProcAddress(g_dll, 'b2_World_ReFilter'));
+  g_shapeTestPoint := TShapeTestPointFn(GetProcAddress(g_dll, 'b2_Shape_TestPoint'));
   if not (Assigned(g_createWorld) and Assigned(g_createBody) and Assigned(g_setXForm) and
     Assigned(g_shapeCircle) and Assigned(g_shapeBox) and Assigned(g_mass) and
     Assigned(g_shapePoly) and
@@ -1340,6 +1368,7 @@ begin
     Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and Assigned(g_applyForce) and
     Assigned(g_shapeSetDensity) and Assigned(g_shapeSetFriction) and
     Assigned(g_shapeSetRestitution) and Assigned(g_shapeSetFilter) and
+    Assigned(g_shapeTestPoint) and
     Assigned(g_reFilter)) then
     Exit(False);
   aabb.lo.x := -100.0;

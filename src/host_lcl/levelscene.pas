@@ -39,6 +39,8 @@ type
     FSyncCount: Integer;
     FSyncMaxErr: Double;
     FSyncAngleMoved: Integer;
+    // T6.4b-3b：Set_CameraViewArea(a,b) 的实参（F364）；由 BuildFromModel 填。
+    FViewA, FViewB: Double;
     function AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
       Alpha: Single; Handle: Integer = 0): Boolean;
     function AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
@@ -58,6 +60,11 @@ type
     // T6.4b-1：按世界距离找最近的、有物理 body 的 world sprite（磁铁 target 选择）。
     function NearestBody(X, Y: Double; out Handle: Integer;
       out Dist: Double): Boolean;
+    // T6.4b-3b：只有光标落在形状内才锁定（b2_Shape_TestPoint，F385）。
+    function PickBody(X, Y: Double; out Handle: Integer): Boolean;
+    // T6.4b-3b：客户区设计像素 → 世界坐标（F364 的 view rect：hx=max(a,b·W/H)）。
+    function ClientToWorld(X, Y, ClientW, ClientH: Integer;
+      out WX, WY: Double): Boolean;
     // T6.4d-7：按句柄更新 sprite（DoProgress 的 Set_ScrObjPos）；返回是否发生位移。
     function SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
     // T6.4b-2b-0：按句柄读 sprite 位置/角度（graph 对象的 Get_ScrObjPos 回退）。
@@ -87,6 +94,8 @@ begin
   FSyncCount := 0;
   FSyncMaxErr := 0;
   FSyncAngleMoved := 0;
+  FViewA := 0;
+  FViewB := 0;
   SetLength(FSync, 0);
 end;
 
@@ -265,6 +274,49 @@ begin
   end;
 end;
 
+function TLevelScene.PickBody(X, Y: Double; out Handle: Integer): Boolean;
+var
+  i: Integer;
+  bx, by, ba, d, best: Double;
+begin
+  Result := False;
+  Handle := 0;
+  best := 1e30;
+  for i := 0 to High(FSync) do
+  begin
+    if PhysBodyOf(FSync[i].Handle) = nil then Continue;
+    if not PhysTestPoint(FSync[i].Handle, X, Y) then Continue;
+    PhysGetBodyPos(FSync[i].Handle, bx, by, ba);
+    d := Sqrt((bx - X) * (bx - X) + (by - Y) * (by - Y));
+    if d < best then
+    begin
+      best := d;
+      Handle := FSync[i].Handle;
+      Result := True;
+    end;
+  end;
+end;
+
+// F364：view rect = 相机中心 ± 适配后的半视图（hx=max(a,b·W/H)、hy=hx/(W/H)）。
+// 设计像素左上原点、y 向下；世界坐标 y 向上。
+function TLevelScene.ClientToWorld(X, Y, ClientW, ClientH: Integer;
+  out WX, WY: Double): Boolean;
+var
+  aspect, hx, hy: Double;
+begin
+  Result := False;
+  WX := 0;
+  WY := 0;
+  if (ClientW <= 0) or (ClientH <= 0) or (FViewA <= 0) or (FViewB <= 0) then Exit;
+  aspect := ClientW / ClientH;
+  hx := FViewA;
+  if FViewB * aspect > hx then hx := FViewB * aspect;
+  hy := hx / aspect;
+  WX := FCamera.Position.X - hx + (X / ClientW) * (2 * hx);
+  WY := FCamera.Position.Y + hy - (Y / ClientH) * (2 * hy);
+  Result := True;
+end;
+
 function TLevelScene.SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
 var
   i: Integer;
@@ -334,6 +386,8 @@ begin
     if Time <> 0.0 then
       M.ApplyTime(Time);  // 齿轮：sprite 角 = init + w·t（F372/F373）
     FCamera.Position.SetPoint(M.CamX, M.CamY, 10);
+    FViewA := M.ViewA;
+    FViewB := M.ViewB;
     // 背景 = 两个半屏 NDC quad（back_N1 上、back_N2 下），与 Python
     // scene_draws 的常量一致：中心 (0,±0.5)、size 2×1。
     for i := 0 to M.BackCount - 1 do
