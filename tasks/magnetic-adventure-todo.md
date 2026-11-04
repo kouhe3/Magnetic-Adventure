@@ -110,6 +110,7 @@
 - [x] T6.4b-4e 把 F454 模型接进 `Tick`：`g_MagLocalX/Y`/`g_LinDamp` + 真实鼠标按下转 body-local；正例 `a=0.509722`（Δ=0.0197）、负例 `0.490000`，默认 `moved=2.511224` 不变 依据：F455
 - [x] T6.4b-4e-r 真实鼠标 local 捕获前台复测：`--active` 两次正例 local=(-0.013055,-0.024476)、trace 5 态、副本 1→2；空点负例 down-miss/无完成 依据：F456
 - [x] T6.4b 输入/拖拽：未截断 `b2_sites compare` TOTAL=0（bodies 14/14、xforms 14/14、shapes 20/20、setters 40/40）；EnterLevel 力回放派发 OnMove 生成运行时 gear 依据：F477
+- [x] T6.4b-rot `SyncPhysics` 同步 `Sprite.Rotation`（默认开，`HOST_SYNC_ROT=0` 负例）；正例 `angle_moved=1 rot_moved=1`、负例 `rot_moved=0`；`phys_sweep` 50/2/0 依据：F484
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355
 - [x] T6.4b-x IAT 假磁铁：`GetCursorPos` 槽 `0x667330` / `GetAsyncKeyState` 槽 `0x66730C` 伪造按下+光标 ⇒ 命中测试、target 锁定与力律全走游戏自己（无真鼠标 ⇒ 采样源无竞争，不会被清零）。**已收口**：实现 `src/proxydll/proxy_core.c`（`B2CI_FAKE_MAGNET`/`B2CI_MAG_CONFIG`/`B2CI_MAG_TRACE`），驱动 `work/fake_magnet_drive.py run`；判据 ① 的力幅按 F386 修正为 `min(315,30·d)`（d>10.5 时 315±4.6e-5；244 行，方向 ≤0.065 rad）；② level 1 两段 d<0.548 + 完成面板（5/5）；③ 负例 A `target_events=0`/磁铁 ApplyForce=0/body 位移 0.000；④ 负例 B 空点按住 target/flag=0。依据：F341、F346、F381、F382、F385、F386
@@ -147,9 +148,9 @@
 - [x] T6.4d-9 完成面板工厂：`Add_AlphaHudSprite`（endbox 512×256、默认 alpha=0、`Do_ShowCommand`/`Do_HideCommand`；alpha≤0 不画）+ 宿主 `HOST_FORCE_ENDBOX` 冒烟（正例 diff 76,228 px、bbox (311,221)-(759,475)，负例无面板）；level 0-5 `scenemodel_ab` 0（15/22/38/47/38/22） 依据：F479
 - [x] T6.4e 关卡文本：范围核实（GameTop 不引用 `pt_sans`；关卡名/完成文本是烘焙图；动态文本只剩用户名；gulim2 无消费者） 依据：F432、F433
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196
-- [ ] T6.5-BUG1 图层：木箱盖住螺母/齿轮（用户实机 A/B 记录，按要求暂不修复） 依据：F483
-- [ ] T6.5-BUG2 摩擦：宿主低于原版（磁铁拖动打滑；暂不修复） 依据：F483
-- [ ] T6.5-BUG3 对话气泡：宿主渲染全部，原版只渲染活动气泡（暂不修复） 依据：F483
+- [x] T6.5-BUG1 图层：木箱盖住螺母/齿轮（按 root 4→2→1→3→0 稳定排序；level 1 前 13 个 world draw 与 ref 一致） 依据：F483、F486
+- [x] T6.5-BUG2 摩擦：旋转同步（F484）+ 原版阻尼 `-12v`/`-30w`（F454）+ 拖拽步频 1.6×（F488）；用户实机接受 依据：F483、F484、F488、F489
+- [x] T6.5-BUG3 对话气泡：宿主渲染全部，原版只渲染活动气泡（Do_Hide/Show 接模型+运行时；level 1 missing 6→1） 依据：F483、F485
 
 ## M7 函数级测量与替换
 
@@ -169,4 +170,4 @@
 
 ## 暂缓（不在队列里）
 
-- 见 `tasks/backlog.md`：PCM 逐位、残余 1 ULP、T0.3/T0.4、M3 遗留。回流时先补 oracle + 二值判据，再进上面的队列。
+- 见 `tasks/backlog.md`：PCM 逐位、残余 1 ULP、T0.3/T0.4、M3 遗留；F 区新增 **TURN OFF MAGNET** 与 **气泡关闭**（用户 2026-11-04 明确「以后再说」，回流条件见 backlog）。回流时先补 oracle + 二值判据，再进上面的队列。
