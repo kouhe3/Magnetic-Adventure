@@ -151,6 +151,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-2a `OnMove` 派发（F444）**：`luaevents.pas` 加 `EventsFireMove`（`PushNumber(x), PushNumber(y)`，对齐 `bScrewOnMove(PosX,PosY)`）；`Tick` 每帧对磁铁 target 施力，位移 >1e-3 派发 `OnMove`；`EnterLevel` 设全局 target。私有桌面 level 1：`onmove_calls=38`；负例 `HOST_MAG_BUTTON=0` → 0。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：不证完成（`Get_ScrObjPos(bChalkScrew)` 对 AlphaHint 无 body）。
 
+- **2026-11-04 T6.4b-2b-0 `Get_ScrObjPos` graph 回退（F445）**：`LuaBind` 加 `ScrPosLookup`；`bind_Get_ScrObjPos` 在 `PhysBodyOf(v1)=nil` 时调用；`TLevelScene.GetSpritePos` 按 Handle 读 `Position/Rotation`；`magnet` 设回调并 `HOST_SCRPOS_GET` 写日志。私有桌面 level 1：`scrpos_get.log id=1004 x=-9.000000 y=10.190000 a=1.750000`；负例 id=0 无日志。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：日志未经过 Lua 调用。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

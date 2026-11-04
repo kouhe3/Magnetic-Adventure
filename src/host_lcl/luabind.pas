@@ -15,11 +15,13 @@ type
     Id: Integer;
     X, Y, Angle: Double;
   end;
+  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;
 
 var
   LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志
   ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列
   ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;
+  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退
 
 function ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;
 procedure ScrPosReset;
@@ -1674,7 +1676,10 @@ begin
   LuaLogBegin(L, 'Get_ScrObjPos');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Get_ScrObjPos');
-  PhysGetBodyPos(v1, gx, gy, ga);
+  if (PhysBodyOf(v1) = nil) and Assigned(ScrPosLookup) then
+    ScrPosLookup(v1, gx, gy, ga)
+  else
+    PhysGetBodyPos(v1, gx, gy, ga);
   Lua.PushNumber(L, gx);
   Lua.PushNumber(L, gy);
   Lua.PushNumber(L, ga);

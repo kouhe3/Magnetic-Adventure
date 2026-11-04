@@ -869,6 +869,17 @@ end;
 
 procedure ExitLevel; forward;
 
+// T6.4b-2b-0：Lua Get_ScrObjPos 对无物理体的 graph 对象回退到这里。
+function LookupSpritePos(Id: Integer; out X, Y, Angle: Double): Boolean;
+begin
+  Result := False;
+  X := 0;
+  Y := 0;
+  Angle := 0;
+  if g_Level <> nil then
+    Result := g_Level.GetSpritePos(Id, X, Y, Angle);
+end;
+
 // T6.4d-2：运行时切到关卡（真实 LCL 点击路径）。菜单 sprite 先清掉，
 // Cam 保留；关卡模型来自 LuaBindRunLevel 刚写的 HOST_LUA_LOG。
 procedure EnterLevel(Index: Integer; out Err: string);
@@ -918,6 +929,7 @@ begin
     EnterStage('stage=post_free');
   end;
   g_Level := TLevelScene.Create(g_Scene, g_Pak, g_Cam);
+  ScrPosLookup := @LookupSpritePos;
   EnterStage('stage=pre_build');
   // 运行时 GL 上下文在消息循环里不是 current；纹理创建/上传要先激活，
   // 否则 TGLTexture.Image 赋值失败、AddHud/AddWorld 直接 Exit（启动分支
@@ -1173,6 +1185,18 @@ var
   px, py, pa, dx, dy, d, f: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
+  if EnvStr('HOST_SCRPOS_GET') <> '' then
+  begin
+    pid := StrToIntDef(EnvStr('HOST_SCRPOS_GET'), 0);
+    if g_Level.GetSpritePos(pid, px, py, pa) then
+    begin
+      AssignFile(tf, ExePath('scrpos_get.log'));
+      Rewrite(tf);
+      WriteLn(tf, 'id=', pid, ' x=', FormatFloat('0.000000', px),
+        ' y=', FormatFloat('0.000000', py), ' a=', FormatFloat('0.000000', pa));
+      CloseFile(tf);
+    end;
+  end;
   if g_MagOn and (g_MagTargetId <> 0) then
   begin
     PhysGetBodyPos(g_MagTargetId, px, py, pa);

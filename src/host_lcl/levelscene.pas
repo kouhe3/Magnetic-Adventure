@@ -60,6 +60,8 @@ type
       out Dist: Double): Boolean;
     // T6.4d-7：按句柄更新 sprite（DoProgress 的 Set_ScrObjPos）；返回是否发生位移。
     function SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
+    // T6.4b-2b-0：按句柄读 sprite 位置/角度（graph 对象的 Get_ScrObjPos 回退）。
+    function GetSpritePos(Handle: Integer; out X, Y, Angle: Double): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -275,6 +277,25 @@ begin
       FSync[i].Sprite.Position.SetPoint(X, Y, 0);
       FSync[i].Sprite.Rotation := Angle * 180 / Pi;
       Result := (Abs(ox - X) + Abs(oy - Y)) > 1e-6;
+      Exit;
+    end;
+end;
+
+function TLevelScene.GetSpritePos(Handle: Integer; out X, Y, Angle: Double): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  X := 0;
+  Y := 0;
+  Angle := 0;
+  for i := 0 to High(FSync) do
+    if FSync[i].Handle = Handle then
+    begin
+      X := FSync[i].Sprite.Position.X;
+      Y := FSync[i].Sprite.Position.Y;
+      Angle := FSync[i].Sprite.Rotation * Pi / 180;
+      Result := True;
       Exit;
     end;
 end;

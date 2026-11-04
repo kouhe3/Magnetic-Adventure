@@ -96,6 +96,7 @@
 - [x] T6.4a-r-2f level 4 plunger/shank（曲柄滑块解析位姿）与 smoke 静态 sprite（F378/F379；宿主/Python 44/44，2a+2b 双采集） 依据：F376
 - [x] T6.4b-1 宿主磁铁力：`PhysApplyForce`（`b2_Body_ApplyForce`）+ `NearestBody` + `HOST_MAG_BUTTON/X/Y`；level 1 `target=1001 moved=2.511224`，负例 `target=0 moved=0` 依据：F440
 - [x] T6.4b-2a `OnMove` 派发：`EventsFireMove` + `Tick` 磁铁施力/位移检测；level 1 私有桌面 `onmove_calls=38`，负例 `HOST_MAG_BUTTON=0` → 0 依据：F444
+- [x] T6.4b-2b-0 `Get_ScrObjPos` graph 回退：`ScrPosLookup` + `TLevelScene.GetSpritePos`；level 1 `id=1004 x=-9 y=10.19`，负例 id=0 无日志 依据：F445
 - [ ] T6.4b 输入/拖拽：**行为级已通过**（level 1 两段拖拽 + “Level completed”，F380/F381；`work/drag_lvl1.py`/`drag_shot.py`）；剩：宿主重放 + `b2_sites compare` 力/step + 绕障寻路 依据：F159、F189、F263（判据：`TOTAL mismatches=0`）
 - [x] T6.4b-0 逐关采关（52 关，47 PASS / 2 SHARED / 3 RNG） 依据：F347–F349
 - [x] T6.4b-0a 采集默认 WM_CLOSE + NOP 广告（level 1 PASS） 依据：F352–F355
