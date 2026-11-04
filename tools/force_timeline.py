@@ -2,13 +2,15 @@
 
 用法:
   python tools/force_timeline.py <log> --body-ptr N --id ID --first-step N
-      --out force.txt [--torque torque.txt]
+      --out force.txt [--torque torque.txt] [--cursor cursor.txt]
 
 输出:
   force.txt  每行 `host_step id fx fy px py`
               （px/py = 原版 ApplyForce 的施力点，日志 m2 前两 float；
               4 列旧格式仍可读，宿主按 body 中心处理）
   torque.txt 每行 `host_step id torque`
+  cursor.txt 每行 `host_step cx cy`：从磁铁力反算的光标世界坐标
+              （d=|F|/30；夹紧 315 时取 d=1050，力向量不变）
   host_step = 原版 step_no - first_step + 1（step_no 是首次 b2_World_Step
   之前的调用记为 0，之后每有一次 Step 加 1）。
 
@@ -29,6 +31,7 @@
   * 日志里 ApplyForce 的 body 不在 arg0（ABI 表变化）。
 """
 import argparse
+import math
 import struct
 import sys
 from pathlib import Path
@@ -47,12 +50,24 @@ def main():
                     help="原版 step_no that maps to host step 1")
     ap.add_argument("--out", required=True)
     ap.add_argument("--torque", default=None)
+    ap.add_argument("--cursor", default=None)
     a = ap.parse_args()
 
     names = ffi.load_names()
+    positions = {}
+    if a.cursor:
+        for kind, v in ffi.records(a.log):
+            if kind != "digest":
+                continue
+            seq, bodies = v
+            for b in bodies:
+                if b[0] == a.body_ptr:
+                    positions[seq] = (b[6], b[7])
+                    break
     step = 0
     forces = []
     torques = []
+    cursors = []
     for kind, v in ffi.records(a.log):
         if kind != "pre":
             continue
@@ -65,6 +80,13 @@ def main():
             px, py = struct.unpack("<2f", v[40][:8])
             if abs(fx) > 1e-12 or abs(fy) > 1e-12:
                 forces.append((step, a.id, fx, fy, px, py))
+                if a.cursor:
+                    p = positions.get(step)
+                    if p and math.hypot(px - p[0], py - p[1]) > 1e-6:
+                        r = math.hypot(fx, fy)
+                        d = r / 30.0 if r < 314.999 else 1050.0
+                        cursors.append((step, p[0] + fx / r * d,
+                                        p[1] + fy / r * d))
         elif name == "b2_Body_ApplyTorque" and v[6] == a.body_ptr:
             t = struct.unpack("<f", struct.pack("<I", v[7]))[0]
             if abs(t) > 1e-12:
@@ -90,8 +112,17 @@ def main():
                     continue
                 f.write("%d %d %.9g\n" % (hs, bid, t))
                 nt += 1
-    print("forces=%d torques=%d first_step=%d out=%s" %
-          (nf, nt, a.first_step, a.out))
+    nc = 0
+    if a.cursor:
+        with open(a.cursor, "w", encoding="utf-8") as f:
+            for s, cx, cy in cursors:
+                hs = host_step(s)
+                if hs < 1:
+                    continue
+                f.write("%d %.9g %.9g\n" % (hs, cx, cy))
+                nc += 1
+    print("forces=%d torques=%d cursors=%d first_step=%d out=%s" %
+          (nf, nt, nc, a.first_step, a.out))
     return 0
 
 

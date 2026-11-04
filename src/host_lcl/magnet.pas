@@ -847,6 +847,11 @@ type
     T: Double;
   end;
 
+  TCursorPt = record
+    Step: Integer;
+    Cx, Cy: Double;
+  end;
+
   THostLoop = class
     procedure Tick(Sender: TObject);
   end;
@@ -935,6 +940,13 @@ var
   TorqueCount, TorqueIdx, ti, tcode: Integer;
   torqueFile: TextFile;
   tline, ttok: string;
+  Cursors: array of TCursorPt;
+  CursorCount, CursorIdx, ci, ccode: Integer;
+  cursorFile: TextFile;
+  cline, ctok: string;
+  SelfMode: Boolean;
+  LocalX, LocalY, LinDamp: Double;
+  MagPX, MagPY: Double;
 begin
   Err := '';
   if g_InLevel then Exit;
@@ -1014,6 +1026,11 @@ begin
   g_MagRealDown := False;
   g_MagRealCalls := 0;
   g_DampCoeff := StrToFloatDef(EnvStr('HOST_MAG_DAMPING'), 0.0);
+  // T6.4b-4d：自驱磁铁模型（F454）——力律、body-local 抓取点、两类阻尼。
+  SelfMode := EnvFlag('HOST_MAG_SELF');
+  LocalX := StrToFloatDef(EnvStr('HOST_MAG_LOCALX'), 0.0);
+  LocalY := StrToFloatDef(EnvStr('HOST_MAG_LOCALY'), 0.0);
+  LinDamp := StrToFloatDef(EnvStr('HOST_MAG_LINDAMP'), 0.0);
   if g_MagReal then
     g_MagOn := False;
   if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
@@ -1139,6 +1156,41 @@ begin
       end;
       CloseFile(torqueFile);
     end;
+    // T6.4b-4d：自驱模式只用逐步光标时间线，力/点/阻尼由宿主按 F454 计算。
+    CursorCount := 0;
+    CursorIdx := 0;
+    if SelfMode and (EnvStr('HOST_MAG_CURSOR') <> '') then
+    begin
+      AssignFile(cursorFile, EnvStr('HOST_MAG_CURSOR'));
+      Reset(cursorFile);
+      while not Eof(cursorFile) do
+      begin
+        ReadLn(cursorFile, cline);
+        SetLength(Cursors, CursorCount + 1);
+        with Cursors[CursorCount] do
+        begin
+          Step := 0; Cx := 0; Cy := 0;
+          ci := 1;
+          while (ci <= Length(cline)) and (cline[ci] = ' ') do Inc(ci);
+          ctok := '';
+          while (ci <= Length(cline)) and (cline[ci] <> ' ') do
+          begin ctok := ctok + cline[ci]; Inc(ci); end;
+          Val(ctok, Step, ccode);
+          while (ci <= Length(cline)) and (cline[ci] = ' ') do Inc(ci);
+          ctok := '';
+          while (ci <= Length(cline)) and (cline[ci] <> ' ') do
+          begin ctok := ctok + cline[ci]; Inc(ci); end;
+          Val(ctok, Cx, ccode);
+          while (ci <= Length(cline)) and (cline[ci] = ' ') do Inc(ci);
+          ctok := '';
+          while (ci <= Length(cline)) and (cline[ci] <> ' ') do
+          begin ctok := ctok + cline[ci]; Inc(ci); end;
+          Val(ctok, Cy, ccode);
+        end;
+        Inc(CursorCount);
+      end;
+      CloseFile(cursorFile);
+    end;
     // T6.4b-4：原版是“按在螺丝上锁定 target，再把光标移到目标”，
     // 所以 target 与施力点分开：HOST_MAG_TARGET 是锁定体，HOST_MAG_X/Y 是光标。
     if EnvStr('HOST_MAG_TARGET') <> '' then
@@ -1153,7 +1205,30 @@ begin
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
     for i := 1 to Steps do
     begin
-      if ForceCount > 0 then
+      if SelfMode then
+      begin
+        while (CursorIdx < CursorCount) and (Cursors[CursorIdx].Step <= i) do
+        begin
+          if (Cursors[CursorIdx].Step = i) and (TargetId <> 0) then
+          begin
+            PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
+            MagDX := Cursors[CursorIdx].Cx - MagIX;
+            MagDY := Cursors[CursorIdx].Cy - MagIY;
+            MagD := Sqrt(MagDX * MagDX + MagDY * MagDY);
+            if MagD > 1e-6 then
+            begin
+              MagF := 30.0 * MagD;
+              if MagF > 315.0 then MagF := 315.0;
+              MagPX := MagIX + Cos(MagIA) * LocalX - Sin(MagIA) * LocalY;
+              MagPY := MagIY + Sin(MagIA) * LocalX + Cos(MagIA) * LocalY;
+              PhysApplyForceAt(TargetId, MagF * MagDX / MagD,
+                MagF * MagDY / MagD, MagPX, MagPY);
+            end;
+          end;
+          Inc(CursorIdx);
+        end;
+      end
+      else if ForceCount > 0 then
       begin
         while (ForceIdx < ForceCount) and (Forces[ForceIdx].Step <= i) do
         begin
@@ -1189,6 +1264,8 @@ begin
         Inc(TorqueIdx);
       end;
       // T6.4b-4c：原版每步对全部动态体施加 -30*w（F451）；与扭矩时间线二选一。
+      if LinDamp > 0 then
+        PhysApplyLinearDamping(LinDamp);
       if g_DampCoeff > 0 then
         PhysApplyAngularDamping(g_DampCoeff);
       PhysStep(0.01, 20, 20);

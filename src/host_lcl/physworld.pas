@@ -135,6 +135,10 @@ procedure PhysApplyTorque(Id: Integer; Torque: Double);
 function PhysGetBodyOmega(Id: Integer): Double;
 // T6.4b-4c：对全部已注册 body 施加 -Coeff*w（原版全局角阻尼，F451）。
 procedure PhysApplyAngularDamping(Coeff: Double);
+// T6.4b-4d：读 body 线速度（b2_Body_GetVelocity(out, body)，out 两 float）。
+procedure PhysGetBodyVelocity(Id: Integer; out Vx, Vy: Double);
+// T6.4b-4d：对全部已注册 body 施加 -Coeff*v（原版全局线性阻尼，F454）。
+procedure PhysApplyLinearDamping(Coeff: Double);
 // T6.4b-4：把当前所有已注册 body 写一行 digest（step id x y angle）。
 procedure PhysDumpBodies(Step: Integer; var F: TextFile);
 // Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
@@ -174,6 +178,7 @@ type
   TApplyForceFn = procedure(Body, Force, Point: Pointer); cdecl;
   TApplyTorqueFn = procedure(Body: Pointer; Torque: Single); cdecl;
   TBodyFloatFn = function(Body: Pointer): Single; cdecl;
+  TGetVelocityFn = function(OutV, Body: Pointer): Pointer; cdecl;
   TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
@@ -250,6 +255,7 @@ var
   g_applyForce: TApplyForceFn;
   g_applyTorque: TApplyTorqueFn;
   g_getOmega: TBodyFloatFn;
+  g_getVelocity: TGetVelocityFn;
   g_shapeSetDensity: TShapeFloatFn;
   g_shapeSetFriction: TShapeFloatFn;
   g_shapeSetRestitution: TShapeFloatFn;
@@ -1184,6 +1190,49 @@ begin
   end;
 end;
 
+procedure PhysGetBodyVelocity(Id: Integer; out Vx, Vy: Double);
+var
+  b: Pointer;
+  v: TPhysVec2;
+begin
+  Vx := 0.0;
+  Vy := 0.0;
+  if not g_active then Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then Exit;
+  FillChar(v, SizeOf(v), 0);
+  g_getVelocity(@v, b);
+  Vx := v.x;
+  Vy := v.y;
+end;
+
+procedure PhysApplyLinearDamping(Coeff: Double);
+var
+  i: Integer;
+  b: Pointer;
+  vx, vy, x, y, a: Double;
+  f, p: TPhysVec2;
+begin
+  if not g_active then Exit;
+  for i := 0 to g_objCount - 1 do
+  begin
+    b := g_objs[i].Body;
+    if b = nil then Continue;
+    FillChar(f, SizeOf(f), 0);
+    g_getVelocity(@f, b);
+    vx := f.x;
+    vy := f.y;
+    if (vx = 0) and (vy = 0) then Continue;
+    x := 0.0; y := 0.0; a := 0.0;
+    PhysGetBodyPos(g_objs[i].Id, x, y, a);
+    f.x := -Coeff * vx;
+    f.y := -Coeff * vy;
+    p.x := x;
+    p.y := y;
+    g_applyForce(b, @f, @p);
+  end;
+end;
+
 procedure PhysDumpBodies(Step: Integer; var F: TextFile);
 var
   i: Integer;
@@ -1427,6 +1476,7 @@ begin
   g_applyForce := TApplyForceFn(GetProcAddress(g_dll, 'b2_Body_ApplyForce'));
   g_applyTorque := TApplyTorqueFn(GetProcAddress(g_dll, 'b2_Body_ApplyTorque'));
   g_getOmega := TBodyFloatFn(GetProcAddress(g_dll, 'b2_Body_GetOmega'));
+  g_getVelocity := TGetVelocityFn(GetProcAddress(g_dll, 'b2_Body_GetVelocity'));
   g_shapeSetDensity := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetDensity'));
   g_shapeSetFriction := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetFriction'));
   g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));
