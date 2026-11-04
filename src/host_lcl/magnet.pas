@@ -25,7 +25,7 @@ uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
   GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents,
-  PhysWorld, LevelScene, ProfileData, ExtCtrls;
+  PhysWorld, LevelScene, ProfileData, LuaTimers, ExtCtrls;
 
 type
   TCameraEvents = class
@@ -1374,6 +1374,8 @@ begin
       if g_DampCoeff > 0 then
         PhysApplyAngularDamping(g_DampCoeff);
       PhysStep(0.01, 20, 20);
+      // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
+      TimerUpdate(g_levelLua, 0.01);
       if stepOn then
         g_Level.WriteStepDigest(i, stepLog);
       // T6.4d-4：关卡运行期保留的 Lua state 里每步调 DoProgress(dt)。
@@ -1440,6 +1442,7 @@ begin
     end;
     if LevelComplete then
     begin
+      WriteTrace('complete');
       if EnvFlag('HOST_SAVE_PROFILE') and (EnvStr('HOST_PROFILE') <> '') then
       begin
         if WriteLastCompleteLevel(EnvStr('HOST_PROFILE'), Index + 1) then
@@ -1451,7 +1454,7 @@ begin
     end;
   end;
   // T6.4d-6：持续帧循环（16 ms TTimer）；HOST_LOOP_MS 到时写 loop.log。
-  if EnvFlag('HOST_LOOP') then
+  if EnvFlag('HOST_LOOP') and g_InLevel then
   begin
     g_LoopMs := StrToIntDef(EnvStr('HOST_LOOP_MS'), 2000);
     g_LoopStartMs := Integer(GetTickCount);
@@ -1655,6 +1658,8 @@ begin
   if g_DampCoeff > 0 then
     PhysApplyAngularDamping(g_DampCoeff);
   PhysStep(0.01, 20, 20);
+  // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
+  TimerUpdate(g_levelLua, 0.01);
   Inc(g_LoopSteps);
   // T6.4b-2a：target 位移 >1e-3 时按 (PosX,PosY) 派发 OnMove。
   if g_MagOn and (g_MagTargetId <> 0) then
@@ -1723,6 +1728,7 @@ begin
   if LevelComplete then
   begin
     g_LoopTimer.Enabled := False;
+    WriteTrace('complete');
     if EnvFlag('HOST_SAVE_PROFILE') and (EnvStr('HOST_PROFILE') <> '') then
       WriteLastCompleteLevel(EnvStr('HOST_PROFILE'), g_LevelIndex + 1);
     ExitLevel;

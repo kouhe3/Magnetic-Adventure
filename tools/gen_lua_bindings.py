@@ -82,6 +82,10 @@ HOOKS = {
     # Add_Rope：动态角度表（F289）；Get_RopePhysItem 的真实返回值（0 基）也在 HOOKS 里覆盖。
     "Add_Rope": ["  PhysAddRope(id, v2, v3, v4, n, @ang[0]);"],
     "Get_RopePhysItem": ["  id := PhysGetRopeItemId(v1, v2);"],
+    # T6.3：简单计时器；cm_StartTimer=10 / cm_StopTimer=11（IDA 0x6457a0 的常量表）。
+    "Add_SimpleTimer": ["  TimerAdd(id);"],
+    "Start_Timer": ["  TimerStart(v1, v2);"],
+    "Do_Command": ["  TimerCommand(v1, v2, d);"],
 }
 
 # 需要真实返回值（不是 id）的绑定：额外变量行 + 返回 push 行。
@@ -207,7 +211,7 @@ def gen_binding(row):
             body.append("  v%d := LuaOptNumber(L, %d, %s);" % (idx, idx, num_default(kind, dflt)))
 
     if name == "Do_Command":
-        body += ["  n := v3;", "  for i := 0 to n - 1 do",
+        body += ["  n := v3;", "  d := 0.0;", "  for i := 0 to n - 1 do",
                  "    d := LuaOptNumber(L, 4 + i, 0.0);"]
     elif name == "Attach_ShapePolygon":
         body += ["  n := v5;", "  for i := 0 to n - 1 do", "  begin",
@@ -267,7 +271,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  HintVisible: Boolean;    // T6.4f：Set_VisibleHintButton 的宿主状态\n  HintHideTime: Double;    // T6.4f：Set_HideTimeHint 的宿主状态\n  HintShown: Boolean;      // T6.4f：DoShowHint 已派发\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nconst\n  SpawnMax = 32;\n\ntype\n  TSpawnRec = record\n    Id, Kind, Style: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  SpawnCount: Integer;\n  Spawn: array[0..SpawnMax - 1] of TSpawnRec;\n\nfunction SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\nprocedure SpawnReset;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld, LuaTimers;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  HintVisible: Boolean;    // T6.4f：Set_VisibleHintButton 的宿主状态\n  HintHideTime: Double;    // T6.4f：Set_HideTimeHint 的宿主状态\n  HintShown: Boolean;      // T6.4f：DoShowHint 已派发\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nconst\n  SpawnMax = 32;\n\ntype\n  TSpawnRec = record\n    Id, Kind, Style: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  SpawnCount: Integer;\n  Spawn: array[0..SpawnMax - 1] of TSpawnRec;\n\nfunction SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\nprocedure SpawnReset;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"
@@ -308,7 +312,7 @@ def main():
     reg.append("  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;")
     reg.append("  LevelComplete := False;")
     reg.append("  HintVisible := True; HintHideTime := 10.0; HintShown := False;")
-    reg.append("  ScrPosReset;\n  SpawnReset;")
+    reg.append("  ScrPosReset;\n  SpawnReset;\n  TimerReset;")
     for row in rows:
         name = row["lua_name"]
         reg.append("  Lua.PushCClosure(L, Pointer(@bind_%s), 0);" % name)

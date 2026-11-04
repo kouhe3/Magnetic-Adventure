@@ -5,7 +5,7 @@ unit LuaBind;
 // 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。
 interface
 
-uses LuaDll, LuaLog, LuaEvents, PhysWorld;
+uses LuaDll, LuaLog, LuaEvents, PhysWorld, LuaTimers;
 
 const
   ScrPosMax = 64;
@@ -155,9 +155,11 @@ begin
   v2 := LuaOptInt(L, 2, 0);
   v3 := LuaOptInt(L, 3, 0);
   n := v3;
+  d := 0.0;
   for i := 0 to n - 1 do
     d := LuaOptNumber(L, 4 + i, 0.0);
   id := NextId('Do_Command');
+  TimerCommand(v1, v2, d);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1667,6 +1669,7 @@ var
 begin
   LuaLogBegin(L, 'Add_SimpleTimer');
   id := NextId('Add_SimpleTimer');
+  TimerAdd(id);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -1682,6 +1685,7 @@ begin
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   id := NextId('Start_Timer');
+  TimerStart(v1, v2);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2803,6 +2807,7 @@ begin
   HintVisible := True; HintHideTime := 10.0; HintShown := False;
   ScrPosReset;
   SpawnReset;
+  TimerReset;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);
   Lua.SetField(L, LUA_GLOBALSINDEX, PChar('Do_Command'));
   Lua.PushCClosure(L, Pointer(@bind_Add_WoodBox), 0);

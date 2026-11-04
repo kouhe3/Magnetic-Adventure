@@ -1,9 +1,11 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F471**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F472**。
 
 ## 0. 一句话现状
+**2026-11-04 T6.3 计时器子切片（F472）**：宿主实现 `Add_SimpleTimer`/`Start_Timer`/`Do_Command(cm_StartTimer=10/StopTimer=11)`，按 PhysStep dt 递减并派发 `OnTimer`；原版与宿主的计时器夹具都在 **step 150** 生效（`tests/levels/timer_o/e.lua`）；`lua_bind_ab` 149/149、6 门禁、`phys_sweep` 50/2/0；顺带修 `tools/ffi.py` 的 contacts 分支。
+
 **2026-11-04 T6.4d-8 收口（F471）**：`profiledata.pas` 新增 `SelectActiveBlockSpan`/`WriteProfileSetting`（任意键；缺键插在 `</Player>` 前），`magnet.pas` 的 `HOST_SET_PROFILE` 只写 `HOST_PROFILE` 副本；三键 diff 恰好三行、插入 `SelftestKey=42` 落 KKK 块、F466 完成写集仍 3→4；设置菜单 UI/视觉验收未做。
 
 

@@ -183,6 +183,20 @@ python tools/ci_fake_magnet.py build --out work/fakemag_switch \
 机制：磁铁力作用在 body 中心，枢轴在其下方 1.6；横向力产生力矩，关节转到限位，
 `OnRotate` 回调触发。
 
+## 计时器夹具（timer）
+
+`timer_o.lua` / `timer_e.lua`：静态墙 + 自由螺丝 (10,10) + `Add_SimpleTimer`；
+`Start_Timer(tTimer, 1.5)`，`OnTimer` 把螺丝 `Set_ScrObjPos(99,99,0)`。
+
+- 构建：`python tools/ci_fake_magnet.py build --out work/fakemag_timer --o tests/levels/timer_o.lua --e tests/levels/timer_e.lua`
+- 原版：`B2PROXY_LOG=<abs>/timer_orig_ffi.bin <PY32> tools/direct_drive.py --dir work/fakemag_timer --levels 1 --gap 5 --exit-mode wmclose`
+- 宿主：`python work/run_vdesk_host.py timer2 work/profile_test.prf 1 0 200 0 1004 HOST_PHYS_STEPS=300 HOST_STEP_LOG=<abs>/host_timer_step.log HOST_LUA_DIR=work/pak_timer_lua HOST_PAK_DIR=work/pak_timer_lua`
+- 判据（F472）：两侧 `Set_ScrObjPos` 生效的物理步都是 **150**（1.5 s / dt=0.01）；原版从 b2 日志的 `b2_Body_SetXForm` 取步号，宿主从 `HOST_STEP_LOG` 的 marker body 位置取。
+
+边界：只覆盖 1.5 s 的一次性计时器；`Do_Command(cm_StartTimer)` 与 `Start_Timer`
+两条路径同实现，但夹具只走 `Start_Timer`；`cm_*` 数值来自 IDA 常量表
+（cm_StartTimer=10、cm_StopTimer=11）。
+
 ## 边界
 
 - 私有桌面上 `PrintWindow` 返回 1 但客户端为黑；像素不是私有桌面的判据，完成用 Lua 标记。

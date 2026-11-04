@@ -127,12 +127,16 @@ def main():
     pending = None   # 最近一条匹配 want 的 pre，等待其 post
 
     digests = 0
+    contacts = 0
     for kind, v in records(path):
         if kind == 'hdr':
             hdr = v
             continue
         if kind == 'digest':
             digests += 1
+            continue
+        if kind == 'contacts':
+            contacts += 1
             continue
         if kind == 'post':
             rid, retval = v[1], v[2]
@@ -156,7 +160,7 @@ def main():
 
     if cmd == 'stats':
         print(f'pid={pid} game={game:#010x} orig={orig:#010x} calls={sum(counts.values())} '
-              f'rets={sum(posts.values())} digests={digests}')
+              f'rets={sum(posts.values())} digests={digests} contacts={contacts}')
         for name, c in sorted(counts.items(), key=lambda kv: -kv[1]):
             print(f'{c:9d}  {name}')
         return
