@@ -127,6 +127,10 @@ procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
 function PhysTestPoint(Id: Integer; X, Y: Double): Boolean;
 // T6.4b-1：在 body 中心施加世界力（不产生力矩；原版磁铁力律见 F386）。
 procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
+// T6.4b-4：施加扭矩（原版 magnet 同一步还有 ApplyTorque，影响角度）。
+procedure PhysApplyTorque(Id: Integer; Torque: Double);
+// T6.4b-4：把当前所有已注册 body 写一行 digest（step id x y angle）。
+procedure PhysDumpBodies(Step: Integer; var F: TextFile);
 // Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
 procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
 procedure PhysWorldToLocal(Id: Integer; WX, WY: Double; out X, Y: Double);
@@ -162,6 +166,7 @@ type
   TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
   TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
   TApplyForceFn = procedure(Body, Force, Point: Pointer); cdecl;
+  TApplyTorqueFn = procedure(Body: Pointer; Torque: Single); cdecl;
   TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
@@ -236,6 +241,7 @@ var
   g_jointSetMaxTorque: TJointFloatFn;
   g_getXForm: TGetXFormFn;
   g_applyForce: TApplyForceFn;
+  g_applyTorque: TApplyTorqueFn;
   g_shapeSetDensity: TShapeFloatFn;
   g_shapeSetFriction: TShapeFloatFn;
   g_shapeSetRestitution: TShapeFloatFn;
@@ -1126,6 +1132,31 @@ begin
   g_applyForce(b, @f, @p);
 end;
 
+procedure PhysApplyTorque(Id: Integer; Torque: Double);
+var
+  b: Pointer;
+begin
+  if not g_active then Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then Exit;
+  g_applyTorque(b, Torque);
+end;
+
+procedure PhysDumpBodies(Step: Integer; var F: TextFile);
+var
+  i: Integer;
+  x, y, a: Double;
+begin
+  if not g_active then Exit;
+  for i := 0 to g_objCount - 1 do
+  begin
+    if g_objs[i].Body = nil then Continue;
+    PhysGetBodyPos(g_objs[i].Id, x, y, a);
+    WriteLn(F, Step, ' ', g_objs[i].Id, ' ',
+      x:0:6, ' ', y:0:6, ' ', a:0:6);
+  end;
+end;
+
 procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
 var
   bx, by, ba: Double;
@@ -1352,6 +1383,7 @@ begin
   g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
   g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
   g_applyForce := TApplyForceFn(GetProcAddress(g_dll, 'b2_Body_ApplyForce'));
+  g_applyTorque := TApplyTorqueFn(GetProcAddress(g_dll, 'b2_Body_ApplyTorque'));
   g_shapeSetDensity := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetDensity'));
   g_shapeSetFriction := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetFriction'));
   g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));
@@ -1366,6 +1398,7 @@ begin
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
     Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
     Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and Assigned(g_applyForce) and
+    Assigned(g_applyTorque) and
     Assigned(g_shapeSetDensity) and Assigned(g_shapeSetFriction) and
     Assigned(g_shapeSetRestitution) and Assigned(g_shapeSetFilter) and
     Assigned(g_shapeTestPoint) and

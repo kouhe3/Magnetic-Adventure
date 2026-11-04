@@ -71,6 +71,8 @@ type
     function GetSpritePos(Handle: Integer; out X, Y, Angle: Double): Boolean;
     // T6.4b-3a：运行时 Add_MetallGear 生成了新物理体；这里补 sprite 并记入 FSync。
     function AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;
+    // T6.4b-4：把当前全部物理体写到 step digest（step handle x y angle）。
+    procedure WriteStepDigest(Step: Integer; var F: TextFile);
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -352,6 +354,11 @@ begin
       Result := True;
       Exit;
     end;
+end;
+
+procedure TLevelScene.WriteStepDigest(Step: Integer; var F: TextFile);
+begin
+  PhysDumpBodies(Step, F);
 end;
 
 function TLevelScene.AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;

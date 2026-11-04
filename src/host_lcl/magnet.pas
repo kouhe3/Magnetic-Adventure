@@ -836,6 +836,16 @@ begin
 end;
 
 type
+  TStepForce = record
+    Step, Id: Integer;
+    Fx, Fy: Double;
+  end;
+
+  TStepTorque = record
+    Step, Id: Integer;
+    T: Double;
+  end;
+
   THostLoop = class
     procedure Tick(Sender: TObject);
   end;
@@ -911,7 +921,17 @@ var
   SyncFirst, SyncAfter: Double;
   MagX, MagY, MagDX, MagDY, MagD, MagF, MagMoved, MagIX, MagIY, MagIA: Double;
   MagOn: Boolean;
-  tf, ptf, ptf2, mtf: TextFile;
+  tf, ptf, ptf2, mtf, stepLog: TextFile;
+  stepOn: Boolean;
+  MagUntil: Integer;
+  Forces: array of TStepForce;
+  ForceCount, ForceIdx, fi, fcode: Integer;
+  forceFile: TextFile;
+  fline, ftok: string;
+  Torques: array of TStepTorque;
+  TorqueCount, TorqueIdx, ti, tcode: Integer;
+  torqueFile: TextFile;
+  tline, ttok: string;
 begin
   Err := '';
   if g_InLevel then Exit;
@@ -1014,11 +1034,113 @@ begin
     MagMoved := 0;
     MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
     MagY := StrToFloatDef(EnvStr('HOST_MAG_Y'), 0.0);
-    if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
+    MagUntil := StrToIntDef(EnvStr('HOST_MAG_UNTIL'), 0);
+    stepOn := EnvStr('HOST_STEP_LOG') <> '';
+    if stepOn then
+    begin
+      AssignFile(stepLog, EnvStr('HOST_STEP_LOG'));
+      Rewrite(stepLog);
+    end;
+    // T6.4b-4：逐 step 精确力回放（原版 ApplyForce 时间线，含阻尼力）。
+    ForceCount := 0;
+    ForceIdx := 0;
+    if EnvStr('HOST_MAG_FORCE') <> '' then
+    begin
+      AssignFile(forceFile, EnvStr('HOST_MAG_FORCE'));
+      Reset(forceFile);
+      while not Eof(forceFile) do
+      begin
+        ReadLn(forceFile, fline);
+        SetLength(Forces, ForceCount + 1);
+        with Forces[ForceCount] do
+        begin
+          Step := 0; Id := 0; Fx := 0; Fy := 0;
+          fi := 1;
+          while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+          ftok := '';
+          while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+          begin ftok := ftok + fline[fi]; Inc(fi); end;
+          Val(ftok, Step, fcode);
+          while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+          ftok := '';
+          while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+          begin ftok := ftok + fline[fi]; Inc(fi); end;
+          Val(ftok, Id, fcode);
+          while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+          ftok := '';
+          while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+          begin ftok := ftok + fline[fi]; Inc(fi); end;
+          Val(ftok, Fx, fcode);
+          while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+          ftok := '';
+          while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+          begin ftok := ftok + fline[fi]; Inc(fi); end;
+          Val(ftok, Fy, fcode);
+        end;
+        Inc(ForceCount);
+      end;
+      CloseFile(forceFile);
+    end;
+    // 同一步还有 ApplyTorque（螺丝旋转），单独一份时间线。
+    TorqueCount := 0;
+    TorqueIdx := 0;
+    if EnvStr('HOST_MAG_TORQUE') <> '' then
+    begin
+      AssignFile(torqueFile, EnvStr('HOST_MAG_TORQUE'));
+      Reset(torqueFile);
+      while not Eof(torqueFile) do
+      begin
+        ReadLn(torqueFile, tline);
+        SetLength(Torques, TorqueCount + 1);
+        with Torques[TorqueCount] do
+        begin
+          Step := 0; Id := 0; T := 0;
+          ti := 1;
+          while (ti <= Length(tline)) and (tline[ti] = ' ') do Inc(ti);
+          ttok := '';
+          while (ti <= Length(tline)) and (tline[ti] <> ' ') do
+          begin ttok := ttok + tline[ti]; Inc(ti); end;
+          Val(ttok, Step, tcode);
+          while (ti <= Length(tline)) and (tline[ti] = ' ') do Inc(ti);
+          ttok := '';
+          while (ti <= Length(tline)) and (tline[ti] <> ' ') do
+          begin ttok := ttok + tline[ti]; Inc(ti); end;
+          Val(ttok, Id, tcode);
+          while (ti <= Length(tline)) and (tline[ti] = ' ') do Inc(ti);
+          ttok := '';
+          while (ti <= Length(tline)) and (tline[ti] <> ' ') do
+          begin ttok := ttok + tline[ti]; Inc(ti); end;
+          Val(ttok, T, tcode);
+        end;
+        Inc(TorqueCount);
+      end;
+      CloseFile(torqueFile);
+    end;
+    // T6.4b-4：原版是“按在螺丝上锁定 target，再把光标移到目标”，
+    // 所以 target 与施力点分开：HOST_MAG_TARGET 是锁定体，HOST_MAG_X/Y 是光标。
+    if EnvStr('HOST_MAG_TARGET') <> '' then
+    begin
+      TargetId := StrToIntDef(EnvStr('HOST_MAG_TARGET'), 0);
+      if (TargetId = 0) or (PhysBodyOf(TargetId) = nil) then
+        TargetId := 0
+      else
+        PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
+    end
+    else if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
     for i := 1 to Steps do
     begin
-      if (TargetId <> 0) and MagOn then
+      if ForceCount > 0 then
+      begin
+        while (ForceIdx < ForceCount) and (Forces[ForceIdx].Step <= i) do
+        begin
+          if Forces[ForceIdx].Step = i then
+            PhysApplyForce(Forces[ForceIdx].Id, Forces[ForceIdx].Fx,
+              Forces[ForceIdx].Fy);
+          Inc(ForceIdx);
+        end;
+      end
+      else if (TargetId <> 0) and MagOn and ((MagUntil = 0) or (i <= MagUntil)) then
       begin
         PhysGetBodyPos(TargetId, MagDX, MagDY, MagIA);
         MagDX := MagX - MagDX;
@@ -1031,7 +1153,15 @@ begin
           PhysApplyForce(TargetId, MagF * MagDX / MagD, MagF * MagDY / MagD);
         end;
       end;
+      while (TorqueIdx < TorqueCount) and (Torques[TorqueIdx].Step <= i) do
+      begin
+        if Torques[TorqueIdx].Step = i then
+          PhysApplyTorque(Torques[TorqueIdx].Id, Torques[TorqueIdx].T);
+        Inc(TorqueIdx);
+      end;
       PhysStep(0.01, 20, 20);
+      if stepOn then
+        g_Level.WriteStepDigest(i, stepLog);
       // T6.4d-4：关卡运行期保留的 Lua state 里每步调 DoProgress(dt)。
       if EnvFlag('HOST_LUA_PROGRESS') and (g_levelLua <> nil) then
       begin
@@ -1046,6 +1176,8 @@ begin
         Lua.SetTop(g_levelLua, 0);
       end;
     end;
+    if stepOn then
+      CloseFile(stepLog);
     if EnvFlag('HOST_LUA_PROGRESS') then
     begin
       AssignFile(ptf2, ExePath('lua_progress.log'));

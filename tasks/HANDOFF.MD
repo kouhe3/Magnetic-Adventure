@@ -159,6 +159,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-3b 宿主真实鼠标磁铁（F448）**：`scenemodel` 记录 `Set_CameraViewArea`；`TLevelScene.ClientToWorld`（F364 的 `hx=max(a,b·W/H)`）；`PhysTestPoint` 走 `b2_Shape_TestPoint`；`magnet.Tick` 轮询 `GetCursorPos`/`GetAsyncKeyState`（env `HOST_MAG_*` 保留）。正例两次（`work/run_vdesk_real.py --tag real1/real2 --active`）：真实拖动 → trace `boot,menu,level,menu,exit`、`mag_real.log down target=1002`、副本 `1→2`；负例 `--click-empty` → `down-miss` 无完成。回归 env 磁铁仍完成、`phys_sweep` 50/2/0、`verify --only physics:sample` PASS。边界：私有桌面收不到真实输入（`SetCursorPos`=0），必须当前输入桌面；150% DPI 下按客户区物理尺寸缩放。
 
+- **2026-11-04 T6.4b-4 力/step 对拍（F449）**：`tools/force_timeline.py` 从原版 `work/ci_fake_magnet_4832.bin` 导出螺丝 body 的 388 条逐 step `ApplyForce`（`--first-step 119`）；宿主 `HOST_MAG_FORCE` 原样施加，`HOST_STEP_LOG` 每步 dump 全部 body；`tools/step_ab.py` 自动对齐后 **787 步 `max_pos=6.648791e-07`、RESULT PASS**。同一步原版另有 `ApplyTorque`/接触滚动，宿主角度未闭合（`HOST_MAG_TORQUE` 可回放但角阻尼不同），所以本判据只认位置。回归 `phys_sweep` 50/2/0、`verify --only physics:sample` PASS、真实鼠标正例仍 PASS。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
