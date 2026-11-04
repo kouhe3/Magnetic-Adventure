@@ -849,6 +849,7 @@ var
   g_Loop: THostLoop = nil;
   g_LoopTimer: TTimer = nil;
   g_LoopSteps, g_LoopCalls, g_LoopStartMs, g_LoopMs: Integer;
+  g_LoopScrCalls, g_LoopScrMoved: Integer;
   g_LuaProgressOn: Boolean = False;
 
 procedure EnterStage(const S: string);
@@ -942,6 +943,9 @@ begin
   WriteLn(tf, 'sprites=', g_Level.Sprites);
   Write(tf, g_Level.Log);
   CloseFile(tf);
+  // 初始化阶段的 Set_ScrObjPos 已由 SceneModel 回放到 JSONL；清空队列，
+  // 让 loop 里的 scrpos_calls 只统计运行期 DoProgress 的调用。
+  ScrPosReset;
   g_InLevel := True;
   WriteTraceIndex('level', Index);
   if g_Viewer <> nil then
@@ -1056,6 +1060,8 @@ begin
     g_LoopStartMs := Integer(GetTickCount);
     g_LoopSteps := 0;
     g_LoopCalls := 0;
+    g_LoopScrCalls := 0;
+    g_LoopScrMoved := 0;
     g_LuaProgressOn := EnvFlag('HOST_LUA_PROGRESS');
     if g_Loop = nil then
       g_Loop := THostLoop.Create;
@@ -1151,6 +1157,8 @@ var
   rc2: Integer;
   tf: TextFile;
   elapsed: Integer;
+  n, pid: Integer;
+  px, py, pa: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
   PhysStep(0.01, 20, 20);
@@ -1166,6 +1174,18 @@ begin
     end;
     Lua.SetTop(g_levelLua, 0);
   end;
+  if g_Level <> nil then
+  begin
+    n := 0;
+    while (n < ScrPosCount) and ScrPosAt(n, pid, px, py, pa) do
+    begin
+      Inc(g_LoopScrCalls);
+      if g_Level.SetSpritePos(pid, px, py, pa) then
+        Inc(g_LoopScrMoved);
+      Inc(n);
+    end;
+    ScrPosReset;
+  end;
   g_Level.SyncPhysics;
   elapsed := Integer(GetTickCount) - g_LoopStartMs;
   if (g_LoopMs > 0) and (elapsed >= g_LoopMs) then
@@ -1174,6 +1194,7 @@ begin
     AssignFile(tf, ExePath('loop.log'));
     Rewrite(tf);
     WriteLn(tf, 'steps=', g_LoopSteps, ' calls=', g_LoopCalls,
+      ' scrpos_calls=', g_LoopScrCalls, ' scrpos_moved=', g_LoopScrMoved,
       ' ms=', elapsed);
     CloseFile(tf);
     if EnvFlag('HOST_EXIT_AFTER_LOOP') then
@@ -1341,6 +1362,15 @@ begin
   V.BringToFront;
   MouseHandler := THostMouseHandler.Create;
   V.OnMouseDown := @MouseHandler.MouseDown;
+  // T6.4d-7 私有桌面测试：进程内直接进关，不依赖鼠标/前台点击。
+  if EnvFlag('HOST_AUTOCLICK') and not LevelMode then
+  begin
+    log := '';
+    EnterLevel(StrToIntDef(EnvStr('HOST_LEVEL_INDEX'),
+      g_profile.LastCompleteLevel), log);
+    if log <> '' then
+      WriteLn(StdErr, 'autoclick enter failed: ', log);
+  end;
 
   V.Invalidate;
   Application.ProcessMessages;

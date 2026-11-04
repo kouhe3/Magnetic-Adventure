@@ -58,6 +58,8 @@ type
     // T6.4b-1：按世界距离找最近的、有物理 body 的 world sprite（磁铁 target 选择）。
     function NearestBody(X, Y: Double; out Handle: Integer;
       out Dist: Double): Boolean;
+    // T6.4d-7：按句柄更新 sprite（DoProgress 的 Set_ScrObjPos）；返回是否发生位移。
+    function SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -257,6 +259,24 @@ begin
       Result := True;
     end;
   end;
+end;
+
+function TLevelScene.SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
+var
+  i: Integer;
+  ox, oy: Double;
+begin
+  Result := False;
+  for i := 0 to High(FSync) do
+    if FSync[i].Handle = Handle then
+    begin
+      ox := FSync[i].Sprite.Position.X;
+      oy := FSync[i].Sprite.Position.Y;
+      FSync[i].Sprite.Position.SetPoint(X, Y, 0);
+      FSync[i].Sprite.Rotation := Angle * 180 / Pi;
+      Result := (Abs(ox - X) + Abs(oy - Y)) > 1e-6;
+      Exit;
+    end;
 end;
 
 function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;

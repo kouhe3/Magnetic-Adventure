@@ -147,6 +147,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-6 持续帧循环（F442）**：`THostLoop`（LCL `TTimer` 16 ms）在 `EnterLevel` 末尾启动；`Tick` 每帧 `PhysStep`+`DoProgress`+`SyncPhysics`，`HOST_LOOP_MS` 到时写 `loop.log`，`HOST_EXIT_AFTER_LOOP=1` 退出。正例 level 3：`steps=39 calls=39 ms=1016`，trace `boot,menu,level(3),exit`；负例 `HOST_LOOP=0` 无 `loop.log`。回归 verify 7/7、phys_sweep 50/2/0。边界：循环只在进关后启动（TTimer 实测 ~26 Hz）；`DoProgress` 的 sprite 副作用仍未接渲染。
 
+- **2026-11-04 T6.4d-7 `Set_ScrObjPos` 接 sprite（F443）**：生成器给 `Set_ScrObjPos` 合并 hook（`PhysSetBodyPos` + `ScrPosAdd`），`luabind.pas` 重新生成 bindings=144；`TLevelScene.SetSpritePos` 按 Handle 更新 `Position/Rotation`；`THostLoop.Tick` 在 `DoProgress` 后应用队列；进关时 `ScrPosReset` 清初始化调用。私有桌面正例 level 3：`loop steps=37 calls=37 scrpos_calls=74 scrpos_moved=37 ms=1000`；负例 `HOST_LUA_PROGRESS=0` → `calls=0 scrpos_calls=0 scrpos_moved=0`。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 门禁待空闲补跑）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

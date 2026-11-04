@@ -7,8 +7,22 @@ interface
 
 uses LuaDll, LuaLog, LuaEvents, PhysWorld;
 
+const
+  ScrPosMax = 64;
+
+type
+  TScrPosRec = record
+    Id: Integer;
+    X, Y, Angle: Double;
+  end;
+
 var
   LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志
+  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列
+  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;
+
+function ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;
+procedure ScrPosReset;
 
 function NextId(const Name: string): Integer;
 procedure ResetIds;
@@ -38,6 +52,39 @@ end;
 procedure ResetIds;
 begin
   g_nextId := 1000;
+end;
+
+procedure ScrPosReset;
+begin
+  ScrPosCount := 0;
+end;
+
+procedure ScrPosAdd(Id: Integer; X, Y, Angle: Double);
+begin
+  if ScrPosCount < ScrPosMax then
+  begin
+    ScrPos[ScrPosCount].Id := Id;
+    ScrPos[ScrPosCount].X := X;
+    ScrPos[ScrPosCount].Y := Y;
+    ScrPos[ScrPosCount].Angle := Angle;
+    Inc(ScrPosCount);
+  end;
+end;
+
+function ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;
+begin
+  Result := (Index >= 0) and (Index < ScrPosCount);
+  if Result then
+  begin
+    Id := ScrPos[Index].Id;
+    X := ScrPos[Index].X;
+    Y := ScrPos[Index].Y;
+    Angle := ScrPos[Index].Angle;
+  end
+  else
+  begin
+    Id := 0; X := 0; Y := 0; Angle := 0;
+  end;
 end;
 
 function bind_Do_Command(L: TLuaState): Integer; cdecl;
@@ -1613,6 +1660,7 @@ begin
   v4 := LuaOptNumber(L, 4, 0.0);
   id := NextId('Set_ScrObjPos');
   PhysSetBodyPos(v1, v2, v3, v4);
+  ScrPosAdd(v1, v2, v3, v4);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -2692,6 +2740,7 @@ procedure RegisterBindings(L: TLuaState);
 begin
   g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;
   LevelComplete := False;
+  ScrPosReset;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);
   Lua.SetField(L, LUA_GLOBALSINDEX, PChar('Do_Command'));
   Lua.PushCClosure(L, Pointer(@bind_Add_WoodBox), 0);

@@ -68,7 +68,8 @@ HOOKS = {
     "Add_JointSimplePrismatic": ["  PhysAddJointSimplePrismatic(id, v1, v2, v3, v4, v5, v6);"],
     "Set_JointLimits": ["  PhysSetJointLimits(v1, v2 <> 0.0, v3, v4);"],
     "Set_JointMotors": ["  PhysSetJointMotors(v1, v2 <> 0.0, v3, v4);"],
-    "Set_ScrObjPos": ["  PhysSetBodyPos(v1, v2, v3, v4);"],
+    "Set_ScrObjPos": ["  PhysSetBodyPos(v1, v2, v3, v4);",
+                      "  ScrPosAdd(v1, v2, v3, v4);"],
     "Set_PhysParams": ["  PhysSetPhysParams(v1, v2, v3, v4);"],
     "Set_PhysFilterData": ["  PhysSetPhysFilter(v1, v2, v3, v4);"],
     "Re_Filter": ["  PhysReFilter(v1);"],
@@ -260,16 +261,31 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"
                  "procedure ResetIds;\nbegin\n  g_nextId := 1000;\nend;\n")
+    parts.append("procedure ScrPosReset;\nbegin\n  ScrPosCount := 0;\nend;\n\n"
+                 "procedure ScrPosAdd(Id: Integer; X, Y, Angle: Double);\nbegin\n"
+                 "  if ScrPosCount < ScrPosMax then\n  begin\n"
+                 "    ScrPos[ScrPosCount].Id := Id;\n"
+                 "    ScrPos[ScrPosCount].X := X;\n"
+                 "    ScrPos[ScrPosCount].Y := Y;\n"
+                 "    ScrPos[ScrPosCount].Angle := Angle;\n"
+                 "    Inc(ScrPosCount);\n  end;\nend;\n\n"
+                 "function ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\n"
+                 "begin\n  Result := (Index >= 0) and (Index < ScrPosCount);\n"
+                 "  if Result then\n  begin\n    Id := ScrPos[Index].Id;\n"
+                 "    X := ScrPos[Index].X;\n    Y := ScrPos[Index].Y;\n"
+                 "    Angle := ScrPos[Index].Angle;\n  end\n  else\n  begin\n"
+                 "    Id := 0; X := 0; Y := 0; Angle := 0;\n  end;\nend;\n")
     for row in rows:
         parts.append(gen_binding(row) + "\n")
     reg = ["procedure RegisterBindings(L: TLuaState);", "begin"]
     reg.append("  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;")
     reg.append("  LevelComplete := False;")
+    reg.append("  ScrPosReset;")
     for row in rows:
         name = row["lua_name"]
         reg.append("  Lua.PushCClosure(L, Pointer(@bind_%s), 0);" % name)
