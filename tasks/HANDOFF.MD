@@ -153,6 +153,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-2b-0 `Get_ScrObjPos` graph 回退（F445）**：`LuaBind` 加 `ScrPosLookup`；`bind_Get_ScrObjPos` 在 `PhysBodyOf(v1)=nil` 时调用；`TLevelScene.GetSpritePos` 按 Handle 读 `Position/Rotation`；`magnet` 设回调并 `HOST_SCRPOS_GET` 写日志。私有桌面 level 1：`scrpos_get.log id=1004 x=-9.000000 y=10.190000 a=1.750000`；负例 id=0 无日志。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：日志未经过 Lua 调用。
 
+- **2026-11-04 T6.4b-2b 测试关真实完成链（F446）**：测试 pak（`ci_fake_magnet build --o test_lvl_o --e test_lvl_e`）+ 解包目录 `work/pak_test_lua`；`Tick` 检测 `LevelComplete` → `WriteLastCompleteLevel(g_LevelIndex+1)` → `ExitLevel`。正例私有桌面：`boot,menu,level(1),menu,exit`、`menu_after layers=21`、`profile.py diff` `1 -> 2`；负例 mag=0：6 s `steps=240 onmove_calls=0`、无第二个 menu、diff 0。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：测试关不是原版关卡；只覆盖 level 1 slot。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

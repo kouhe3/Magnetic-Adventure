@@ -854,6 +854,7 @@ var
   g_MagOn: Boolean = False;
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
+  g_LevelIndex: Integer = -1;
   g_LuaProgressOn: Boolean = False;
 
 procedure EnterStage(const S: string);
@@ -969,6 +970,7 @@ begin
   g_MagTargetId := 0;
   if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
     PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, MagIA);
+  g_LevelIndex := Index;
   g_InLevel := True;
   WriteTraceIndex('level', Index);
   if g_Viewer <> nil then
@@ -1250,6 +1252,15 @@ begin
     ScrPosReset;
   end;
   g_Level.SyncPhysics;
+  // T6.4b-2b：Lua DoLevelComplete 置位后写副本存档并回菜单（真实完成链）。
+  if LevelComplete then
+  begin
+    g_LoopTimer.Enabled := False;
+    if EnvFlag('HOST_SAVE_PROFILE') and (EnvStr('HOST_PROFILE') <> '') then
+      WriteLastCompleteLevel(EnvStr('HOST_PROFILE'), g_LevelIndex + 1);
+    ExitLevel;
+    Exit;
+  end;
   elapsed := Integer(GetTickCount) - g_LoopStartMs;
   if (g_LoopMs > 0) and (elapsed >= g_LoopMs) then
   begin
