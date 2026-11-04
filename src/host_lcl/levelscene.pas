@@ -42,9 +42,10 @@ type
     // T6.4b-3b：Set_CameraViewArea(a,b) 的实参（F364）；由 BuildFromModel 填。
     FViewA, FViewB: Double;
     // T6.4f-visual：提示按钮（hintwood/helptime/numsatl）与数字图集材质库。
+    // F469：原版把同一组 sprite 逐帧画两遍（见 BuildHintVisual），这里存两套实例。
     FHintLib: TGLMaterialLibrary;
-    FHintSprites: array[0..4] of TGLBaseSceneObject;
-    FHintDigits: array[0..2] of TGLHUDSprite;
+    FHintSprites: array[0..9] of TGLBaseSceneObject;
+    FHintDigits: array[0..5] of TGLHUDSprite;
     function AddWorld(const Asset: string; X, Y, Angle, ScaleX, ScaleY,
       Alpha: Single; Handle: Integer = 0): Boolean;
     function AddHud(const Asset: string; X, Y, W, H, Alpha: Single): Boolean;
@@ -130,8 +131,8 @@ begin
     FHintLib.Free;
     FHintLib := nil;
   end;
-  for i := 0 to 4 do FHintSprites[i] := nil;
-  for i := 0 to 2 do FHintDigits[i] := nil;
+  for i := 0 to 9 do FHintSprites[i] := nil;
+  for i := 0 to 5 do FHintDigits[i] := nil;
   SetLength(FSync, 0);
   FSyncCount := 0;
   FSprites := 0;
@@ -470,7 +471,7 @@ const
   DIGIT_W: array[0..2] of Double = (25.45, 25.45, 25.96);
 var
   Err: string;
-  k: Integer;
+  k, Pass: Integer;
   LM: TGLLibMaterial;
   W: TGLSprite;
   H: TGLHUDSprite;
@@ -498,61 +499,70 @@ begin
     LM.TextureScale.SetPoint(0.1, 1, 1);
     LM.TextureOffset.SetPoint(k * 0.1, 0, 0);
   end;
-  // 世界木牌
-  W := TGLSprite.Create(FScene);
-  // 原版 draw bbox 是相机相对量；相机 (-2,-5) ⇒ 场景中心 = (0,0)。
-  W.Position.SetPoint(0, 0, 0);
-  W.Width := 10;
-  W.Height := 5;
-  W.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
-  W.Material.BlendingMode := bmTransparency;
-  W.Material.Texture.TextureMode := tmModulate;
+  // 木牌/底板的纹理也进库，两套 sprite 共享同一份纹理（只上传一次）。
+  LM := FHintLib.Materials.Add;
+  LM.Name := 'hint_wood';
   Err := '';
-  if not LoadPakTexture(FPak, 'hintwood.png', W.Material.Texture, '', Err) then
+  if not LoadPakTexture(FPak, 'hintwood.png', LM.Material.Texture, '', Err) then
   begin
     FLog := FLog + Err;
-    W.Free;
     Exit;
   end;
-  FScene.Objects.AddChild(W);
-  FObjects.Add(W);
-  Inc(FSprites);
-  FHintSprites[0] := W;
-  // HUD 底板
-  H := TGLHUDSprite.Create(FScene);
-  H.Position.SetPoint(773.68 + 259.59 * 0.5, 546.86 + 129.33 * 0.5, 0);
-  H.Width := 259.59;
-  H.Height := 129.33;
-  H.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
-  H.Material.BlendingMode := bmTransparency;
-  H.Material.Texture.TextureMode := tmModulate;
+  LM.Material.Texture.TextureMode := tmModulate;
+  LM.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+  LM.Material.BlendingMode := bmTransparency;
+  LM := FHintLib.Materials.Add;
+  LM.Name := 'hint_btn';
   Err := '';
-  if not LoadPakTexture(FPak, 'helptime.png', H.Material.Texture, '', Err) then
+  if not LoadPakTexture(FPak, 'helptime.png', LM.Material.Texture, '', Err) then
   begin
     FLog := FLog + Err;
-    H.Free;
     Exit;
   end;
-  FScene.Objects.AddChild(H);
-  FObjects.Add(H);
-  Inc(FSprites);
-  FHintSprites[1] := H;
-  // 三个数字 sprite（材质库选格）
-  for k := 0 to 2 do
+  LM.Material.Texture.TextureMode := tmModulate;
+  LM.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
+  LM.Material.BlendingMode := bmTransparency;
+  // F469：原版一帧内把可见的这组 sprite 画两遍（两遍 tex/bbox/tm/rgba/caps/blend
+  // 逐字段相同）；宿主用两个独立实例复现同样的 10 条 draw。
+  for Pass := 0 to 1 do
   begin
+    // 世界木牌；原版 draw bbox 是相机相对量，相机 (-2,-5) ⇒ 场景中心 = (0,0)。
+    W := TGLSprite.Create(FScene);
+    W.Position.SetPoint(0, 0, 0);
+    W.Width := 10;
+    W.Height := 5;
+    W.Material.MaterialLibrary := FHintLib;
+    W.Material.LibMaterialName := 'hint_wood';
+    FScene.Objects.AddChild(W);
+    FObjects.Add(W);
+    Inc(FSprites);
+    FHintSprites[Pass * 5] := W;
+    // HUD 底板
     H := TGLHUDSprite.Create(FScene);
-    H.Position.SetPoint(DIGIT_L[k] + DIGIT_W[k] * 0.5, 603.02 + 32.16 * 0.5, 0);
-    H.Width := DIGIT_W[k];
-    H.Height := 32.16;
-    H.Material.FrontProperties.Diffuse.SetColor(1, 1, 1, 1);
-    H.Material.BlendingMode := bmTransparency;
+    H.Position.SetPoint(773.68 + 259.59 * 0.5, 546.86 + 129.33 * 0.5, 0);
+    H.Width := 259.59;
+    H.Height := 129.33;
     H.Material.MaterialLibrary := FHintLib;
-    H.Material.LibMaterialName := 'hint_digit_0';
+    H.Material.LibMaterialName := 'hint_btn';
     FScene.Objects.AddChild(H);
     FObjects.Add(H);
     Inc(FSprites);
-    FHintDigits[k] := H;
-    FHintSprites[2 + k] := H;
+    FHintSprites[Pass * 5 + 1] := H;
+    // 三个数字 sprite（材质库选格）
+    for k := 0 to 2 do
+    begin
+      H := TGLHUDSprite.Create(FScene);
+      H.Position.SetPoint(DIGIT_L[k] + DIGIT_W[k] * 0.5, 603.02 + 32.16 * 0.5, 0);
+      H.Width := DIGIT_W[k];
+      H.Height := 32.16;
+      H.Material.MaterialLibrary := FHintLib;
+      H.Material.LibMaterialName := 'hint_digit_0';
+      FScene.Objects.AddChild(H);
+      FObjects.Add(H);
+      Inc(FSprites);
+      FHintDigits[Pass * 3 + k] := H;
+      FHintSprites[Pass * 5 + 2 + k] := H;
+    end;
   end;
   SetHintCells(Cells, Time);
   Result := True;
@@ -560,7 +570,7 @@ end;
 
 procedure TLevelScene.SetHintCells(const Cells: string; Time: Double);
 var
-  a, b, c, n: Integer;
+  a, b, c, n, Pass: Integer;
   S: string;
 begin
   if FHintLib = nil then Exit;
@@ -584,9 +594,12 @@ begin
     if b < 0 then b := n div 10 mod 10;
     if c < 0 then c := n mod 10;
   end;
-  FHintDigits[0].Material.LibMaterialName := 'hint_digit_' + IntToStr(a);
-  FHintDigits[1].Material.LibMaterialName := 'hint_digit_' + IntToStr(b);
-  FHintDigits[2].Material.LibMaterialName := 'hint_digit_' + IntToStr(c);
+  for Pass := 0 to 1 do
+  begin
+    FHintDigits[Pass * 3 + 0].Material.LibMaterialName := 'hint_digit_' + IntToStr(a);
+    FHintDigits[Pass * 3 + 1].Material.LibMaterialName := 'hint_digit_' + IntToStr(b);
+    FHintDigits[Pass * 3 + 2].Material.LibMaterialName := 'hint_digit_' + IntToStr(c);
+  end;
 end;
 
 end.

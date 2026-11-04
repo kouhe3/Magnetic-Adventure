@@ -131,7 +131,8 @@
 - [x] T6.4g GLFFI02 的 TEXTURE 矩阵已进 draw 列表：`tools/gl_drawlist.py` 输出 `tm[16]`/`uv_t`（`--texmat`）；实证 tex 66/67/68 是 scale=0.1 的图集选格、tex 64/65 identity；fill 与时间的归因由 T6.4f-oracle-1 接力 依据：F460、F461
 - [x] T6.4f-oracle-1 数字格锚定游戏时间：`k=(10−floor(t+p))%10`，`t=[0x665334]+0x30` float，p∈(0.375,0.394]；内部样本 75/75 依据：F463
 - [x] T6.4f-visual-0 宿主渲染提示按钮 5 sprite（hintwood/helptime/numsatl，材质库选格）；5/5 逐 draw 对齐（bbox ≤0.0045、tm/uv_t 0） 依据：F461、F463、F464
-- [ ] T6.4f-visual-1 两遍 hint draw 归因：给 `direct_drive` 加 root 隐藏探针，验证第二遍是 front/hints 两个 root 各挂一份；像素层另证 依据：F465
+- [x] T6.4f-visual-1 两遍 hint draw 归因：两遍是同一组 sprite 的重复绘制（tex/bbox/tm/rgba/caps/blend 逐字段相同，raw/M 也相同）；"front/hints 两个 root" 已证伪（F465）；宿主建两套 5 sprite 共享材质库，`probe_hint_passes.py --geom` `counts={10:16} pair_mismatches=0`，改前单遍 `counts={5:31}` FAIL 依据：F465、F469
+- [ ] T6.4f-visual-3 提示按钮 alpha 淡入淡出：零售 hint draw 的 rgba alpha 随 t 变化（t≈9.65→0.255、t≈12.23→0.153，同帧两遍相同）；需定目标值与速率，宿主目前恒 1 依据：F469
 - [x] T6.4f-visual-2a 第三位按 `t` 自动选格：`HOST_HINT_CELLS=1,7,?` + `HOST_LEVEL_TIME=1.0` → 9，对 aa25 帧 5/5 依据：F464
 - [x] T6.4f-visual-2b 数字三位同一倒计时：三位 = `N=180−floor(t+0.38)` 的百/十/个位；长窗口 256 个数字帧 `mismatches=0`（负例 `--base=181` 200 失配），十位 run 8→7→6→5；宿主 `SetHintCells` 支持 `auto`/`?`（t=12.233 → (1,6,8) 对零售 frame 1662 5/5、t=1.0 → (1,7,9)、显式 1,7,8 不变） 依据：F468
 - [x] T6.4d-4 持久 Lua state + `DoProgress`：`HOST_KEEP_LUA=1` 保留 state，`EnterLevel` 每步 `PCall('DoProgress',0.01)`；level 3 calls=100 rc=0、lua_bind_ab 187/187、sync_after=0；负例 `HOST_LUA_PROGRESS=0` 无日志、`HOST_KEEP_LUA=0` calls=0 依据：F438

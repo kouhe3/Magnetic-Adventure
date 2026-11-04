@@ -1,9 +1,11 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-2b/F468**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F468**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469** 与 **T6.4f-visual-2b/F468**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F469**。
 
 ## 0. 一句话现状
+
+**2026-11-04 T6.4f-visual-1 收口（F465/F469）**：原版每帧把提示按钮里当前可见的 sprite **画两遍**（同一组对象、同一状态；990 个 hint 帧 draw 数恒为偶数 2/8/10，前半==后半，`pair_mismatches=0`）；“front/hints 两个 root 各挂一份”已证伪。宿主 `BuildHintVisual` 建两套 5 sprite、共享材质库：`probe_hint_passes.py --geom` → `counts={10:16}` PASS，改前单遍 `counts={5:31}` FAIL；对零售 frame 1662 `probe_hint_visual` 仍 5/5。alpha 淡入淡出仍未建模（T6.4f-visual-3）。
 
 **2026-11-04 T6.4f-visual-2b 收口（F468）**：提示按钮三位数字是同一个 180 秒倒计时的十进制位（`N=180−floor(t+0.38)`，`t=[0x665334]+0x30`）；十位不是常量（8→7→6→5）。宿主 `SetHintCells` 支持 `auto`/`?` 由关卡时间算三位：t=12.233 → (1,6,8) 对零售 frame 1662 `pairs=5 mismatches=0`、t=1.0 → (1,7,9)、显式 1,7,8 不变；6 门禁 + `phys_sweep` 50/2/0，window 待补。
 
