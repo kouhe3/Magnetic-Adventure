@@ -21,6 +21,9 @@ procedure EventsAdd(ObjId: Integer; const Event, FuncName: string);
 function EventsCount: Integer;
 function EventsFire(L: TLuaState; ObjId: Integer; const Event: string;
   Body2: Integer; out Calls: Integer): Integer;
+// T6.4b-2a：OnMove 回调签名是 (PosX, PosY)（Double），不能用 Integer 版。
+function EventsFireMove(L: TLuaState; ObjId: Integer; X, Y: Double;
+  out Calls: Integer): Integer;
 function EvalIntExpr(L: TLuaState; const Expr: string; out Value: Integer;
   out Err: string): Boolean;
 function EventsFireExpr(L: TLuaState; ObjId: Integer; const Event,
@@ -125,6 +128,35 @@ begin
 end;
 
 // Body2 用 Lua 表达式给出（如 gLSystem.bGearB），避免把对象 id 写死。
+function EventsFireMove(L: TLuaState; ObjId: Integer; X, Y: Double;
+  out Calls: Integer): Integer;
+var
+  i, rc: Integer;
+begin
+  Result := 0;
+  Calls := 0;
+  for i := 0 to High(gBindings) do
+    if (gBindings[i].ObjId = ObjId) and (gBindings[i].EventName = 'OnMove') then
+    begin
+      Inc(Calls);
+      Lua.GetField(L, LUA_GLOBALSINDEX, PChar(gBindings[i].FuncName));
+      if Lua.LType(L, -1) = LUA_TFUNCTION then
+      begin
+        Lua.PushInteger(L, ObjId);
+        Lua.SetField(L, LUA_GLOBALSINDEX, PChar('self'));
+        Lua.PushNumber(L, X);
+        Lua.PushNumber(L, Y);
+        rc := Lua.PCall(L, 2, 0, 0);
+        if rc = 0 then
+          Inc(Result)
+        else
+          LuaLastError(L);
+      end
+      else
+        Lua.SetTop(L, -2);
+    end;
+end;
+
 function EventsFireExpr(L: TLuaState; ObjId: Integer; const Event,
   Body2Expr: string; out Fired: Integer; out Err: string): Boolean;
 var

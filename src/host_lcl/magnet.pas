@@ -850,6 +850,10 @@ var
   g_LoopTimer: TTimer = nil;
   g_LoopSteps, g_LoopCalls, g_LoopStartMs, g_LoopMs: Integer;
   g_LoopScrCalls, g_LoopScrMoved: Integer;
+  g_LoopMoveCalls: Integer;
+  g_MagOn: Boolean = False;
+  g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
+  g_MagTargetId: Integer = 0;
   g_LuaProgressOn: Boolean = False;
 
 procedure EnterStage(const S: string);
@@ -946,6 +950,13 @@ begin
   // 初始化阶段的 Set_ScrObjPos 已由 SceneModel 回放到 JSONL；清空队列，
   // 让 loop 里的 scrpos_calls 只统计运行期 DoProgress 的调用。
   ScrPosReset;
+  // T6.4b-2a：帧循环的磁铁 target 与 OnMove 派发用全局状态。
+  g_MagOn := EnvFlag('HOST_MAG_BUTTON');
+  g_MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
+  g_MagY := StrToFloatDef(EnvStr('HOST_MAG_Y'), 0.0);
+  g_MagTargetId := 0;
+  if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
+    PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, MagIA);
   g_InLevel := True;
   WriteTraceIndex('level', Index);
   if g_Viewer <> nil then
@@ -1062,6 +1073,7 @@ begin
     g_LoopCalls := 0;
     g_LoopScrCalls := 0;
     g_LoopScrMoved := 0;
+    g_LoopMoveCalls := 0;
     g_LuaProgressOn := EnvFlag('HOST_LUA_PROGRESS');
     if g_Loop = nil then
       g_Loop := THostLoop.Create;
@@ -1157,12 +1169,39 @@ var
   rc2: Integer;
   tf: TextFile;
   elapsed: Integer;
-  n, pid: Integer;
-  px, py, pa: Double;
+  n, pid, moveCalls: Integer;
+  px, py, pa, dx, dy, d, f: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
+  if g_MagOn and (g_MagTargetId <> 0) then
+  begin
+    PhysGetBodyPos(g_MagTargetId, px, py, pa);
+    dx := g_MagX - px;
+    dy := g_MagY - py;
+    d := Sqrt(dx * dx + dy * dy);
+    if d > 1e-6 then
+    begin
+      f := 30.0 * d;
+      if f > 315.0 then f := 315.0;
+      PhysApplyForce(g_MagTargetId, f * dx / d, f * dy / d);
+    end;
+  end;
   PhysStep(0.01, 20, 20);
   Inc(g_LoopSteps);
+  // T6.4b-2a：target 位移 >1e-3 时按 (PosX,PosY) 派发 OnMove。
+  if g_MagOn and (g_MagTargetId <> 0) then
+  begin
+    PhysGetBodyPos(g_MagTargetId, px, py, pa);
+    if (Abs(px - g_MagLastX) + Abs(py - g_MagLastY)) > 1e-3 then
+    begin
+      moveCalls := 0;
+      if g_levelLua <> nil then
+        EventsFireMove(g_levelLua, g_MagTargetId, px, py, moveCalls);
+      Inc(g_LoopMoveCalls, moveCalls);
+      g_MagLastX := px;
+      g_MagLastY := py;
+    end;
+  end;
   if g_LuaProgressOn and (g_levelLua <> nil) then
   begin
     Lua.GetField(g_levelLua, LUA_GLOBALSINDEX, PChar('DoProgress'));
@@ -1195,6 +1234,7 @@ begin
     Rewrite(tf);
     WriteLn(tf, 'steps=', g_LoopSteps, ' calls=', g_LoopCalls,
       ' scrpos_calls=', g_LoopScrCalls, ' scrpos_moved=', g_LoopScrMoved,
+      ' onmove_calls=', g_LoopMoveCalls,
       ' ms=', elapsed);
     CloseFile(tf);
     if EnvFlag('HOST_EXIT_AFTER_LOOP') then
