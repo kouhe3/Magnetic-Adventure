@@ -80,8 +80,8 @@ type
     // T6.4f-visual：建 5 个提示按钮 sprite（世界木牌 + HUD 底板 + 3 数字）；
     // Cells='a,b,c' 指定 numsatl 图集格（0..9）；数字材质用 TextureOffset/Scale
     // 生成与原版同形状的 TEXTURE 矩阵（F461/F463）。
-    function BuildHintVisual(const Cells: string): Boolean;
-    procedure SetHintCells(const Cells: string);
+    function BuildHintVisual(const Cells: string; Time: Double): Boolean;
+    procedure SetHintCells(const Cells: string; Time: Double);
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -461,7 +461,7 @@ begin
   end;
 end;
 
-function TLevelScene.BuildHintVisual(const Cells: string): Boolean;
+function TLevelScene.BuildHintVisual(const Cells: string; Time: Double): Boolean;
 const
   // 原版 draw 列表（work/gl_hint_l4show，F457/F461）：世界木牌 bbox (-3,2.5)-(7,7.5)；
   // HUD 底板 NDC (0.52,-0.83)-(1.03,-0.48)；数字 NDC x 0.710/0.749/0.788，宽 0.050，
@@ -478,7 +478,7 @@ begin
   Result := False;
   if FHintLib <> nil then
   begin
-    SetHintCells(Cells);
+    SetHintCells(Cells, Time);
     Exit(True);
   end;
   FHintLib := TGLMaterialLibrary.Create(nil);
@@ -554,18 +554,22 @@ begin
     FHintDigits[k] := H;
     FHintSprites[2 + k] := H;
   end;
-  SetHintCells(Cells);
+  SetHintCells(Cells, Time);
   Result := True;
 end;
 
-procedure TLevelScene.SetHintCells(const Cells: string);
+procedure TLevelScene.SetHintCells(const Cells: string; Time: Double);
 var
   a, b, c: Integer;
 begin
   if FHintLib = nil then Exit;
   a := ParseHintCell(Cells, 0, 0);
   b := ParseHintCell(Cells, 1, 0);
-  c := ParseHintCell(Cells, 2, 0);
+  // 第三位：'?' 或省略时按 F463 的规律从游戏时间算（k=(10-floor(t+0.38)) mod 10）。
+  if (Pos('?', Cells) > 0) or (ParseHintCell(Cells, 2, -1) < 0) then
+    c := (10 - Trunc(Time + 0.38)) mod 10
+  else
+    c := ParseHintCell(Cells, 2, 0);
   FHintDigits[0].Material.LibMaterialName := 'hint_digit_' + IntToStr(a);
   FHintDigits[1].Material.LibMaterialName := 'hint_digit_' + IntToStr(b);
   FHintDigits[2].Material.LibMaterialName := 'hint_digit_' + IntToStr(c);

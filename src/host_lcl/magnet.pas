@@ -1052,7 +1052,8 @@ begin
     BuildOk := g_Level.BuildFromModel(EnvStr('HOST_LUA_LOG'), EnvStr('HOST_PAK_DIR'),
       StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0));
     if EnvStr('HOST_HINT_VISUAL') <> '' then
-      if not g_Level.BuildHintVisual(EnvStr('HOST_HINT_CELLS')) then
+      if not g_Level.BuildHintVisual(EnvStr('HOST_HINT_CELLS'),
+        StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0)) then
         WriteLn('hint_visual failed: ', g_Level.Log);
   finally
     if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
