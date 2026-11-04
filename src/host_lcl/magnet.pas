@@ -161,6 +161,7 @@ end;
 // 与 Lua 同一线程；g_lua 只在步进循环期间非空。
 var
   g_lua: TLuaState = nil;
+  g_levelLua: TLuaState = nil;  // T6.4d-4：HOST_KEEP_LUA=1 时保留的关卡 state
   g_contacts: Integer = 0;
   g_contactTrace: string = '';
 
@@ -491,7 +492,10 @@ begin
     Result := 'ok';
   finally
     LuaLogClose;
-    Lua.Close(L);
+    if EnvFlag('HOST_KEEP_LUA') then
+      g_levelLua := L
+    else
+      Lua.Close(L);
   end;
 end;
 
@@ -855,8 +859,10 @@ var
   runLog, rc: string;
   BuildOk: Boolean;
   i, Steps, SyncCount: Integer;
+  ProgressCalls, ProgressRc, rc2: Integer;
+  StepsStr: string;
   SyncFirst, SyncAfter: Double;
-  tf, ptf: TextFile;
+  tf, ptf, ptf2: TextFile;
 begin
   Err := '';
   if g_InLevel then Exit;
@@ -868,7 +874,15 @@ begin
       Err := 'PhysStart failed';
       Exit;
     end;
+  // T6.4d-4：LuaBindRun 自带的 HOST_PHYS_STEPS 步进是自检用；EnterLevel 在外面
+  // 统一步进，调用期间临时清空，避免内外层各走一遍（T6.4d-3 的 100 步实际走了 200）。
+  Steps := StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0);
+  StepsStr := EnvStr('HOST_PHYS_STEPS');
+  if Steps > 0 then
+    SetEnvironmentVariable('HOST_PHYS_STEPS', nil);
   rc := LuaBindRunLevel(Index, runLog);
+  if Steps > 0 then
+    SetEnvironmentVariable('HOST_PHYS_STEPS', PChar(StepsStr));
   EnterStage('stage=lua rc=' + rc + ' menu_nil=' + BoolToStr(g_Menu = nil, True));
   if rc <> 'level=' + IntToStr(Index) + ' ok' then
   begin
@@ -912,11 +926,34 @@ begin
   // T6.4d-3：HOST_PHYS_STEPS>0 时步进并把 world sprite 同步到物理体。
   // 第一次 SyncPhysics 记录"同步前 sprite 与 body 的位置差"（即物理位移），
   // 第二次记录同步后残差（应为 0），用于判据 sync_after。
-  if EnvFlag('HOST_PHYS') and (StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0) > 0) then
+  if EnvFlag('HOST_PHYS') and (Steps > 0) then
   begin
-    Steps := StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0);
+    ProgressCalls := 0;
+    ProgressRc := 0;
     for i := 1 to Steps do
+    begin
       PhysStep(0.01, 20, 20);
+      // T6.4d-4：关卡运行期保留的 Lua state 里每步调 DoProgress(dt)。
+      if EnvFlag('HOST_LUA_PROGRESS') and (g_levelLua <> nil) then
+      begin
+        Lua.GetField(g_levelLua, LUA_GLOBALSINDEX, PChar('DoProgress'));
+        if Lua.LType(g_levelLua, -1) = 6 then
+        begin
+          Lua.PushNumber(g_levelLua, 0.01);
+          rc2 := Lua.PCall(g_levelLua, 1, 0, 0);
+          if rc2 <> 0 then Inc(ProgressRc);
+          Inc(ProgressCalls);
+        end;
+        Lua.SetTop(g_levelLua, 0);
+      end;
+    end;
+    if EnvFlag('HOST_LUA_PROGRESS') then
+    begin
+      AssignFile(ptf2, ExePath('lua_progress.log'));
+      Rewrite(ptf2);
+      WriteLn(ptf2, 'calls=', ProgressCalls, ' rc=', ProgressRc);
+      CloseFile(ptf2);
+    end;
     SyncCount := g_Level.SyncPhysics;
     SyncFirst := g_Level.SyncMaxErr;
     g_Level.SyncPhysics;
