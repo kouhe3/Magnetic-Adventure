@@ -5,7 +5,9 @@
       --out force.txt [--torque torque.txt]
 
 输出:
-  force.txt  每行 `host_step id fx fy`
+  force.txt  每行 `host_step id fx fy px py`
+              （px/py = 原版 ApplyForce 的施力点，日志 m2 前两 float；
+              4 列旧格式仍可读，宿主按 body 中心处理）
   torque.txt 每行 `host_step id torque`
   host_step = 原版 step_no - first_step + 1（step_no 是首次 b2_World_Step
   之前的调用记为 0，之后每有一次 Step 加 1）。
@@ -60,8 +62,9 @@ def main():
             step += 1
         elif name == "b2_Body_ApplyForce" and v[6] == a.body_ptr:
             fx, fy = struct.unpack("<2f", v[39][:8])
+            px, py = struct.unpack("<2f", v[40][:8])
             if abs(fx) > 1e-12 or abs(fy) > 1e-12:
-                forces.append((step, a.id, fx, fy))
+                forces.append((step, a.id, fx, fy, px, py))
         elif name == "b2_Body_ApplyTorque" and v[6] == a.body_ptr:
             t = struct.unpack("<f", struct.pack("<I", v[7]))[0]
             if abs(t) > 1e-12:
@@ -72,11 +75,11 @@ def main():
 
     nf = 0
     with open(a.out, "w", encoding="utf-8") as f:
-        for s, bid, fx, fy in forces:
+        for s, bid, fx, fy, px, py in forces:
             hs = host_step(s)
             if hs < 1:
                 continue
-            f.write("%d %d %.9g %.9g\n" % (hs, bid, fx, fy))
+            f.write("%d %d %.9g %.9g %.9g %.9g\n" % (hs, bid, fx, fy, px, py))
             nf += 1
     nt = 0
     if a.torque:

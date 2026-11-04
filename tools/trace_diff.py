@@ -12,6 +12,11 @@ of the other run (t is relative to process start).  Exit 0 = PASS.
 
 Usage:
   python tools/trace_diff.py A.jsonl B.jsonl [--tol-ms 300]
+  python tools/trace_diff.py A.jsonl B.jsonl --sequence-only --index
+
+`--sequence-only` 跳过绝对时刻，只比状态序列；`--index` 在两边都有
+`index` 的行（level）上再比关卡索引。跨实现（原版 vs 宿主）用这两个，
+因为宿主的启动/加载时长不是原版 15 s 路径。
 
 Boundary: compares only the states the sampler observes (boot/menu/level/exit);
 it does not inspect pixels or in-level events.
@@ -37,6 +42,10 @@ def main():
     ap.add_argument("a")
     ap.add_argument("b")
     ap.add_argument("--tol-ms", type=int, default=300)
+    ap.add_argument("--sequence-only", action="store_true",
+                    help="只比状态序列，不比绝对时刻")
+    ap.add_argument("--index", action="store_true",
+                    help="两边都有 index 的行比较关卡索引")
     a = ap.parse_args()
     ra, rb = load(a.a), load(a.b)
     if not ra or not rb:
@@ -51,6 +60,12 @@ def main():
         issues.append("state sequence differs: %s vs %s" % (sa, sb))
     else:
         for i, (x, y) in enumerate(zip(ra, rb)):
+            if a.index and ("index" in x) and ("index" in y):
+                if x["index"] != y["index"]:
+                    issues.append("index differs at %s: %s vs %s" %
+                                  (x["state"], x["index"], y["index"]))
+            if a.sequence_only:
+                continue
             d = x["t_ms"] - y["t_ms"]
             print("  %-5s tA=%6d tB=%6d dt=%+5d" % (x["state"], x["t_ms"],
                                                     y["t_ms"], d))

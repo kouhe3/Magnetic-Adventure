@@ -2,7 +2,7 @@
 
 用法:
   python tools/step_ab.py <orig.bin> <host_step.log> --body-ptr N --host-id ID
-      [--offset auto|N] [--tol 1e-6] [--show K]
+      [--offset auto|N] [--tol 1e-6] [--angle-tol RAD] [--show K]
 
 输入:
   * orig.bin    —— 原版代理日志（B2FFI02）；kind=2 的 digest 记录给出
@@ -16,8 +16,8 @@
 
 判据:
   PASS = 选定 body 的逐 step 位置误差最大值 <= --tol（默认 1e-6，相对
-  世界单位；F32 级一致时实测 ~6.6e-7）。角度单独报，不参与 PASS：
-  原版同一步可能还有 ApplyTorque/接触滚动，力回放未覆盖。
+  世界单位；F32 级一致时实测 ~6.6e-7）。给了 --angle-tol 时角度也参与
+  PASS；不给则角度只报告（F449 的旧口径：力回放未含施力点/扭矩）。
 
 覆盖边界:
   * 只比 digest 的前 13 个 float（ptr/flags/sleep/v/w/px/py/angle）；
@@ -79,6 +79,8 @@ def main():
     ap.add_argument("--host-id", type=int, required=True)
     ap.add_argument("--offset", default="auto")
     ap.add_argument("--tol", type=float, default=1e-6)
+    ap.add_argument("--angle-tol", type=float, default=None,
+                    help="给了就把 max_angle 纳入 PASS")
     ap.add_argument("--show", type=int, default=6)
     a = ap.parse_args()
 
@@ -125,6 +127,8 @@ def main():
             print("  %d->%d host=(%.6f,%.6f,%.6f) orig=(%.6f,%.6f,%.6f)" %
                   (i, j, hp[0], hp[1], hp[2], op[0], op[1], op[2]))
     ok = compared > 0 and worst_pos[0] <= a.tol
+    if a.angle_tol is not None:
+        ok = ok and worst_ang[0] <= a.angle_tol
     print("RESULT", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

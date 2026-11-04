@@ -838,7 +838,8 @@ end;
 type
   TStepForce = record
     Step, Id: Integer;
-    Fx, Fy: Double;
+    Fx, Fy, Px, Py: Double;
+    HasPoint: Boolean;
   end;
 
   TStepTorque = record
@@ -1055,6 +1056,7 @@ begin
         with Forces[ForceCount] do
         begin
           Step := 0; Id := 0; Fx := 0; Fy := 0;
+          Px := 0; Py := 0; HasPoint := False;
           fi := 1;
           while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
           ftok := '';
@@ -1076,6 +1078,24 @@ begin
           while (fi <= Length(fline)) and (fline[fi] <> ' ') do
           begin ftok := ftok + fline[fi]; Inc(fi); end;
           Val(ftok, Fy, fcode);
+          // T6.4b-4b：可选的第 5/6 列是原版施力点；缺省按 body 中心。
+          while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+          if fi <= Length(fline) then
+          begin
+            ftok := '';
+            while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+            begin ftok := ftok + fline[fi]; Inc(fi); end;
+            Val(ftok, Px, fcode);
+            while (fi <= Length(fline)) and (fline[fi] = ' ') do Inc(fi);
+            if fi <= Length(fline) then
+            begin
+              ftok := '';
+              while (fi <= Length(fline)) and (fline[fi] <> ' ') do
+              begin ftok := ftok + fline[fi]; Inc(fi); end;
+              Val(ftok, Py, fcode);
+              HasPoint := True;
+            end;
+          end;
         end;
         Inc(ForceCount);
       end;
@@ -1135,8 +1155,14 @@ begin
         while (ForceIdx < ForceCount) and (Forces[ForceIdx].Step <= i) do
         begin
           if Forces[ForceIdx].Step = i then
-            PhysApplyForce(Forces[ForceIdx].Id, Forces[ForceIdx].Fx,
-              Forces[ForceIdx].Fy);
+          begin
+            if Forces[ForceIdx].HasPoint then
+              PhysApplyForceAt(Forces[ForceIdx].Id, Forces[ForceIdx].Fx,
+                Forces[ForceIdx].Fy, Forces[ForceIdx].Px, Forces[ForceIdx].Py)
+            else
+              PhysApplyForce(Forces[ForceIdx].Id, Forces[ForceIdx].Fx,
+                Forces[ForceIdx].Fy);
+          end;
           Inc(ForceIdx);
         end;
       end

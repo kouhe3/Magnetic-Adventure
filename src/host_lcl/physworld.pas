@@ -127,6 +127,8 @@ procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
 function PhysTestPoint(Id: Integer; X, Y: Double): Boolean;
 // T6.4b-1：在 body 中心施加世界力（不产生力矩；原版磁铁力律见 F386）。
 procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
+// T6.4b-4b：按原版记录的世界施力点施加，力臂不为 0 时产生力矩。
+procedure PhysApplyForceAt(Id: Integer; Fx, Fy, Px, Py: Double);
 // T6.4b-4：施加扭矩（原版 magnet 同一步还有 ApplyTorque，影响角度）。
 procedure PhysApplyTorque(Id: Integer; Torque: Double);
 // T6.4b-4：把当前所有已注册 body 写一行 digest（step id x y angle）。
@@ -1117,18 +1119,24 @@ end;
 
 procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
 var
+  x, y, a: Double;
+begin
+  PhysGetBodyPos(Id, x, y, a);
+  PhysApplyForceAt(Id, Fx, Fy, x, y);
+end;
+
+procedure PhysApplyForceAt(Id: Integer; Fx, Fy, Px, Py: Double);
+var
   b: Pointer;
   f, p: TPhysVec2;
-  x, y, a: Double;
 begin
   if not g_active then Exit;
   b := PhysBodyOf(Id);
   if b = nil then Exit;
-  PhysGetBodyPos(Id, x, y, a);
   f.x := Fx;
   f.y := Fy;
-  p.x := x;
-  p.y := y;
+  p.x := Px;
+  p.y := Py;
   g_applyForce(b, @f, @p);
 end;
 

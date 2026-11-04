@@ -1,7 +1,7 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F433**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F452**。
 
 ## 0. 一句话现状
 
@@ -160,6 +160,10 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 - **2026-11-04 T6.4b-3b 宿主真实鼠标磁铁（F448）**：`scenemodel` 记录 `Set_CameraViewArea`；`TLevelScene.ClientToWorld`（F364 的 `hx=max(a,b·W/H)`）；`PhysTestPoint` 走 `b2_Shape_TestPoint`；`magnet.Tick` 轮询 `GetCursorPos`/`GetAsyncKeyState`（env `HOST_MAG_*` 保留）。正例两次（`work/run_vdesk_real.py --tag real1/real2 --active`）：真实拖动 → trace `boot,menu,level,menu,exit`、`mag_real.log down target=1002`、副本 `1→2`；负例 `--click-empty` → `down-miss` 无完成。回归 env 磁铁仍完成、`phys_sweep` 50/2/0、`verify --only physics:sample` PASS。边界：私有桌面收不到真实输入（`SetCursorPos`=0），必须当前输入桌面；150% DPI 下按客户区物理尺寸缩放。
 
 - **2026-11-04 T6.4b-4 力/step 对拍（F449）**：`tools/force_timeline.py` 从原版 `work/ci_fake_magnet_4832.bin` 导出螺丝 body 的 388 条逐 step `ApplyForce`（`--first-step 119`）；宿主 `HOST_MAG_FORCE` 原样施加，`HOST_STEP_LOG` 每步 dump 全部 body；`tools/step_ab.py` 自动对齐后 **787 步 `max_pos=6.648791e-07`、RESULT PASS**。同一步原版另有 `ApplyTorque`/接触滚动，宿主角度未闭合（`HOST_MAG_TORQUE` 可回放但角阻尼不同），所以本判据只认位置。回归 `phys_sweep` 50/2/0、`verify --only physics:sample` PASS、真实鼠标正例仍 PASS。
+
+- **2026-11-04 T6.4b-4b 磁铁施力点 + 角阻尼（F450/F451）**：原版 `b2_Body_ApplyForce` 的第 3 实参是**光标世界坐标**（日志 m2；力臂不为 0），且每步对所有动态体施加 `b2_Body_ApplyTorque(-30·w_prev)`（10 body / 905 步，最大偏差 4.77e-7）。`tools/force_timeline.py` 力时间线扩可选 `px py`，`physworld.pas` 增 `PhysApplyForceAt`，`magnet.pas` 解析可选列，`step_ab.py` 增 `--angle-tol`。判据：`python tools/step_ab.py work/ci_fake_magnet_4832.bin C:/tmp/mag_t6/host_torque.log --body-ptr 677646916 --host-id 1001 --tol 1e-6 --angle-tol 1e-4` → `max_pos=6.648791e-07 max_angle=4.96997833e-07`、787 步 PASS；负例（无施力点 `max_angle=56.92`、无扭矩 `56.60`）FAIL。**宿主自驱 loop 还没接全局阻尼，新任务 T6.4b-4c。**
+
+- **2026-11-04 T6.4d-0c 宿主 vs 原版轨迹（F452）**：`trace_diff.py` 增 `--sequence-only`/`--index`；宿主私有桌面 `HOST_AUTOCLICK=1 HOST_LEVEL_INDEX=1` 两次运行 `boot/menu/level(index=1)/exit`，与原版 `work/trace_a.jsonl`/`trace_b.jsonl` 序列+索引 PASS，A/A PASS；负例改 index / 删 menu FAIL。边界：不比绝对时刻。
 
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
