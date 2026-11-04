@@ -860,11 +860,13 @@ procedure EnterLevel(Index: Integer; out Err: string);
 var
   runLog, rc: string;
   BuildOk: Boolean;
-  i, Steps, SyncCount: Integer;
+  i, Steps, SyncCount, TargetId: Integer;
   ProgressCalls, ProgressRc, rc2: Integer;
   StepsStr: string;
   SyncFirst, SyncAfter: Double;
-  tf, ptf, ptf2: TextFile;
+  MagX, MagY, MagDX, MagDY, MagD, MagF, MagMoved, MagIX, MagIY, MagIA: Double;
+  MagOn: Boolean;
+  tf, ptf, ptf2, mtf: TextFile;
 begin
   Err := '';
   if g_InLevel then Exit;
@@ -941,8 +943,29 @@ begin
   begin
     ProgressCalls := 0;
     ProgressRc := 0;
+    // T6.4b-1：磁铁 target 在第一步锁定，之后每步按 min(315,30d) 朝鼠标施力。
+    MagOn := EnvFlag('HOST_MAG_BUTTON');
+    TargetId := 0;
+    MagMoved := 0;
+    MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
+    MagY := StrToFloatDef(EnvStr('HOST_MAG_Y'), 0.0);
+    if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
+      PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
     for i := 1 to Steps do
     begin
+      if (TargetId <> 0) and MagOn then
+      begin
+        PhysGetBodyPos(TargetId, MagDX, MagDY, MagIA);
+        MagDX := MagX - MagDX;
+        MagDY := MagY - MagDY;
+        MagD := Sqrt(MagDX * MagDX + MagDY * MagDY);
+        if MagD > 1e-6 then
+        begin
+          MagF := 30.0 * MagD;
+          if MagF > 315.0 then MagF := 315.0;
+          PhysApplyForce(TargetId, MagF * MagDX / MagD, MagF * MagDY / MagD);
+        end;
+      end;
       PhysStep(0.01, 20, 20);
       // T6.4d-4：关卡运行期保留的 Lua state 里每步调 DoProgress(dt)。
       if EnvFlag('HOST_LUA_PROGRESS') and (g_levelLua <> nil) then
@@ -965,6 +988,16 @@ begin
       WriteLn(ptf2, 'calls=', ProgressCalls, ' rc=', ProgressRc);
       CloseFile(ptf2);
     end;
+    if TargetId <> 0 then
+    begin
+      PhysGetBodyPos(TargetId, MagDX, MagDY, MagIA);
+      MagMoved := Sqrt((MagDX - MagIX) * (MagDX - MagIX) +
+        (MagDY - MagIY) * (MagDY - MagIY));
+    end;
+    AssignFile(mtf, ExePath('mag.log'));
+    Rewrite(mtf);
+    WriteLn(mtf, 'target=', TargetId, ' moved=', FormatFloat('0.000000', MagMoved));
+    CloseFile(mtf);
     SyncCount := g_Level.SyncPhysics;
     SyncFirst := g_Level.SyncMaxErr;
     g_Level.SyncPhysics;

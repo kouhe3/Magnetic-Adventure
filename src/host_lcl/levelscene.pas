@@ -55,6 +55,9 @@ type
     // 把 world sprite 的位置同步到物理体；返回有效 body 数。
     // FSyncMaxErr = 同步前 sprite 与 body 的最大位置差；FSyncAngleMoved = 角度变化数。
     function SyncPhysics: Integer;
+    // T6.4b-1：按世界距离找最近的、有物理 body 的 world sprite（磁铁 target 选择）。
+    function NearestBody(X, Y: Double; out Handle: Integer;
+      out Dist: Double): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -230,6 +233,29 @@ begin
     if Abs(a - FSync[i].InitAngle) > 1e-3 then Inc(FSyncAngleMoved);
     FSync[i].Sprite.Position.SetPoint(x, y, 0);
     Inc(Result);
+  end;
+end;
+
+function TLevelScene.NearestBody(X, Y: Double; out Handle: Integer;
+  out Dist: Double): Boolean;
+var
+  i: Integer;
+  bx, by, ba, d: Double;
+begin
+  Result := False;
+  Handle := 0;
+  Dist := 1e30;
+  for i := 0 to High(FSync) do
+  begin
+    if PhysBodyOf(FSync[i].Handle) = nil then Continue;
+    PhysGetBodyPos(FSync[i].Handle, bx, by, ba);
+    d := Sqrt((bx - X) * (bx - X) + (by - Y) * (by - Y));
+    if d < Dist then
+    begin
+      Dist := d;
+      Handle := FSync[i].Handle;
+      Result := True;
+    end;
   end;
 end;
 

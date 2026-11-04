@@ -123,6 +123,8 @@ procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 // Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+// T6.4b-1：在 body 中心施加世界力（不产生力矩；原版磁铁力律见 F386）。
+procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
 // Local_ToWorld / World_ToLocal：按 body 的 (x,y,angle) 做平移+旋转（不含 graph scale）。
 procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
 procedure PhysWorldToLocal(Id: Integer; WX, WY: Double; out X, Y: Double);
@@ -157,6 +159,7 @@ type
   TJointLimitsFn = procedure(J: Pointer; Lower, Upper: Single); cdecl;
   TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
   TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
+  TApplyForceFn = procedure(Body, Force, Point: Pointer); cdecl;
   TShapeFloatFn = procedure(Shape: Pointer; V: Single); cdecl;
   TSetFilterFn = function(Shape, Filter: Pointer): Pointer; cdecl;
   TReFilterFn = procedure(Shape: Pointer); cdecl;
@@ -229,6 +232,7 @@ var
   g_jointSetMotorSpeed: TJointFloatFn;
   g_jointSetMaxTorque: TJointFloatFn;
   g_getXForm: TGetXFormFn;
+  g_applyForce: TApplyForceFn;
   g_shapeSetDensity: TShapeFloatFn;
   g_shapeSetFriction: TShapeFloatFn;
   g_shapeSetRestitution: TShapeFloatFn;
@@ -1078,6 +1082,23 @@ begin
   Angle := xf.angle;
 end;
 
+procedure PhysApplyForce(Id: Integer; Fx, Fy: Double);
+var
+  b: Pointer;
+  f, p: TPhysVec2;
+  x, y, a: Double;
+begin
+  if not g_active then Exit;
+  b := PhysBodyOf(Id);
+  if b = nil then Exit;
+  PhysGetBodyPos(Id, x, y, a);
+  f.x := Fx;
+  f.y := Fy;
+  p.x := x;
+  p.y := y;
+  g_applyForce(b, @f, @p);
+end;
+
 procedure PhysLocalToWorld(Id: Integer; LX, LY: Double; out X, Y: Double);
 var
   bx, by, ba: Double;
@@ -1303,6 +1324,7 @@ begin
   g_jointSetMotorSpeed := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMotorSpeed'));
   g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
   g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
+  g_applyForce := TApplyForceFn(GetProcAddress(g_dll, 'b2_Body_ApplyForce'));
   g_shapeSetDensity := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetDensity'));
   g_shapeSetFriction := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetFriction'));
   g_shapeSetRestitution := TShapeFloatFn(GetProcAddress(g_dll, 'b2_Shape_SetRestitution'));
@@ -1315,7 +1337,7 @@ begin
     Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
     Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
-    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and
+    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and Assigned(g_applyForce) and
     Assigned(g_shapeSetDensity) and Assigned(g_shapeSetFriction) and
     Assigned(g_shapeSetRestitution) and Assigned(g_shapeSetFilter) and
     Assigned(g_reFilter)) then

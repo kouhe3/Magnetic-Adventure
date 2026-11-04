@@ -141,6 +141,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4d-5 完成信号 + 返回菜单（F439）**：`bind_Do_LevelComplete` 置 `LevelComplete`（生成器 hook，`luabind.pas` 重新生成 bindings=144）；`TLevelScene.Clear` 释放 AddWorld/AddHud sprite；`ExitLevel` 清关卡、重建菜单并写 `menu_after.log`。正例 level 3：trace `boot,menu,level(index=3),menu,exit`、`level_init.log sprites=60`、`menu_after.log layers=21`、`lua_progress calls=100 rc=0`、`phys.log bodies=7 sync_after=0`。负例 `HOST_FIRE_COMPLETE=0` → 无第二个 menu。回归 verify 7/7、phys_sweep 50/2/0。边界：完成是注入的 `Do_LevelComplete()`；`Set_ScrObjPos` 对 sprite 的副作用仍未接渲染。
 
+- **2026-11-04 T6.4b-1 宿主磁铁力（F440）**：`physworld.pas` 封装 `b2_Body_ApplyForce(body,force*,point*)`（作用点=body 中心）；`TLevelScene.NearestBody` 选最近有 body 的 world sprite；`EnterLevel` 步进循环第一步锁 target，之后每步按 `min(315,30·d)` 施力并写 `mag.log`。正例 level 1：`target=1001 moved=2.511224`、`phys.log sync_first=2.511223793 sync_after=0`；负例 `HOST_MAG_BUTTON=0` → `target=0 moved=0`。回归 verify 7/7、phys_sweep 50/2/0。边界：目标选择不判材质；力在 body 中心；只跑 level 1。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：
