@@ -129,6 +129,10 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4e 范围核实（F432/F433）**：GameTop `game.exe` 引用 `font_gulim_1..4`/`gulim1`/`gulim2`，**不引用 `pt_sans`**；`pt_sans1/2.png`/`pt_sans.dat` 只出现在 baseline `AMagneticAdventure.exe`。GameTop 的菜单/地图/level 3/4/完成面板 GL 里字体纹理只有 `gulim1.png`，12 顶点文本 draw 的 UV 都是用户名 'o'；关卡名/完成面板文本是 `endbox.png`/`hint_6.png` 烘焙图。`gulim2.dat` 32 条 page-2 表（flag=1，maxdu=maxdv=0）新增 30 个 Latin Extended-A codepoint，但当前用户名固定 'ooo'，无消费者。⇒ T6.4e 对 GameTop 关单；baseline 的 pt_sans 分支转 backlog。
 
+- **2026-11-04 T6.4c-1 宿主读档案（F434）**：新增 `src/host_lcl/profiledata.pas`（UTF-16LE BOM + 低字节 XOR 0xB8；多块取唯一 Active、单块直取、无唯一 Active 失败）；`magnet.pas` 在 `Application.Initialize` 后按 `HOST_PROFILE` 读 UserName/LastCompleteLevel/CompletedLevels/音量，写 exe 旁 `profile.log`，env 未设零行为。判据：`HOST_PROFILE=work/profile_test.prf HOST_HEADLESS=1 build/host_lcl/magnet.exe` → `ok=1 players=2 user=KKK level=20 ...` 与 `python tools/profile.py get LastCompleteLevel --file work/profile_test.prf` 相同；负例改进度/切 Active/坏文件分别得到 `level=3`/`user=ooo level=51`/`ok=0`；两次独立启动 `cmp=0`。边界：只读；菜单仍写死 `ooo`，Play 落点未接（下一刀 T6.4d）。
+
+- **2026-11-04 T6.4d-1 宿主点击进关 + trace（F435）**：`magnet.pas` 加 `HOST_CLICK`（设计像素，命中 Play 矩形 223,224,256,128）、`HOST_TRACE`（JSONL `t_ms/state/index`）、`HOST_EXIT_AFTER_RENDER`；命中后 `LuaBindRunLevel(LastCompleteLevel)` → `HOST_LUA_LOG` → `TLevelScene.BuildFromModel`。正例档案 20 → `boot,menu,level(index=20),exit`、sprites=21、lua_bind_ab 195/195 0 差；档案 3 → index=3、sprites=60、187/187；两次序列相同。负例点空白/无档案/坏档案/51 结局页 → 只到 menu、无 level_init.log。回归 verify 7/7、phys_sweep 50/2/0。流程偏差：本轮未先落 `待证`（F435 补记），下一刀先预注册。边界：进程内命令入口，不是 LCL 消息；未做运行时场景切换。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

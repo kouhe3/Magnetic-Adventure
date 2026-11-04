@@ -103,10 +103,12 @@
 - [x] T6.4b-x-g 齿轮力矩夹具 + observe 模式：`tests/levels/gear_o.lua`/`gear_e.lua`/`gear_nomotor_o.lua`/`gear_nolink_o.lua` + 仪器 `--observe/--angle/--gear-ratio`。正例 Δ1=2.55、Δ2=-3.1875、ratio=1.25000007 ⇒ PASS；no-motor/no-link 均 FAIL。依据：F409
 - [x] T6.4b-x-s 开关旋转夹具 + 阶段角度判据：`tests/levels/switch_o.lua`/`switch_e.lua` + 仪器 `--stage-angle/--stage-min-angle/--ignore-distance`。正例 Δangle=-0.5250、markers=2 ⇒ PASS；过枢轴负例 Δ≈0、markers=0 ⇒ FAIL。依据：F410
 - [x] T6.4c-0 存档工具多玩家感知：`tools/profile.py` `players/get/set/diff` + `--player/--file`。A/A=0；`set SoundsVolume 7 --player KKK` 后 diff=1 且 `ooo` 不变；默认 Active 选择正确。依据：F411
+- [x] T6.4c-1 宿主读 Active 玩家档案（只读）：`HOST_PROFILE` + `profiledata.pas`；正例 user=KKK/level=20、三条负例、两次启动 cmp=0 依据：F434
 - [x] T6.4d-0 状态轨迹 + 地板：`direct_drive.py --trace` + `tools/trace_diff.py`。两次运行序列相同，dt=-62/-407/-411 ms，tol 600 PASS；exit+1000 负例 FAIL；level→exit 1765/1769。依据：F412、F413
 - [x] T6.4d-0b win/complete 状态：`lm`/`app`/`mgr` dword 无翻转；图元 +1 是烟花；`+0x1F0` 可见性无翻转；F416 的 `+0x30`/`+0x2f0` 候选**已证伪**（F425：未完成 4 关 nonzero=98/99/99/99，通用滑动倒计时）。**完成锚点 = `TGraphObjectList` 里的 `TGlAlphaHudSpriteObject`（bEndLevelBox，size 0x30）的 `+0x2C` 0→1.0**（F426：`Do_ShowCommand` 0x59A0B0 → vmt[0x50] 0x5937C0 case 0x17 写 +0x2C；原版完成 timing2 +5.01 s 0→1.0），已并入 `direct_drive --trace` 的 `complete`（正例写字段 1.0 后 1.0 s 记录、1.5 s 复位回 level；负例未完成 6 s 无）。依据：F414、F415、F416、F425、F426
 - [x] T6.4d-0b2 完成链 CI 驱动稳定性：完成信号修正为任一 size-0x30 HUD sprite 的 `+0x2C` 相对基线 0→1（`bHintComplete`；`bEndLevelBox` 恒 0）；no-nudge 3/3 + nudge 3/3 PASS，检测 2.91–2.97 s。依据：F430、F431
 - [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
+- [x] T6.4d-1 宿主 `HOST_CLICK` → 按档案 LastCompleteLevel 进关 + `HOST_TRACE`（进程内命令入口）：正例 index=20/3、lua_bind_ab 0 差、两次序列相同；点空白/无档案/坏档案/51 四条负例无 level 依据：F435
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
 - [x] T6.4e 关卡文本：范围核实（GameTop 不引用 `pt_sans`；关卡名/完成文本是烘焙图；动态文本只剩用户名；gulim2 无消费者） 依据：F432、F433
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196

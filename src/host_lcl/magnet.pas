@@ -25,7 +25,7 @@ uses
   Classes, Interfaces, Forms, Controls, Graphics, GLScene, GLObjects, GLLCLViewer,
   GLFilePNG, GLTexture, OpenGL1x, PakFile, MenuScene, SysUtils, VectorGeometry,
   GLRenderContextInfo, FrameShot, Windows, LuaDll, LuaLog, LuaBind, LuaEvents,
-  PhysWorld, LevelScene;
+  PhysWorld, LevelScene, ProfileData;
 
 type
   TCameraEvents = class
@@ -731,6 +731,11 @@ end;
 
 var
   CrashLogDll: HMODULE;
+  // T6.4d-1：宿主状态机切片的状态（只读，env 未设时零行为）。
+  g_profile: TProfileInfo;
+  g_profileRead: Boolean = False;
+  g_tracePath: string = '';
+  g_t0: DWORD = 0;
 
 // 崩溃捕获（F315–F317）：设 CRASHLOG_DIR/CRASHLOG_LOG 时加载 crashlog.dll，它在 DllMain 里装 VEH。
 // 默认零成本；代理（HOST_PHYS）路径也会带同一份记录器，二者用进程级互斥量只装一个。
@@ -741,6 +746,82 @@ begin
   if (GetEnvironmentVariable('CRASHLOG_DIR', @dir[0], SizeOf(dir)) > 0) or
      (GetEnvironmentVariable('CRASHLOG_LOG', @dir[0], SizeOf(dir)) > 0) then
     CrashLogDll := LoadLibrary('crashlog.dll');
+end;
+
+// T6.4c-1：HOST_PROFILE=<path> 时只读解析玩家档案（F434）。
+// 日志固定写 exe 旁的 profile.log；未设 env 时不读、不写（旧行为）。
+procedure MaybeReadProfile;
+var
+  path: string;
+  tf: TextFile;
+begin
+  g_profileRead := False;
+  path := EnvStr('HOST_PROFILE');
+  if path = '' then Exit;
+  g_profileRead := ReadProfileFile(path, g_profile);
+  AssignFile(tf, ExePath('profile.log'));
+  Rewrite(tf);
+  if g_profile.Ok then
+    WriteLn(tf, 'ok=1 players=', g_profile.Players, ' user=', g_profile.UserName,
+      ' level=', g_profile.LastCompleteLevel, ' completed=', g_profile.CompletedLevels,
+      ' sounds=', g_profile.SoundsVolume, ' music=', g_profile.MusicVolume,
+      ' fullscreen=', g_profile.FullScreen)
+  else
+    WriteLn(tf, 'ok=0 players=', g_profile.Players, ' err=', g_profile.Error);
+  CloseFile(tf);
+end;
+
+// T6.4d-1：状态轨迹（JSONL，字段与 tools/direct_drive.py --trace 同构）。
+// 只有 HOST_TRACE 非空时写；每次追加一行。
+procedure WriteTraceLine(const Line: string);
+var
+  tf: TextFile;
+begin
+  if g_tracePath = '' then Exit;
+  AssignFile(tf, g_tracePath);
+  if FileExists(g_tracePath) then
+    Append(tf)
+  else
+    Rewrite(tf);
+  WriteLn(tf, Line);
+  CloseFile(tf);
+end;
+
+procedure WriteTrace(const State: string);
+begin
+  WriteTraceLine('{"t_ms": ' + IntToStr(Integer(GetTickCount - g_t0)) +
+    ', "state": "' + State + '"}');
+end;
+
+procedure WriteTraceIndex(const State: string; Index: Integer);
+begin
+  WriteTraceLine('{"t_ms": ' + IntToStr(Integer(GetTickCount - g_t0)) +
+    ', "state": "' + State + '", "index": ' + IntToStr(Index) + '}');
+end;
+
+// HOST_CLICK=<design_x>,<design_y>：设计像素（左上原点），与 menuscene 的矩形同一空间。
+function ParseClickSpec(out X, Y: Integer): Boolean;
+var
+  s: string;
+  p: Integer;
+begin
+  Result := False;
+  X := -1;
+  Y := -1;
+  s := EnvStr('HOST_CLICK');
+  if s = '' then Exit;
+  p := Pos(',', s);
+  if p = 0 then Exit;
+  X := StrToIntDef(Trim(Copy(s, 1, p - 1)), -1);
+  Y := StrToIntDef(Trim(Copy(s, p + 1, MaxInt)), -1);
+  Result := (X >= 0) and (Y >= 0);
+end;
+
+// menuscene.pas:Build 里 play_1/play_2 的矩形（223,224,256,128）。
+function HitPlay(X, Y: Integer): Boolean;
+begin
+  Result := (X >= 223) and (X < 223 + 256) and
+    (Y >= 224) and (Y < 224 + 128);
 end;
 
 var
@@ -760,11 +841,35 @@ var
   DumpVp: array[0..3] of Integer;
   StateInit: TGLStateInit;
   Headless, PakOpened, LevelMode: Boolean;
+  ClickLevel, ClickOk, HasClick: Boolean;
+  ClickX, ClickY: Integer;
 begin
   MaybeLoadCrashLog;
+  g_t0 := GetTickCount;
+  g_tracePath := EnvStr('HOST_TRACE');
   Application.Initialize;
+  MaybeReadProfile;
+  WriteTrace('boot');
   Headless := EnvFlag('HOST_HEADLESS');
   LevelMode := EnvFlag('HOST_LEVEL_RENDER');
+
+  // T6.4d-1：HOST_CLICK 命中菜单 Play 时，按档案 LastCompleteLevel 跑该关 Lua
+  // （JSONL 由 HOST_LUA_LOG 指定）并建场景。点击是进程内命令入口，不是 LCL 消息。
+  ClickLevel := False;
+  HasClick := ParseClickSpec(ClickX, ClickY);
+  ClickOk := HasClick and HitPlay(ClickX, ClickY) and g_profile.Ok and
+    (g_profile.LastCompleteLevel >= 0) and (g_profile.LastCompleteLevel < 51);
+  WriteTrace('menu');
+  if ClickOk then
+  begin
+    log := '';
+    ClickLevel := LuaBindRunLevel(g_profile.LastCompleteLevel, log) =
+      'level=' + IntToStr(g_profile.LastCompleteLevel) + ' ok';
+    if not ClickLevel then
+      WriteLn(StdErr, 'click level failed: ', log);
+  end;
+  if ClickLevel then
+    LevelMode := True;
 
   // pak 与纹理自检不需要窗口（有头/无头共用）。
   Pak := TPakFile.Create;
@@ -777,6 +882,7 @@ begin
   if Headless then
   begin
     RunPhysAndSelfTests;
+    WriteTrace('exit');
     ExitProcess(0);
   end;
 
@@ -807,6 +913,13 @@ begin
         StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0)) then
         WriteLn(StdErr, 'level model failed: ', EnvStr('HOST_LEVEL_MODEL'));
     end
+    else if ClickLevel then
+    begin
+      // T6.4d-1：点击进关的模型来自 HOST_LUA_LOG（LuaBindRunLevel 刚写的 JSONL）。
+      if not Level.BuildFromModel(EnvStr('HOST_LUA_LOG'), EnvStr('HOST_PAK_DIR'),
+        StrToFloatDef(EnvStr('HOST_LEVEL_TIME'), 0.0)) then
+        WriteLn(StdErr, 'level model failed: ', EnvStr('HOST_LUA_LOG'));
+    end
     else
     begin
       // T6.4a：Introduction 的相机与场景。draw 列表坐标是相机相对量；
@@ -819,6 +932,7 @@ begin
     WriteLn(tf, 'sprites=', Level.Sprites);
     Write(tf, Level.Log);
     CloseFile(tf);
+    WriteTraceIndex('level', g_profile.LastCompleteLevel);
   end
   else if PakOpened then
   begin
@@ -893,7 +1007,16 @@ begin
 
   // T6.4a 自检：建场景 + 渲染一帧后直接退，不进入玩法循环（T6.4d 再接）。
   if LevelMode then
+  begin
+    WriteTrace('exit');
     ExitProcess(0);
+  end;
+  // 菜单分支的自动退出（判据用）：渲染一帧后写 exit，不进入 LCL 事件循环。
+  if EnvFlag('HOST_EXIT_AFTER_RENDER') then
+  begin
+    WriteTrace('exit');
+    ExitProcess(0);
+  end;
 
   // T6.3c：HOST_PHYS=1 → 建 world（4 面世界墙）；HOST_LUA_SELFTEST → 跑自检后退出。
   // 有头/无头共用同一个入口（无头分支在上面已经调用过它）。
