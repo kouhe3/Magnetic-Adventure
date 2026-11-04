@@ -64,7 +64,7 @@
 
 - [x] T6.1 窗口层：LCL 复刻原版 15 个窗口字段 依据：F214
 - [x] T6.2 场景/渲染 + 菜单层（21/21 draw 零差） 依据：F225–F231
-- [ ] T6.3 Lua 144 绑定 + 事件 + 真实物理（a0–a2/b1/b2 已完成） 依据：F239–F243、F273、F274、F276
+- [x] T6.3 Lua 144 绑定 + 事件 + 真实物理：144 绑定/52 关 call+args；七类事件夹具（OnAddContact/OnMove/OnRotate/OnTimer/OnClick/OnPersistContact/OnThresholdPlayerForce）；phys_sweep 50/2/0 依据：F239–F243、F472–F476
 - [x] T6.3-timer 简单计时器 + OnTimer：`luatimers.pas` + 生成器 hooks；原版/宿主夹具都在 step 150 生效；cm_StartTimer=10、cm_StopTimer=11（IDA 0x6457a0）；6 门禁 + phys_sweep 50/2/0 依据：F472
 - [x] T6.3-rotate `Get_JointAngle`（revolute 相对角）+ OnRotate 派发：`EventsFireRotations`；switch 夹具宿主正例 marker (99,99)、负例 0；`lua_bind_ab` 149/149、`phys_sweep` 50/2/0 依据：F473
 - [x] T6.3-persist `OnPersistContact` + 接触事件排队：`DispatchContacts` 步后派发；`persist_o/e` 原版/宿主 marker 都在 step 7，负例无 marker 依据：F474
