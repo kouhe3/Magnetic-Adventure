@@ -164,6 +164,20 @@ var
   g_levelLua: TLuaState = nil;  // T6.4d-4：HOST_KEEP_LUA=1 时保留的关卡 state
   g_contacts: Integer = 0;
   g_contactTrace: string = '';
+  g_persistNil: Integer = 0;
+  g_persistFired: Integer = 0;
+
+  // T6.3：接触回调在 World_Step 内同步执行；Set_ScrObjPos/Add_* 在步内会被
+  // b2 覆盖，所以只入队，步进结束后再派发（与引擎的“更新后处理接触”一致）。
+const
+  ContactQueueMax = 512;
+type
+  TContactEvent = record
+    Kind, A, B: Integer;
+  end;
+var
+  g_cevents: array[0..ContactQueueMax - 1] of TContactEvent;
+  g_ceventCount: Integer = 0;
 
 procedure PhysContactCb(Rec: Pointer); cdecl;
 var
@@ -179,11 +193,39 @@ begin
   if Length(g_contactTrace) < 400 then
     g_contactTrace := g_contactTrace + IntToStr(a) + '-' + IntToStr(b) + ':' +
       IntToStr(r.kind) + ' ';
-  if (r.kind = 0) and (g_lua <> nil) then
+  if (r.kind = 0) or (r.kind = 1) then
+    if g_ceventCount < ContactQueueMax then
+    begin
+      g_cevents[g_ceventCount].Kind := r.kind;
+      g_cevents[g_ceventCount].A := a;
+      g_cevents[g_ceventCount].B := b;
+      Inc(g_ceventCount);
+    end;
+end;
+
+// 步进结束后派发队列里的接触事件（双向各一次）。
+procedure DispatchContacts(L: TLuaState);
+var
+  i, calls: Integer;
+  e: TContactEvent;
+begin
+  if L = nil then Exit;
+  for i := 0 to g_ceventCount - 1 do
   begin
-    EventsFire(g_lua, a, 'OnAddContact', b, calls);
-    EventsFire(g_lua, b, 'OnAddContact', a, calls);
+    e := g_cevents[i];
+    if e.Kind = 0 then
+    begin
+      EventsFire(L, e.A, 'OnAddContact', e.B, calls);
+      EventsFire(L, e.B, 'OnAddContact', e.A, calls);
+    end
+    else if e.Kind = 1 then
+    begin
+      Inc(g_persistFired);
+      EventsFire(L, e.A, 'OnPersistContact', e.B, calls);
+      EventsFire(L, e.B, 'OnPersistContact', e.A, calls);
+    end;
   end;
+  g_ceventCount := 0;
 end;
 
 // HOST_PHYS_MOVE=<objId>:<x>:<y>[:<angle>]：把对象瞬移到位（接触管道自检用）。
@@ -484,7 +526,10 @@ begin
       PhysSetContactCallback(@PhysContactCb);
       ApplyPhysMove(EnvStr('HOST_PHYS_MOVE'));
       for i := 1 to StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0) do
+      begin
         PhysStep(0.01, 20, 20);
+        DispatchContacts(L);
+      end;
       g_lua := nil;
       Log := Log + 'steps=' + EnvStr('HOST_PHYS_STEPS') + ' contacts=' +
         IntToStr(g_contacts) + ' trace=' + g_contactTrace + #13#10;
@@ -1075,6 +1120,10 @@ begin
       Err := 'PhysStart failed';
       Exit;
     end;
+  // T6.3：运行时路径也注册接触回调（g_lua 在步进循环里临时指向关卡 state）。
+  PhysSetContactCallback(@PhysContactCb);
+  g_persistNil := 0;
+  g_persistFired := 0;
   // T6.4d-4：LuaBindRun 自带的 HOST_PHYS_STEPS 步进是自检用；EnterLevel 在外面
   // 统一步进，调用期间临时清空，避免内外层各走一遍（T6.4d-3 的 100 步实际走了 200）。
   Steps := StrToIntDef(EnvStr('HOST_PHYS_STEPS'), 0);
@@ -1328,6 +1377,7 @@ begin
     end
     else if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
+    g_lua := g_levelLua;
     for i := 1 to Steps do
     begin
       if SelfMode then
@@ -1394,6 +1444,7 @@ begin
       if g_DampCoeff > 0 then
         PhysApplyAngularDamping(g_DampCoeff);
       PhysStep(0.01, 20, 20);
+      DispatchContacts(g_lua);
       // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
       TimerUpdate(g_levelLua, 0.01);
       FireRotations;
@@ -1413,6 +1464,7 @@ begin
         Lua.SetTop(g_levelLua, 0);
       end;
     end;
+    g_lua := nil;
     if stepOn then
       CloseFile(stepLog);
     if EnvFlag('HOST_LUA_PROGRESS') then
@@ -1441,7 +1493,9 @@ begin
     WriteLn(ptf, 'bodies=', SyncCount, ' objects=', g_Level.SyncObjects,
       ' steps=', Steps, ' angle_moved=', g_Level.SyncAngleMoved,
       ' sync_first=', FormatFloat('0.000000000', SyncFirst),
-      ' sync_after=', FormatFloat('0.000000000', SyncAfter));
+      ' sync_after=', FormatFloat('0.000000000', SyncAfter),
+      ' contacts=', g_contacts, ' persist_nil=', g_persistNil,
+      ' persist_fired=', g_persistFired, ' trace=', g_contactTrace);
     CloseFile(ptf);
     EnterStage('stage=phys bodies=' + IntToStr(SyncCount) +
       ' angle_moved=' + IntToStr(g_Level.SyncAngleMoved));
@@ -1678,7 +1732,10 @@ begin
     PhysApplyLinearDamping(g_LinDamp);
   if g_DampCoeff > 0 then
     PhysApplyAngularDamping(g_DampCoeff);
+  g_lua := g_levelLua;
   PhysStep(0.01, 20, 20);
+  DispatchContacts(g_lua);
+  g_lua := nil;
   // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
   TimerUpdate(g_levelLua, 0.01);
   FireRotations;

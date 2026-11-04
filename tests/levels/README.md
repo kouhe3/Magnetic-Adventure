@@ -188,6 +188,17 @@ python tools/ci_fake_magnet.py build --out work/fakemag_switch \
 `python work/run_vdesk_host.py rotpos work/profile_test.prf 1 0 200 0 1004 HOST_PHYS_STEPS=200 HOST_MAG_BUTTON=1 HOST_MAG_X=5 HOST_MAG_Y=0 HOST_STEP_LOG=<abs>/host_rot_pos.log HOST_LUA_DIR=work/pak_switch_lua HOST_PAK_DIR=work/pak_switch_lua`
 ⇒ marker body 在 step 7 起为 (99,99)；负例 `HOST_MAG_X=0 HOST_MAG_Y=-2`（力线过枢轴）⇒ 无 marker、臂角恒 0。
 
+## 接触事件夹具（persist）
+
+`persist_o.lua` / `persist_e.lua`：自由螺丝嵌在静态 WoodWall 内，b2 每步产生
+Persist 接触；`OnPersistContact` 计到 5 次就把 marker 移到 (99,99)。负例
+`persist_none_o/e.lua` 把螺丝放到 (15,15)，两侧都不应出现 marker。
+
+- 构建/解包：`python tools/ci_fake_magnet.py build --out work/fakemag_persist --o tests/levels/persist_o.lua --e tests/levels/persist_e.lua`；`python tools/pak.py extract work/fakemag_persist/data work/pak_persist_lua`。
+- 原版：`B2PROXY_LOG=<abs>/persist_orig.bin <PY32> tools/direct_drive.py --dir work/fakemag_persist --levels 1 --gap 4 --exit-mode wmclose`，从 b2 日志找 marker 的 SetXForm 步号。
+- 宿主：`python work/run_vdesk_host.py persistpos work/profile_test.prf 1 0 150 0 1004 HOST_PHYS_STEPS=200 HOST_STEP_LOG=<abs>/host_persist_pos.log HOST_LUA_DIR=work/pak_persist_lua HOST_PAK_DIR=work/pak_persist_lua`。
+- 判据（F474）：两侧 marker 都在 **step 7** 生效；负例两侧都无 marker。
+
 ## 计时器夹具（timer）
 
 `timer_o.lua` / `timer_e.lua`：静态墙 + 自由螺丝 (10,10) + `Add_SimpleTimer`；

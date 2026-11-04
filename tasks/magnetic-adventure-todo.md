@@ -67,6 +67,7 @@
 - [ ] T6.3 Lua 144 绑定 + 事件 + 真实物理（a0–a2/b1/b2 已完成） 依据：F239–F243、F273、F274、F276
 - [x] T6.3-timer 简单计时器 + OnTimer：`luatimers.pas` + 生成器 hooks；原版/宿主夹具都在 step 150 生效；cm_StartTimer=10、cm_StopTimer=11（IDA 0x6457a0）；6 门禁 + phys_sweep 50/2/0 依据：F472
 - [x] T6.3-rotate `Get_JointAngle`（revolute 相对角）+ OnRotate 派发：`EventsFireRotations`；switch 夹具宿主正例 marker (99,99)、负例 0；`lua_bind_ab` 149/149、`phys_sweep` 50/2/0 依据：F473
+- [x] T6.3-persist `OnPersistContact` + 接触事件排队：`DispatchContacts` 步后派发；`persist_o/e` 原版/宿主 marker 都在 step 7，负例无 marker 依据：F474
 - [x] T6.3c 真实物理接触：world + 14 个对象 body/shape → joint → `OnAddContact` 依据：F276、F277（oracle：The Teleport 14/14 建体逐项对齐，20 个 shape 常量已读出；剩项（真实玩法输入/力驱动）已归 T6.4）
 - [x] T6.3d 工厂覆盖扩展（52 关扫描：**50 PASS / 2 SKIP / 0 MISMATCH**，F336） 依据：F283–F290、F333–F336（`tools/phys_sweep.py` 已默认无头 `HOST_HEADLESS=1`，52 关 12.5 s；`Add_Rope` 10 关 + HammerParts 双 body 已接；`Good Shot!` 重录 + `Add_Ball` 已接；13/51 为 shared SKIP）
 - [ ] T6.4 应用层复原（菜单/关卡/存档/输入） 依据：F204、F213

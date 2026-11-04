@@ -1,9 +1,11 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F473**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F474**。
 
 ## 0. 一句话现状
+**2026-11-04 T6.3 OnPersistContact + 接触排队（F474）**：`PhysContactCb` 只入队，`DispatchContacts` 在 PhysStep 后派发 Add/Persist（步内 Set_ScrObjPos 会被 b2 覆盖，此前 49 次 persist 不动 marker）；`persist_o/e` 夹具原版与宿主的 marker 都在 **step 7**，负例两侧无 marker；`phys.log` 增 contacts/trace 诊断；`lua_bind_ab` 149/149、`phys_sweep` 50/2/0。
+
 **2026-11-04 T6.3 OnRotate 子切片（F473）**：`physworld.pas` 记录关节两端 body 与参考角，`Get_JointAngle` 用 `b2_Body_GetAngle` 算 revolute 相对角；`EventsFireRotations` 在角度变化 >1e-6 时派发，EnterLevel/Tick 的 PhysStep 后调用。switch 夹具：宿主正例 marker (99,99)、负例 0（原版 F410 markers=2/0）；`lua_bind_ab` 149/149、`phys_sweep` 50/2/0、6 门禁。
 
 **2026-11-04 T6.3 计时器子切片（F472）**：宿主实现 `Add_SimpleTimer`/`Start_Timer`/`Do_Command(cm_StartTimer=10/StopTimer=11)`，按 PhysStep dt 递减并派发 `OnTimer`；原版与宿主的计时器夹具都在 **step 150** 生效（`tests/levels/timer_o/e.lua`）；`lua_bind_ab` 149/149、6 门禁、`phys_sweep` 50/2/0；顺带修 `tools/ffi.py` 的 contacts 分支。
