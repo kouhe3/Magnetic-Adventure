@@ -113,6 +113,7 @@ TRAIN_SMOKE_OFFSET = 1.3
 SMOKE_PHASE = 0.13
 SMOKE_PERIOD = 0.70
 HUD_ASSET = {"btn_restart_2": "restart2.png", "btn_next_4": "next_4.png"}
+NAME_ASSET["level_end_box"] = "endbox.png"
 HUD_HALF_W, HUD_HALF_H = 509.0, 369.5   # 设计空间 1018×739 的半宽/半高（F188）
 
 
@@ -310,6 +311,14 @@ def build(calls, pak_dir="", settle=True):
         elif fn == "Add_HudButton" and len(args) >= 7:
             hud[ret] = {"w": float(args[4]), "h": float(args[5]), "tex": args[6],
                         "x": 0.0, "y": 0.0, "alpha": 1.0}
+        elif fn == "Add_AlphaHudSprite" and len(args) >= 7:
+            # T6.4d：完成面板（endbox）是带 alpha 的 HUD sprite；alpha=0 时引擎
+            # 不画（与普通 HUD 的 alpha=0 dot 不同），见 F426/F478。
+            add({"kind": fn, "asset": asset_of(args[6]),
+                 "x": float(args[1]), "y": float(args[2]),
+                 "angle": float(args[3]), "w": 2.0 * float(args[4]),
+                 "h": 2.0 * float(args[5]), "alpha": 0.0,
+                 "root": int(args[0]), "space": "ndc"}, ret)
         elif fn == "Add_AnimateSmoke" and len(args) >= 6:
             # F428：绘制尺寸 = (2·arg4, 4·arg4)，arg5 不参与（level 3 5×10、
             # level 4 4×8）。root=0 是静态世界烟；root≠0 且本关有 bTrain 时
@@ -337,8 +346,16 @@ def build(calls, pak_dir="", settle=True):
                 obj["y"] = float(args[2])
                 if len(args) >= 4:
                     obj["angle"] = float(args[3])
-        elif fn == "Do_HideCommand" and args and args[0] in hud:
-            hud[args[0]]["alpha"] = 0.0
+        elif fn == "Do_HideCommand" and args:
+            if args[0] in hud:
+                hud[args[0]]["alpha"] = 0.0
+            elif (args[0] in handles and
+                  handles[args[0]]["kind"] == "Add_AlphaHudSprite"):
+                handles[args[0]]["alpha"] = 0.0
+        elif fn == "Do_ShowCommand" and args:
+            o = handles.get(args[0]) if args else None
+            if o is not None and o["kind"] == "Add_AlphaHudSprite":
+                o["alpha"] = 1.0
     if settle:
         settle_arms(objects)
     # 齿轮速度：电机直接给关节里的齿轮；Add_JointSimpleGear 按 factor 传播。
@@ -437,6 +454,9 @@ def scene_draws(objects, backs, cam, shift=(0.0, 0.0)):
         out.append((top, quad(0.0, 0.5, 2.0, 1.0)))
         out.append((bottom, quad(0.0, -0.5, 2.0, 1.0)))
     for obj in objects:
+        if (obj.get("kind") == "Add_AlphaHudSprite" and
+                obj.get("alpha", 1.0) <= 0.0):
+            continue
         if obj.get("space") == "ndc":
             cx = obj["x"] / HUD_HALF_W
             cy = -obj["y"] / HUD_HALF_H

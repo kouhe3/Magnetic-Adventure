@@ -922,6 +922,26 @@ begin
         Huds[i].Y := 0.0;
         Huds[i].Alpha := 1.0;
       end
+      else if Name = 'Add_AlphaHudSprite' then
+      begin
+        // T6.4d：完成面板（endbox，512x256 设计像素）是带 alpha 的 HUD sprite；
+        // alpha=0 时引擎不画（F426/F478）。
+        InitObj(O);
+        O.Kind := Name;
+        if StrArg(Args, 6) = 'level_end_box' then
+          O.Asset := 'endbox.png'
+        else
+          O.Asset := AssetOf(StrArg(Args, 6));
+        O.X := NumArg(Args, 1);
+        O.Y := NumArg(Args, 2);
+        O.Angle := NumArg(Args, 3);
+        O.W := 2.0 * NumArg(Args, 4);
+        O.H := 2.0 * NumArg(Args, 5);
+        O.Alpha := 0.0;
+        O.Space := 1;
+        O.Root := IntArg(Args, 0);
+        AddHandle(Ret, AddObject(O));
+      end
       else if Name = 'Set_ScrObjPos' then
       begin
         j := FindHud(IntArg(Args, 0));
@@ -946,7 +966,19 @@ begin
       begin
         j := FindHud(IntArg(Args, 0));
         if j >= 0 then
-          Huds[j].Alpha := 0.0;
+          Huds[j].Alpha := 0.0
+        else
+        begin
+          j := FindHandle(IntArg(Args, 0));
+          if (j >= 0) and (FObjects[j].Kind = 'Add_AlphaHudSprite') then
+            FObjects[j].Alpha := 0.0;
+        end;
+      end
+      else if Name = 'Do_ShowCommand' then
+      begin
+        j := FindHandle(IntArg(Args, 0));
+        if (j >= 0) and (FObjects[j].Kind = 'Add_AlphaHudSprite') then
+          FObjects[j].Alpha := 1.0;
       end;
     end;
     CloseFile(F);

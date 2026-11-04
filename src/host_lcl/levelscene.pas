@@ -15,7 +15,7 @@ unit LevelScene;
 
 interface
 
-uses Classes, SysUtils, Math, GLScene, GLObjects, GLHUDObjects, GLTexture,
+uses Classes, SysUtils, Math, Windows, GLScene, GLObjects, GLHUDObjects, GLTexture,
   GLMaterial, GLGraphics, GLTextureFormat, GLRenderContextInfo, OpenGL1x,
   MenuScene, PakFile, SceneModel;
 
@@ -442,11 +442,15 @@ var
   i: Integer;
   O: TSceneObj;
   Top, Bot: string;
+  EnvBuf: array[0..15] of Char;
+  ForceEndBox: Boolean;
 begin
   Result := False;
   M := TSceneModel.Create;
   try
     if not M.BuildFromJsonl(JsonlPath, PakDir) then Exit;
+    ForceEndBox := GetEnvironmentVariable('HOST_FORCE_ENDBOX',
+      @EnvBuf[0], 16) > 0;
     if Time <> 0.0 then
       M.ApplyTime(Time);  // 齿轮：sprite 角 = init + w·t（F372/F373）
     FCamera.Position.SetPoint(M.CamX, M.CamY, 10);
@@ -463,6 +467,12 @@ begin
     for i := 0 to M.Count - 1 do
     begin
       O := M.ObjectAt(i);
+      if (O.Kind = 'Add_AlphaHudSprite') and (O.Alpha <= 0.0) then
+      begin
+        if not ForceEndBox then
+          Continue;
+        O.Alpha := 1.0;
+      end;
       if O.Space = 1 then
       begin
         // SceneModel 的 HUD 坐标是**中心**（设计像素，y 向下）；AddHud 收左上角。
