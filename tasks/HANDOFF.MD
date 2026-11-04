@@ -169,6 +169,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-4d 自驱磁铁闭环（F454）**：原版完整模型 = 磁铁力 `min(315,30d)` 朝光标、施加在 **body-local 抓取点 (0.032670,0.023154)**；另有全局线性阻尼 `-12v`（中心）与全局角阻尼 `-30w`；磁铁只作用 steps 119–254。`force_timeline --cursor` 反算 136 行光标；`HOST_MAG_SELF/LOCALX/Y/LINDAMP` 让宿主自算，**不回放任何力/扭矩** → 787 步 `max_pos=6.648791e-07 max_angle=2.80986023e-06` PASS；负例 `LINDAMP=0` → `max_pos=13.54`、抓取点 (0,0) → `max_angle=0.318`，均 FAIL。回归 50/2/0、6 门禁、env 磁铁冒烟不变。下一步 T6.4b-4e 把模型接进真实鼠标 `Tick`。
 
+- **2026-11-04 T6.4b-4e F454 模型接 Tick（F455）**：`magnet.pas` 全局 `g_MagLocalX/Y`/`g_LinDamp`；真实鼠标按下边沿把世界命中点转 **body-local**；`Tick` 按 `bodyPos+R(angle)·local` 施力并在 `PhysStep` 前施加 `-12v`/`-30w`。正例 level 1 环境磁铁 local (0.032670,0.023154)+`LINDAMP=12`+`DAMPING=30` → `a=0.509722`（Δ=0.019722）；负例 local 0、无阻尼 → `a=0.490000`；默认路径 `target=1001 moved=2.511224` 与 graph 回退 `id=1004 x=-9 y=10.19 a=1.75` 不变。`HOST_SCRPOS_GET` 对物理体改读 body（`SyncPhysics` 只写 Position）。边界：真实鼠标按下边沿的 local 捕获未在前台复测（T6.4b-4e-r）；sprite 旋转仍不同步。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

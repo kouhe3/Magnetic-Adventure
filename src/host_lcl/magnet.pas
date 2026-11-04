@@ -875,6 +875,10 @@ var
   g_MagRealCalls: Integer = 0;
   // T6.4b-4c：原版全局角阻尼系数（每步 -Coeff*w）。
   g_DampCoeff: Double = 0.0;
+  // T6.4b-4e：F454 模型的抓取点（body-local）与线性阻尼系数。
+  g_MagLocalX: Double = 0.0;
+  g_MagLocalY: Double = 0.0;
+  g_LinDamp: Double = 0.0;
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
   g_LevelIndex: Integer = -1;
@@ -1031,6 +1035,9 @@ begin
   LocalX := StrToFloatDef(EnvStr('HOST_MAG_LOCALX'), 0.0);
   LocalY := StrToFloatDef(EnvStr('HOST_MAG_LOCALY'), 0.0);
   LinDamp := StrToFloatDef(EnvStr('HOST_MAG_LINDAMP'), 0.0);
+  g_MagLocalX := LocalX;
+  g_MagLocalY := LocalY;
+  g_LinDamp := LinDamp;
   if g_MagReal then
     g_MagOn := False;
   if g_MagOn and g_Level.NearestBody(g_MagX, g_MagY, g_MagTargetId, MagD) then
@@ -1462,7 +1469,15 @@ begin
   if EnvStr('HOST_SCRPOS_GET') <> '' then
   begin
     pid := StrToIntDef(EnvStr('HOST_SCRPOS_GET'), 0);
-    if g_Level.GetSpritePos(pid, px, py, pa) then
+    hasPos := False;
+    if PhysBodyOf(pid) <> nil then
+    begin
+      PhysGetBodyPos(pid, px, py, pa);
+      hasPos := True;
+    end
+    else if g_Level.GetSpritePos(pid, px, py, pa) then
+      hasPos := True;
+    if hasPos then
     begin
       AssignFile(tf, ExePath('scrpos_get.log'));
       Rewrite(tf);
@@ -1492,6 +1507,11 @@ begin
       begin
         g_MagOn := True;
         PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, pa);
+        // T6.4b-4e：把世界命中点转成 body-local 抓取点（F454）。
+        g_MagLocalX := Cos(-pa) * (wx - g_MagLastX) -
+          Sin(-pa) * (wy - g_MagLastY);
+        g_MagLocalY := Sin(-pa) * (wx - g_MagLastX) +
+          Cos(-pa) * (wy - g_MagLastY);
         MagRealLog('down target=' + IntToStr(g_MagTargetId) +
           ' wx=' + FormatFloat('0.000000', wx) +
           ' wy=' + FormatFloat('0.000000', wy));
@@ -1519,9 +1539,13 @@ begin
     begin
       f := 30.0 * d;
       if f > 315.0 then f := 315.0;
-      PhysApplyForce(g_MagTargetId, f * dx / d, f * dy / d);
+      sx := px + Cos(pa) * g_MagLocalX - Sin(pa) * g_MagLocalY;
+      sy := py + Sin(pa) * g_MagLocalX + Cos(pa) * g_MagLocalY;
+      PhysApplyForceAt(g_MagTargetId, f * dx / d, f * dy / d, sx, sy);
     end;
   end;
+  if g_LinDamp > 0 then
+    PhysApplyLinearDamping(g_LinDamp);
   if g_DampCoeff > 0 then
     PhysApplyAngularDamping(g_DampCoeff);
   PhysStep(0.01, 20, 20);
