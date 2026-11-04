@@ -144,6 +144,7 @@
 - [x] T6.4d-6 持续帧循环：`THostLoop` + 16 ms `TTimer`，`HOST_LOOP_MS` 到时写 `loop.log`；level 3 `steps=39 calls=39 ms=1016`；负例 `HOST_LOOP=0` 无日志 依据：F442
 - [x] T6.4d-7 `Set_ScrObjPos` 接 sprite：`ScrPos` 队列 + `TLevelScene.SetSpritePos` + `Tick` 应用；level 3 `scrpos_calls=74 scrpos_moved=37`，负例 `--progress 0` → 0/0 依据：F443
 - [ ] T6.4d 游戏循环/状态机（`uistate` 状态序列 + 切换时刻） 依据：F169、F171、F172、F177
+- [x] T6.4d-9 完成面板工厂：`Add_AlphaHudSprite`（endbox 512×256、默认 alpha=0、`Do_ShowCommand`/`Do_HideCommand`；alpha≤0 不画）+ 宿主 `HOST_FORCE_ENDBOX` 冒烟（正例 diff 76,228 px、bbox (311,221)-(759,475)，负例无面板）；level 0-5 `scenemodel_ab` 0（15/22/38/47/38/22） 依据：F479
 - [x] T6.4e 关卡文本：范围核实（GameTop 不引用 `pt_sans`；关卡名/完成文本是烘焙图；动态文本只剩用户名；gulim2 无消费者） 依据：F432、F433
 - [ ] T6.5 整机 A/B（GL 序列 + 存档 + 像素验收） 依据：F181、F194、F196
 
