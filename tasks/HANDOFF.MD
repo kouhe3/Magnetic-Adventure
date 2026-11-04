@@ -1,9 +1,11 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F475**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-1/F469**、**T6.4f-visual-2b/F468**、**T6.4c-4/F470**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F476**。
 
 ## 0. 一句话现状
+**2026-11-04 T6.3 OnThresholdPlayerForce（F476）**：`TPhysObj.Threshold` + `Set/GetThresholdPlayerForce`；`MaybeThresholdForce` 在磁铁施力处按上升沿派发 (fx,fy)。夹具 `threshold_o/e`：宿主 |F|=150 有 marker、|F|=30 无；原版 `ci_fake_magnet` stage 5,0 有 markers 2×(99,99)、stage 1,0 无；verify 6、`phys_sweep` 50/2/0、`lua_bind_ab` 149/149。T6.3 的六类事件派发均有宿主实现。
+
 **2026-11-04 T6.3 OnClick 子切片（F475）**：`AddHud` 记录可点击 HUD 的矩形/句柄，`HudHit` 按设计像素命中；`scenemodel` 用 `AddHandle` 记回按钮句柄（`AddObject` 会清零）；`EventsFireClick` + `HostDispatchClick`；夹具 `click_o/e`：正例 handle=1002/calls=1、marker (99,99)，负例 handle=0、marker 不动；verify 6 门禁、`phys_sweep` 50/2/0、`lua_bind_ab` 149/149。原版 OnClick 的独立 A/B 属鼠标验收，未做。
 
 **2026-11-04 T6.3 OnPersistContact + 接触排队（F474）**：`PhysContactCb` 只入队，`DispatchContacts` 在 PhysStep 后派发 Add/Persist（步内 Set_ScrObjPos 会被 b2 覆盖，此前 49 次 persist 不动 marker）；`persist_o/e` 夹具原版与宿主的 marker 都在 **step 7**，负例两侧无 marker；`phys.log` 增 contacts/trace 诊断；`lua_bind_ab` 149/149、`phys_sweep` 50/2/0。

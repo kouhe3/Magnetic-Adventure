@@ -1854,6 +1854,7 @@ begin
   v1 := LuaOptInt(L, 1, 0);
   v2 := LuaOptNumber(L, 2, 0.0);
   id := NextId('Set_PhysThresholdPlayerForce');
+  PhysSetThresholdPlayerForce(v1, v2);
   Result := 0;
   LuaLogEnd(id);
 end;

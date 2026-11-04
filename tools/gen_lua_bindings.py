@@ -85,6 +85,7 @@ HOOKS = {
     # T6.3：简单计时器；cm_StartTimer=10 / cm_StopTimer=11（IDA 0x6457a0 的常量表）。
     "Add_SimpleTimer": ["  TimerAdd(id);"],
     "Start_Timer": ["  TimerStart(v1, v2);"],
+    "Set_PhysThresholdPlayerForce": ["  PhysSetThresholdPlayerForce(v1, v2);"],
     "Do_Command": ["  TimerCommand(v1, v2, d);"],
 }
 

@@ -125,6 +125,9 @@ procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double
 procedure PhysSetBodyPos(Id: Integer; X, Y, Angle: Double);
 // Get_ScrObjPos：对象的物理位置/角度（无效 id 返回 0,0,0）。
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);
+// T6.3：Set_PhysThresholdPlayerForce / 读取阈值（磁铁力超过时派发 OnThresholdPlayerForce）。
+procedure PhysSetThresholdPlayerForce(Id: Integer; Value: Double);
+function PhysGetThresholdPlayerForce(Id: Integer): Double;
 // T6.4b-3b：b2_Shape_TestPoint(shape, point, xform) 遍历该 body 的全部形状。
 function PhysTestPoint(Id: Integer; X, Y: Double): Boolean;
 // T6.4b-1：在 body 中心施加世界力（不产生力矩；原版磁铁力律见 F386）。
@@ -196,6 +199,7 @@ type
     // 一个 body 可能挂很多形状（lvl38 的 body 8 有 10 个，ToothGear 单条 12 个）。
     Shapes: array[0..63] of Pointer;
     Density, Friction, Restitution: Single;
+    Threshold: Single;   // T6.3：Set_PhysThresholdPlayerForce（0 = 不触发）
   end;
 
   TPhysJoint = record
@@ -323,6 +327,7 @@ begin
     g_objs[g_objCount].Density := 0.0;
     g_objs[g_objCount].Friction := 0.0;
     g_objs[g_objCount].Restitution := 0.0;
+    g_objs[g_objCount].Threshold := 0.0;
     Inc(g_objCount);
   end;
 end;
@@ -1131,6 +1136,28 @@ begin
   b := PhysBodyOf(Id);
   if b <> nil then
     SetXForm(b, X, Y, Angle);
+end;
+
+procedure PhysSetThresholdPlayerForce(Id: Integer; Value: Double);
+var
+  i: Integer;
+begin
+  for i := 0 to g_objCount - 1 do
+    if g_objs[i].Id = Id then
+    begin
+      g_objs[i].Threshold := Value;
+      Exit;
+    end;
+end;
+
+function PhysGetThresholdPlayerForce(Id: Integer): Double;
+var
+  i: Integer;
+begin
+  Result := 0.0;
+  for i := 0 to g_objCount - 1 do
+    if g_objs[i].Id = Id then
+      Exit(g_objs[i].Threshold);
 end;
 
 procedure PhysGetBodyPos(Id: Integer; out X, Y, Angle: Double);

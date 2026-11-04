@@ -188,6 +188,16 @@ python tools/ci_fake_magnet.py build --out work/fakemag_switch \
 `python work/run_vdesk_host.py rotpos work/profile_test.prf 1 0 200 0 1004 HOST_PHYS_STEPS=200 HOST_MAG_BUTTON=1 HOST_MAG_X=5 HOST_MAG_Y=0 HOST_STEP_LOG=<abs>/host_rot_pos.log HOST_LUA_DIR=work/pak_switch_lua HOST_PAK_DIR=work/pak_switch_lua`
 ⇒ marker body 在 step 7 起为 (99,99)；负例 `HOST_MAG_X=0 HOST_MAG_Y=-2`（力线过枢轴）⇒ 无 marker、臂角恒 0。
 
+## 力阈值夹具（threshold）
+
+`threshold_o.lua` / `threshold_e.lua`：自由螺丝阈值 100，`OnThresholdPlayerForce`
+回调把 marker 移到 (99,99)。
+
+- 构建/解包：`python tools/ci_fake_magnet.py build --out work/fakemag_threshold --o tests/levels/threshold_o.lua --e tests/levels/threshold_e.lua`；`python tools/pak.py extract work/fakemag_threshold/data work/pak_threshold_lua`。
+- 原版正例：`<PY32> tools/ci_fake_magnet.py run --dir work/fakemag_threshold --level 1 --stage 0,0:5,0 --done-dist 0.1 --marker 99,99 --timeout 3` ⇒ `markers` 2×(99,99)、PASS。
+- 原版负例：`--stage 0,0:1,0 --done-dist 0.05`（|F|=30<100）⇒ `markers=[]`。
+- 宿主正例：`run_vdesk_host.py thrpos … HOST_MAG_TARGET=1002 HOST_MAG_X=5 HOST_MAG_Y=0 HOST_PHYS_STEPS=10` ⇒ marker 1003 从 step 1 到 (99,99)；负例 `HOST_MAG_X=1` ⇒ 无 marker。
+
 ## 点击事件夹具（click）
 
 `click_o.lua` / `click_e.lua`：`Add_HudButton` 放在设计中心 (500,300)，`OnClick`

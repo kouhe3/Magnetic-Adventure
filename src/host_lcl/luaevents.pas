@@ -34,6 +34,9 @@ function EventsFireExpr(L: TLuaState; ObjId: Integer; const Event,
 // T6.3：OnRotate —— 对象角度相对上次变化 >1e-6 时派发（参数 = 当前角度）。
 function EventsFireRotations(L: TLuaState; Lookup: TAngleLookup; out Fired: Integer): Integer;
 // T6.3：OnClick —— 指定对象是否登记了该事件；命中后按 (ObjId, 0) 派发。
+// T6.3：OnThresholdPlayerForce —— 磁铁力超过阈值时派发 (fx, fy)。
+function EventsFireForce(L: TLuaState; ObjId: Integer; Fx, Fy: Double;
+  out Calls: Integer): Integer;
 function EventsHasEvent(ObjId: Integer; const Event: string): Boolean;
 function EventsFireClick(L: TLuaState; ObjId: Integer; out Calls: Integer): Integer;
 
@@ -132,6 +135,37 @@ begin
         Lua.SetField(L, LUA_GLOBALSINDEX, PChar('self'));
         Lua.PushInteger(L, ObjId);
         Lua.PushInteger(L, Body2);
+        rc := Lua.PCall(L, 2, 0, 0);
+        if rc = 0 then
+          Inc(Result)
+        else
+          LuaLastError(L);
+      end
+      else
+        Lua.SetTop(L, -2);
+    end;
+end;
+
+function EventsFireForce(L: TLuaState; ObjId: Integer; Fx, Fy: Double;
+  out Calls: Integer): Integer;
+var
+  i, rc: Integer;
+begin
+  Result := 0;
+  Calls := 0;
+  if L = nil then Exit;
+  for i := 0 to High(gBindings) do
+    if (gBindings[i].ObjId = ObjId) and
+       (gBindings[i].EventName = 'OnThresholdPlayerForce') then
+    begin
+      Inc(Calls);
+      Lua.GetField(L, LUA_GLOBALSINDEX, PChar(gBindings[i].FuncName));
+      if Lua.LType(L, -1) = LUA_TFUNCTION then
+      begin
+        Lua.PushInteger(L, ObjId);
+        Lua.SetField(L, LUA_GLOBALSINDEX, PChar('self'));
+        Lua.PushNumber(L, Fx);
+        Lua.PushNumber(L, Fy);
         rc := Lua.PCall(L, 2, 0, 0);
         if rc = 0 then
           Inc(Result)

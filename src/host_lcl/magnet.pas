@@ -1045,6 +1045,56 @@ begin
       StrToIntDef(Copy(s, p + 1, MaxInt), 0));
 end;
 
+// T6.3：OnThresholdPlayerForce。磁铁力超过对象阈值时按上升沿派发一次 (fx, fy)。
+const
+  ThrMax = 32;
+type
+  TThrState = record
+    Id: Integer;
+    Above: Boolean;
+  end;
+var
+  g_thr: array[0..ThrMax - 1] of TThrState;
+  g_thrCount: Integer = 0;
+
+procedure ResetThresholdState;
+begin
+  g_thrCount := 0;
+end;
+
+procedure MaybeThresholdForce(Id: Integer; Fx, Fy: Double);
+var
+  i, calls: Integer;
+  t, m: Double;
+begin
+  t := PhysGetThresholdPlayerForce(Id);
+  if t <= 0 then Exit;
+  i := -1;
+  for i := 0 to g_thrCount - 1 do
+    if g_thr[i].Id = Id then
+      Break;
+  if (i < 0) or (i >= g_thrCount) or (g_thr[i].Id <> Id) then
+  begin
+    if g_thrCount >= ThrMax then Exit;
+    i := g_thrCount;
+    Inc(g_thrCount);
+    g_thr[i].Id := Id;
+    g_thr[i].Above := False;
+  end;
+  m := Sqrt(Fx * Fx + Fy * Fy);
+  if m > t then
+  begin
+    if not g_thr[i].Above then
+    begin
+      g_thr[i].Above := True;
+      if g_levelLua <> nil then
+        EventsFireForce(g_levelLua, Id, Fx, Fy, calls);
+    end;
+  end
+  else
+    g_thr[i].Above := False;
+end;
+
 // T6.4b-2b-0：Lua Get_ScrObjPos 对无物理体的 graph 对象回退到这里。
 function LookupSpritePos(Id: Integer; out X, Y, Angle: Double): Boolean;
 begin
@@ -1408,6 +1458,7 @@ begin
     else if MagOn and g_Level.NearestBody(MagX, MagY, TargetId, MagD) then
       PhysGetBodyPos(TargetId, MagIX, MagIY, MagIA);
     DispatchEnvClick;
+    ResetThresholdState;
     g_lua := g_levelLua;
     for i := 1 to Steps do
     begin
@@ -1461,6 +1512,7 @@ begin
           MagF := 30.0 * MagD;
           if MagF > 315.0 then MagF := 315.0;
           PhysApplyForce(TargetId, MagF * MagDX / MagD, MagF * MagDY / MagD);
+          MaybeThresholdForce(TargetId, MagF * MagDX / MagD, MagF * MagDY / MagD);
         end;
       end;
       while (TorqueIdx < TorqueCount) and (Torques[TorqueIdx].Step <= i) do
@@ -1759,6 +1811,7 @@ begin
       sx := px + Cos(pa) * g_MagLocalX - Sin(pa) * g_MagLocalY;
       sy := py + Sin(pa) * g_MagLocalX + Cos(pa) * g_MagLocalY;
       PhysApplyForceAt(g_MagTargetId, f * dx / d, f * dy / d, sx, sy);
+      MaybeThresholdForce(g_MagTargetId, f * dx / d, f * dy / d);
     end;
   end;
   if g_LinDamp > 0 then
