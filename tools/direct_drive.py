@@ -345,6 +345,37 @@ def state_label(s):
     return "other"
 
 
+def hud_sprites(hp, mgr):
+    """Return [(ptr, size, c_2c, vis_1f0)] for TGlAlphaHudSpriteObject.
+
+    `find_end_level_box` intentionally returns only the first size-0x30 match;
+    level 1 has two (the end-level box and the completion hint), and only the
+    second one's +0x2C flips to 1.0 on completion (F430).  Callers that need a
+    completion signal must compare every candidate against a pre-level baseline.
+    """
+    gl = u32(hp, mgr + 0x20) if mgr else None
+    tl = u32(hp, gl + 4) if gl else None
+    arr = u32(hp, tl + 4) if tl else None
+    cnt = u32(hp, tl + 8) if tl else None
+    out = []
+    if not arr or not cnt or not (0 < cnt < 4096):
+        return out
+    for i in range(cnt):
+        p = u32(hp, arr + i * 4)
+        if not p:
+            continue
+        vmt = u32(hp, p)
+        if not vmt:
+            continue
+        size = u32(hp, vmt + 4)
+        size = (-size) & 0xFFFFFFFF if size & 0x80000000 else size
+        name = u32(hp, vmt + 0xC)
+        raw = rpm(hp, name, 64) if name else None
+        if raw and raw[1:1 + raw[0]] == b"TGlAlphaHudSpriteObject":
+            out.append((p, size, u32(hp, p + 0x2C), u32(hp, p + 0x1F0)))
+    return out
+
+
 def find_end_level_box(hp, mgr):
     """Return bEndLevelBox = the TGlAlphaHudSpriteObject in TGraphObjectList.
 
@@ -391,6 +422,8 @@ def start_trace(hp, pi, hz):
         last = "boot"
         box = None
         box_checked = 0.0
+        baseline = {}
+        baseline_lm = None
         while not stop.is_set():
             if k32.WaitForSingleObject(pi.hProcess, 0) == 0:
                 rows.append({"t_ms": int((time.time() - t0) * 1000),
@@ -404,10 +437,21 @@ def start_trace(hp, pi, hz):
             label = state_label(s)
             if label == "level":
                 now = time.time()
+                if baseline_lm != s[1]:
+                    baseline = {p_: c2c_ for p_, sz_, c2c_, vis_ in
+                                hud_sprites(hp, s[0])}
+                    baseline_lm = s[1]
+                    box = None
                 if box is None or now - box_checked > 1.0:
                     box = find_end_level_box(hp, s[0])
                     box_checked = now
-                if box and u32(hp, box + 0x2C) == 0x3F800000:
+                complete = bool(box and u32(hp, box + 0x2C) == 0x3F800000)
+                if not complete:
+                    for p_, sz_, c2c_, vis_ in hud_sprites(hp, s[0]):
+                        if baseline.get(p_, 0) == 0 and c2c_ == 0x3F800000:
+                            complete = True
+                            break
+                if complete:
                     label = "complete"
             key = (label, s[3] if label in ("level", "complete") else None)
             if label != "other" and key != last:

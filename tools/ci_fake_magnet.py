@@ -21,6 +21,15 @@ Usage
         --stage=0,0:3,0 --stage=-3,3:0,6 --marker 99,99 --done-dist 0.65 \
         --hold 2.5 --runtime-stage 1 --require-fg --json work/fakemag_chain.json
 
+    # 3) completion-chain stability on retail level 1: the drag itself produces
+    #    the two in-target OnMove calls; --require-complete checks any size-0x30
+    #    HUD sprite whose +0x2C goes 0 -> 1.0 vs the level-entry baseline.
+    #    --nudge is an optional fallback (release, re-grip, move a little); on
+    #    level 1 HintState>4 makes the re-grip target 0, so it is not needed.
+    "%PY32%" tools/ci_fake_magnet.py run --dir work/e2e_game --level 1 \
+        --stage=7.25,-5.14:-8.846,10.129 --stage=-1.96,-9.10:5.824,8.947 \
+        --nudge 1:1.0:0.15 --require-complete --complete-wait 8
+
 Stage syntax: `start_x,start_y:goal_x,goal_y[:done_dist]`.  Each stage grabs the
 body nearest to the start point (within `--start-tol`), holds the button, moves
 the synthetic cursor to the goal, and releases when the body is within
@@ -50,6 +59,10 @@ Criterion (exit 0 = PASS)
 * magnet ApplyForce lines exist and match: direction = mouse-target, |F|<=315,
   |F|=315 outside 10.5 world units, |F|-30*d <= 2.5 inside, body = the stage
   target's body, target set = stage set (see F386);
+* `--require-complete`: after all stages, any size-0x30
+  `TGlAlphaHudSpriteObject` that was `+0x2C == 0` at level entry has
+  `+0x2C == 1.0` within `--complete-wait` (F430; the first such object is the
+  end-level box and may stay 0, so the baseline comparison is required);
 * the game window never becomes the user's foreground window
   (`--require-fg`), and a clean ExitProcess.
 
@@ -300,6 +313,9 @@ def press_on(hp, cal, cfg, x, y, tries=8):
         write_cfg(cfg, cx, cy, 1)
         time.sleep(0.20)
         st = player_state(hp)
+        if os.environ.get("CI_DEBUG"):
+            print("  press%d at (%.2f,%.2f) target=%s" %
+                  (k, px, py, st.get("target") if st else None), flush=True)
         if st and st.get("target"):
             return st, (px, py, k)
         write_cfg(cfg, cx, cy, 0)
@@ -617,6 +633,11 @@ def dispatch(hp, pi, desk, pid, index, settle):
     return lm, app, win, ht, stub_addr
 
 
+def hud_sprite_states(hp, mgr):
+    """Diagnostic alias for direct_drive.hud_sprites (single source of truth)."""
+    return dd.hud_sprites(hp, mgr)
+
+
 # ---- stage parsing ----
 def parse_stage(text):
     body, _, rest = text.partition(":")
@@ -630,6 +651,16 @@ def parse_stage(text):
     except ValueError:
         raise SystemExit("bad --stage %r" % text)
     return {"start": [sx, sy], "goal": [gx, gy], "done": d}
+
+
+def parse_nudge(text):
+    """STAGE:seconds:radius — release, re-grip, move a little."""
+    idx, _, rest = text.partition(":")
+    sec, _, radius = rest.partition(":")
+    try:
+        return int(idx), float(sec), float(radius)
+    except ValueError:
+        raise SystemExit("bad --nudge %r (want stage:sec:radius)" % text)
 
 
 def parse_point(text):
@@ -668,6 +699,10 @@ def run(a):
         except ValueError:
             raise SystemExit("bad --stage-angle stage index in %r" % spec)
         stage_angles.setdefault(k, []).append(parse_point(pt))
+    nudges = {}
+    for spec in a.nudge:
+        k, sec, radius = parse_nudge(spec)
+        nudges[k] = (sec, radius)
     markers = [parse_point(m) for m in a.marker]
     tag = os.path.join(WORK, "ci_fake_magnet_%d" % os.getpid())
     log = tag + ".bin"
@@ -697,6 +732,11 @@ def run(a):
         digest.poll()
         print("bodies", len(digest.bodies), "seq", digest.seq, flush=True)
         initial = {b[0] for b in digest.bodies}
+        hud_baseline = {p_: c2c_ for p_, sz_, c2c_, vis_ in
+                        hud_sprite_states(hp, dd.state(hp, app)[0])}
+        if os.environ.get("CI_DEBUG"):
+            print("hud baseline", {hex(k): hex(v) for k, v in hud_baseline.items()},
+                  flush=True)
         note_fg("settle")
         if a.observe > 0:
             targets = []
@@ -738,6 +778,8 @@ def run(a):
                                "sign_ok": sign_ok, "ratio_ok": ratio_ok}
             out["angles"] = targets
             out["angles_ok"] = ok
+            out["complete"] = False
+            out["complete_ok"] = not a.require_complete
             out["mode"] = "observe"
             time.sleep(a.completion_wait)
             out["markers"] = parse_markers(log, markers)
@@ -825,6 +867,38 @@ def run(a):
             write_cfg(cfg, cx, cy, 1)
             d, d_live_min = drive_to(digest, ptr, st["goal"], done, a.hold,
                                      a.timeout)
+            if si_ in nudges and rec["target"]:
+                # The first in-target bGearOnMove calls Set_PlayerMagnetOff(),
+                # so holding the button cannot produce the second OnMove.
+                # Release, re-grip the (now stationary) body, then move a
+                # little; the second in-target OnMove sees HintState == 4.
+                nsec, nrad = nudges[si_]
+                write_cfg(cfg, cx, cy, 0)
+                time.sleep(a.regrab_wait)
+                digest.poll()
+                _, nb = find_body(digest.bodies, ptr)
+                if nb is not None:
+                    res2, pressed2 = press_on(hp, cal, cfg, nb[6], nb[7])
+                    rec["regrab"] = bool(res2 and res2.get("target"))
+                    print("stage %d regrab press %s target %s" %
+                          (si_, pressed2, res2.get("target") if res2 else None),
+                          flush=True)
+                    if rec["regrab"]:
+                        bx, by = nb[6], nb[7]
+                        t0 = time.time()
+                        k = 0
+                        while time.time() - t0 < nsec:
+                            ang = 2.0 * math.pi * k / 20.0
+                            nx = bx + nrad * math.cos(ang)
+                            ny = by + nrad * math.sin(ang)
+                            ncx, ncy = cfg_world(cal, nx, ny)
+                            write_cfg(cfg, ncx, ncy, 1)
+                            digest.poll()
+                            time.sleep(0.05)
+                            k += 1
+                        gcx, gcy = cfg_world(cal, bx, by)
+                        write_cfg(cfg, gcx, gcy, 1)
+                        time.sleep(0.2)
             write_cfg(cfg, cx, cy, 0)
             time.sleep(0.25)
             digest.poll()
@@ -875,6 +949,44 @@ def run(a):
         forces = parse_force_trace(force)
         out["forces"] = check_forces(forces, expect) if not a.skip_forces else {}
         force_ok = a.skip_forces or out["forces"].get("pass_", False)
+        out["complete"] = False
+        out["complete_ok"] = not a.require_complete
+        if a.require_complete:
+            t0 = time.time()
+            box = None
+            last_dbg = 0.0
+            mgr = dd.state(hp, app)[0]
+            while time.time() - t0 < a.complete_wait:
+                if box is None:
+                    box = dd.find_end_level_box(hp, mgr)
+                if box and dd.u32(hp, box + 0x2C) == 0x3F800000:
+                    out["complete"] = True
+                    out["complete_ok"] = True
+                    out["complete_ptr"] = hex(box)
+                    break
+                for p_, sz_, c2c_, vis_ in hud_sprite_states(hp, mgr):
+                    if hud_baseline.get(p_, 0) == 0 and c2c_ == 0x3F800000:
+                        out["complete"] = True
+                        out["complete_ok"] = True
+                        out["complete_ptr"] = hex(p_)
+                        break
+                if out["complete"]:
+                    break
+                if os.environ.get("CI_DEBUG") and time.time() - last_dbg > 0.8:
+                    st = dd.state(hp, app)
+                    print("  complete t=%.2f state=%s box=%s c2c=%s" %
+                          (time.time() - t0, dd.state_label(st), hex(box) if box else None,
+                           hex(dd.u32(hp, box + 0x2C)) if box else None),
+                          flush=True)
+                    for hp_, sz_, c2c_, vis_ in hud_sprite_states(hp, mgr):
+                        print("    hud %s size=%s c2c=%s vis=%s" %
+                              (hex(hp_), hex(sz_), hex(c2c_), hex(vis_)), flush=True)
+                    last_dbg = time.time()
+                time.sleep(0.05)
+            out["complete_state"] = dd.state_label(dd.state(hp, app))
+            print("complete %s after %.2fs state=%s" %
+                  (out["complete"], time.time() - t0, out["complete_state"]),
+                  flush=True)
         note_fg("end")
         out["fg_same"] = (user32.GetForegroundWindow() == prev_fg)
         out["fg_before"] = prev_fg
@@ -887,7 +999,7 @@ def run(a):
         out["runtime_ok"] = not bad_runtime
         out["runtime_stage"] = a.runtime_stage
         out["pass"] = bool(stages_ok and out["marker_ok"] and force_ok and fg_ok
-                           and out["runtime_ok"])
+                           and out["runtime_ok"] and out["complete_ok"])
         out["stages_ok"] = stages_ok
         out["fg_ok"] = fg_ok
         out["force_ok"] = force_ok
@@ -941,6 +1053,16 @@ def main():
                    help="seconds to hold the synthetic button per stage")
     r.add_argument("--waypoint", action="append", default=[],
                    help="STAGE:x,y intermediate cursor point (repeatable)")
+    r.add_argument("--nudge", action="append", default=[],
+                   help="STAGE:seconds:radius — re-grip the body after the "
+                        "first in-target OnMove turned the magnet off, move a "
+                        "little, then release (repeatable)")
+    r.add_argument("--regrab-wait", type=float, default=0.6,
+                   help="seconds between releasing and re-gripping for --nudge")
+    r.add_argument("--require-complete", action="store_true",
+                   help="require bEndLevelBox+0x2C == 1.0 after the stages")
+    r.add_argument("--complete-wait", type=float, default=8.0,
+                   help="seconds to wait for the completion panel")
     r.add_argument("--stage-angle", action="append", default=[],
                    help="STAGE:x,y body whose angle must change during the stage")
     r.add_argument("--stage-min-angle", type=float, default=0.2,
