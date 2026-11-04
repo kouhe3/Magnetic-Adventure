@@ -121,6 +121,13 @@ CUSTOM_RET = {
          "  Lua.PushNumber(L, g_camY + hy);",
          "  Result := 4;"],
     ),
+    "Get_JointAngle": (
+        ["  gja: Double;"],
+        ["  gja := 0.0;",
+         "  PhysGetJointAngle(v1, gja);",
+         "  Lua.PushNumber(L, gja);",
+         "  Result := 1;"],
+    ),
     "Get_ScrObjPos": (
         ["  gx, gy, ga: Double;"],
         ["  if (PhysBodyOf(v1) = nil) and Assigned(ScrPosLookup) then",

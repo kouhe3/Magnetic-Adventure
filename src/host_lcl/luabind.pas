@@ -2026,11 +2026,14 @@ function bind_Get_JointAngle(L: TLuaState): Integer; cdecl;
 var
   id: Integer;
   v1: Integer;
+  gja: Double;
 begin
   LuaLogBegin(L, 'Get_JointAngle');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Get_JointAngle');
-  Lua.PushNumber(L, id);
+  gja := 0.0;
+  PhysGetJointAngle(v1, gja);
+  Lua.PushNumber(L, gja);
   Result := 1;
   LuaLogEnd(id);
 end;

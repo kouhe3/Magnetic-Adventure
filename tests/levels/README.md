@@ -183,6 +183,11 @@ python tools/ci_fake_magnet.py build --out work/fakemag_switch \
 机制：磁铁力作用在 body 中心，枢轴在其下方 1.6；横向力产生力矩，关节转到限位，
 `OnRotate` 回调触发。
 
+宿主 OnRotate 验证（F473）：`python tools/ci_fake_magnet.py build --out work/fakemag_switch --o tests/levels/switch_o.lua --e tests/levels/switch_e.lua`，
+`python tools/pak.py extract work/fakemag_switch/data work/pak_switch_lua`；
+`python work/run_vdesk_host.py rotpos work/profile_test.prf 1 0 200 0 1004 HOST_PHYS_STEPS=200 HOST_MAG_BUTTON=1 HOST_MAG_X=5 HOST_MAG_Y=0 HOST_STEP_LOG=<abs>/host_rot_pos.log HOST_LUA_DIR=work/pak_switch_lua HOST_PAK_DIR=work/pak_switch_lua`
+⇒ marker body 在 step 7 起为 (99,99)；负例 `HOST_MAG_X=0 HOST_MAG_Y=-2`（力线过枢轴）⇒ 无 marker、臂角恒 0。
+
 ## 计时器夹具（timer）
 
 `timer_o.lua` / `timer_e.lua`：静态墙 + 自由螺丝 (10,10) + `Add_SimpleTimer`；

@@ -16,6 +16,9 @@ interface
 
 uses SysUtils, LuaDll;
 
+type
+  TAngleLookup = function(Id: Integer; out Angle: Double): Boolean;
+
 procedure EventsReset;
 procedure EventsAdd(ObjId: Integer; const Event, FuncName: string);
 function EventsCount: Integer;
@@ -28,6 +31,8 @@ function EvalIntExpr(L: TLuaState; const Expr: string; out Value: Integer;
   out Err: string): Boolean;
 function EventsFireExpr(L: TLuaState; ObjId: Integer; const Event,
   Body2Expr: string; out Fired: Integer; out Err: string): Boolean;
+// T6.3：OnRotate —— 对象角度相对上次变化 >1e-6 时派发（参数 = 当前角度）。
+function EventsFireRotations(L: TLuaState; Lookup: TAngleLookup; out Fired: Integer): Integer;
 
 implementation
 
@@ -43,10 +48,14 @@ type
 
 var
   gBindings: array of TEventBinding;
+  gLastAngle: array of Double;
+  gHasAngle: array of Boolean;
 
 procedure EventsReset;
 begin
   SetLength(gBindings, 0);
+  SetLength(gLastAngle, 0);
+  SetLength(gHasAngle, 0);
 end;
 
 procedure EventsAdd(ObjId: Integer; const Event, FuncName: string);
@@ -58,6 +67,10 @@ begin
   gBindings[n].ObjId := ObjId;
   gBindings[n].EventName := Event;
   gBindings[n].FuncName := FuncName;
+  SetLength(gLastAngle, n + 1);
+  SetLength(gHasAngle, n + 1);
+  gLastAngle[n] := 0;
+  gHasAngle[n] := False;
 end;
 
 function EventsCount: Integer;
@@ -117,6 +130,46 @@ begin
         Lua.PushInteger(L, ObjId);
         Lua.PushInteger(L, Body2);
         rc := Lua.PCall(L, 2, 0, 0);
+        if rc = 0 then
+          Inc(Result)
+        else
+          LuaLastError(L);
+      end
+      else
+        Lua.SetTop(L, -2);
+    end;
+end;
+
+// T6.3：OnRotate 派发。第一次只记录基准角，之后角度变化 >1e-6 才调用；
+// 回调参数 = 当前角度（脚本里 bSwitchOnRotate(Rotation) 等）。
+function EventsFireRotations(L: TLuaState; Lookup: TAngleLookup; out Fired: Integer): Integer;
+var
+  i, rc: Integer;
+  a: Double;
+begin
+  Result := 0;
+  Fired := 0;
+  if (L = nil) or (Lookup = nil) then Exit;
+  for i := 0 to High(gBindings) do
+    if gBindings[i].EventName = 'OnRotate' then
+    begin
+      if not Lookup(gBindings[i].ObjId, a) then Continue;
+      if not gHasAngle[i] then
+      begin
+        gHasAngle[i] := True;
+        gLastAngle[i] := a;
+        Continue;
+      end;
+      if Abs(a - gLastAngle[i]) <= 1e-6 then Continue;
+      gLastAngle[i] := a;
+      Inc(Fired);
+      Lua.GetField(L, LUA_GLOBALSINDEX, PChar(gBindings[i].FuncName));
+      if Lua.LType(L, -1) = LUA_TFUNCTION then
+      begin
+        Lua.PushInteger(L, gBindings[i].ObjId);
+        Lua.SetField(L, LUA_GLOBALSINDEX, PChar('self'));
+        Lua.PushNumber(L, a);
+        rc := Lua.PCall(L, 1, 0, 0);
         if rc = 0 then
           Inc(Result)
         else

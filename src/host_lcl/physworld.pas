@@ -117,6 +117,8 @@ function PhysAddJointNail(Id, B1, B2: Integer; X, Y: Double): Pointer;
 function PhysAddJointSimpleRevolute(Id, B1, B2: Integer; X, Y: Double): Pointer;
 function PhysAddJointSimpleGear(Id, B1, B2, J1, J2: Integer; Ratio: Double): Pointer;
 function PhysAddJointSimplePrismatic(Id, B1, B2: Integer; AX, AY, VX, VY: Double): Pointer;
+// T6.3：revolute 关节角 = (body2.angle - body1.angle) - 创建时参考角（0 基）。
+function PhysGetJointAngle(Id: Integer; out Angle: Double): Boolean;
 procedure PhysSetJointLimits(Id: Integer; Enable: Boolean; Lower, Upper: Double);
 procedure PhysSetJointMotors(Id: Integer; Enable: Boolean; Speed, Torque: Double);
 // 诊断用：把对象瞬移到指定位置（HOST_PHYS_MOVE 自检，不参与正式语义）。
@@ -175,6 +177,7 @@ type
   TJointLimitsFn = procedure(J: Pointer; Lower, Upper: Single); cdecl;
   TJointFloatFn = procedure(J: Pointer; V: Single); cdecl;
   TGetXFormFn = function(Body, OutXf: Pointer): Pointer; cdecl;
+  TGetAngleFn = function(Body: Pointer): Single; cdecl;
   TApplyForceFn = procedure(Body, Force, Point: Pointer); cdecl;
   TApplyTorqueFn = procedure(Body: Pointer; Torque: Single); cdecl;
   TBodyFloatFn = function(Body: Pointer): Single; cdecl;
@@ -198,6 +201,8 @@ type
   TPhysJoint = record
     Id: Integer;
     Joint: Pointer;
+    Body1, Body2: Pointer;   // T6.3：Get_JointAngle 用相对角 − 创建时参考角
+    RefAngle: Double;
   end;
 
   // 一根绳 = N 个链节对象；Set_PhysParams 对 rope id 要逐链节生效（F289 的录制序列：
@@ -252,6 +257,7 @@ var
   g_jointSetMotorSpeed: TJointFloatFn;
   g_jointSetMaxTorque: TJointFloatFn;
   g_getXForm: TGetXFormFn;
+  g_getAngle: TGetAngleFn;
   g_applyForce: TApplyForceFn;
   g_applyTorque: TApplyTorqueFn;
   g_getOmega: TBodyFloatFn;
@@ -363,8 +369,29 @@ begin
   begin
     g_joints[g_jointCount].Id := Id;
     g_joints[g_jointCount].Joint := Joint;
+    g_joints[g_jointCount].Body1 := nil;
+    g_joints[g_jointCount].Body2 := nil;
+    g_joints[g_jointCount].RefAngle := 0;
     Inc(g_jointCount);
   end;
+end;
+
+// T6.3：记录关节两端的 body 与创建时参考角，供 Get_JointAngle 计算相对角。
+procedure SetJointBodies(Id: Integer; B1, B2: Pointer);
+var
+  i: Integer;
+begin
+  for i := g_jointCount - 1 downto 0 do
+    if g_joints[i].Id = Id then
+    begin
+      g_joints[i].Body1 := B1;
+      g_joints[i].Body2 := B2;
+      if Assigned(g_getAngle) and (B1 <> nil) and (B2 <> nil) then
+        g_joints[i].RefAngle := g_getAngle(B2) - g_getAngle(B1)
+      else
+        g_joints[i].RefAngle := 0;
+      Exit;
+    end;
 end;
 
 function JointOf(Id: Integer): Pointer;
@@ -989,6 +1016,7 @@ begin
   d.anchor.y := Y;
   Result := g_jointRev(@d);
   RegJoint(Id, Result);
+  SetJointBodies(Id, pb1, pb2);
 end;
 
 function PhysAddJointSimpleRevolute(Id, B1, B2: Integer; X, Y: Double): Pointer;
@@ -1041,6 +1069,24 @@ begin
   d.motorSpeed := 100.0;
   Result := g_jointPri(@d);
   RegJoint(Id, Result);
+end;
+
+function PhysGetJointAngle(Id: Integer; out Angle: Double): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  Angle := 0;
+  if not Assigned(g_getAngle) then Exit;
+  for i := 0 to g_jointCount - 1 do
+    if g_joints[i].Id = Id then
+    begin
+      if (g_joints[i].Body1 = nil) or (g_joints[i].Body2 = nil) then Exit;
+      Angle := (g_getAngle(g_joints[i].Body2) - g_getAngle(g_joints[i].Body1)) -
+        g_joints[i].RefAngle;
+      Result := True;
+      Exit;
+    end;
 end;
 
 procedure PhysSetJointLimits(Id: Integer; Enable: Boolean; Lower, Upper: Double);
@@ -1473,6 +1519,7 @@ begin
   g_jointSetMotorSpeed := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMotorSpeed'));
   g_jointSetMaxTorque := TJointFloatFn(GetProcAddress(g_dll, 'b2_Joint_SetMaxMotorTorque'));
   g_getXForm := TGetXFormFn(GetProcAddress(g_dll, 'b2_Body_GetXForm'));
+  g_getAngle := TGetAngleFn(GetProcAddress(g_dll, 'b2_Body_GetAngle'));
   g_applyForce := TApplyForceFn(GetProcAddress(g_dll, 'b2_Body_ApplyForce'));
   g_applyTorque := TApplyTorqueFn(GetProcAddress(g_dll, 'b2_Body_ApplyTorque'));
   g_getOmega := TBodyFloatFn(GetProcAddress(g_dll, 'b2_Body_GetOmega'));
@@ -1490,7 +1537,7 @@ begin
     Assigned(g_jointRev) and Assigned(g_jointPri) and Assigned(g_jointGear) and
     Assigned(g_jointEnableLimit) and Assigned(g_jointEnableMotor) and
     Assigned(g_jointSetLimits) and Assigned(g_jointSetMotorSpeed) and
-    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and Assigned(g_applyForce) and
+    Assigned(g_jointSetMaxTorque) and Assigned(g_getXForm) and Assigned(g_getAngle) and Assigned(g_applyForce) and
     Assigned(g_applyTorque) and
     Assigned(g_shapeSetDensity) and Assigned(g_shapeSetFriction) and
     Assigned(g_shapeSetRestitution) and Assigned(g_shapeSetFilter) and

@@ -950,6 +950,26 @@ end;
 
 procedure ExitLevel; forward;
 
+// T6.3：OnRotate 的角度回读（物理 body 的当前角度）与派发入口。
+function HostBodyAngle(Id: Integer; out Angle: Double): Boolean;
+var
+  x, y: Double;
+begin
+  Result := PhysBodyOf(Id) <> nil;
+  if Result then
+    PhysGetBodyPos(Id, x, y, Angle)
+  else
+    Angle := 0;
+end;
+
+procedure FireRotations;
+var
+  n: Integer;
+begin
+  if g_levelLua = nil then Exit;
+  EventsFireRotations(g_levelLua, @HostBodyAngle, n);
+end;
+
 // T6.4b-2b-0：Lua Get_ScrObjPos 对无物理体的 graph 对象回退到这里。
 function LookupSpritePos(Id: Integer; out X, Y, Angle: Double): Boolean;
 begin
@@ -1376,6 +1396,7 @@ begin
       PhysStep(0.01, 20, 20);
       // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
       TimerUpdate(g_levelLua, 0.01);
+      FireRotations;
       if stepOn then
         g_Level.WriteStepDigest(i, stepLog);
       // T6.4d-4：关卡运行期保留的 Lua state 里每步调 DoProgress(dt)。
@@ -1660,6 +1681,7 @@ begin
   PhysStep(0.01, 20, 20);
   // T6.3：简单计时器按物理步 dt 递减，到期派发 OnTimer。
   TimerUpdate(g_levelLua, 0.01);
+  FireRotations;
   Inc(g_LoopSteps);
   // T6.4b-2a：target 位移 >1e-3 时按 (PosX,PosY) 派发 OnMove。
   if g_MagOn and (g_MagTargetId <> 0) then
