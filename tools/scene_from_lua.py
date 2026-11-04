@@ -349,12 +349,11 @@ def build(calls, pak_dir="", settle=True):
         elif fn == "Do_HideCommand" and args:
             if args[0] in hud:
                 hud[args[0]]["alpha"] = 0.0
-            elif (args[0] in handles and
-                  handles[args[0]]["kind"] == "Add_AlphaHudSprite"):
+            elif args[0] in handles:
                 handles[args[0]]["alpha"] = 0.0
         elif fn == "Do_ShowCommand" and args:
             o = handles.get(args[0]) if args else None
-            if o is not None and o["kind"] == "Add_AlphaHudSprite":
+            if o is not None:
                 o["alpha"] = 1.0
     if settle:
         settle_arms(objects)

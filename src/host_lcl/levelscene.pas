@@ -24,6 +24,7 @@ type
   THudClick = record
     Handle: Integer;
     X, Y, W, H: Single;
+    Sprite: TGLHUDSprite;
   end;
 
   // T6.4d-3：world sprite ↔ b2 body 的同步项（Handle = Lua 工厂返回的 id）。
@@ -32,6 +33,8 @@ type
     Sprite: TGLSprite;
     InitAngle: Double;
   end;
+
+  THiddenLookup = function(Id: Integer): Boolean;
 
   TLevelScene = class
   private
@@ -45,6 +48,7 @@ type
     FSyncCount: Integer;
     FSyncMaxErr: Double;
     FSyncAngleMoved: Integer;
+    FSyncRotMoved: Integer;
     // T6.4b-3b：Set_CameraViewArea(a,b) 的实参（F364）；由 BuildFromModel 填。
     FViewA, FViewB: Double;
     // T6.4f-visual：提示按钮（hintwood/helptime/numsatl）与数字图集材质库。
@@ -71,6 +75,9 @@ type
     // 把 world sprite 的位置同步到物理体；返回有效 body 数。
     // FSyncMaxErr = 同步前 sprite 与 body 的最大位置差；FSyncAngleMoved = 角度变化数。
     function SyncPhysics: Integer;
+    // F485：按 Do_HideCommand/Do_ShowCommand 的当前集合设置 sprite 可见性。
+    procedure ApplyHidden(Lookup: THiddenLookup);
+    procedure SetSpriteVisible(Handle: Integer; Visible: Boolean);
     // T6.4b-1：按世界距离找最近的、有物理 body 的 world sprite（磁铁 target 选择）。
     function NearestBody(X, Y: Double; out Handle: Integer;
       out Dist: Double): Boolean;
@@ -99,11 +106,27 @@ type
     property SyncObjects: Integer read FSyncCount;
     property SyncMaxErr: Double read FSyncMaxErr;
     property SyncAngleMoved: Integer read FSyncAngleMoved;
+    property SyncRotMoved: Integer read FSyncRotMoved;
   end;
 
 implementation
 
 uses PhysWorld;
+
+// F486：TGraphObjectList 的 root 绘制顺序（back 先、hints 后；root 0 最后）；
+// HUD（Space=1）恒定排最后，避免世界物体盖住按钮。
+function SceneRank(const O: TSceneObj): Integer;
+begin
+  if O.Space = 1 then Exit(100);
+  case O.Root of
+    4: Result := 0;   // grBackRoot
+    2: Result := 1;   // grMediumRoot
+    1: Result := 2;   // grFrontRoot
+    3: Result := 3;   // grHintsRoot
+  else
+    Result := 4;      // root 0 / 未标注
+  end;
+end;
 
 constructor TLevelScene.Create(Scene: TGLScene; Pak: TPakFile; Camera: TGLCamera);
 begin
@@ -117,6 +140,7 @@ begin
   FSyncCount := 0;
   FSyncMaxErr := 0;
   FSyncAngleMoved := 0;
+  FSyncRotMoved := 0;
   FViewA := 0;
   FViewB := 0;
   SetLength(FSync, 0);
@@ -229,6 +253,7 @@ begin
     FHudClicks[FHudClickCount].Y := Y;
     FHudClicks[FHudClickCount].W := W;
     FHudClicks[FHudClickCount].H := H;
+    FHudClicks[FHudClickCount].Sprite := Sprite;
     Inc(FHudClickCount);
   end;
   Result := True;
@@ -289,14 +314,26 @@ begin
   FLog := FLog + 'sprites=' + IntToStr(FSprites) + #13#10;
 end;
 
+function SyncRotationEnabled: Boolean;
+var
+  Buf: array[0..15] of Char;
+  n: DWORD;
+begin
+  n := GetEnvironmentVariable(PChar('HOST_SYNC_ROT'), @Buf[0], Length(Buf));
+  Result := not ((n = 1) and (Buf[0] = '0'));
+end;
+
 function TLevelScene.SyncPhysics: Integer;
 var
   i: Integer;
   x, y, a, d: Double;
+  SyncRot: Boolean;
 begin
   Result := 0;
   FSyncMaxErr := 0;
   FSyncAngleMoved := 0;
+  FSyncRotMoved := 0;
+  SyncRot := SyncRotationEnabled;
   for i := 0 to High(FSync) do
   begin
     if PhysBodyOf(FSync[i].Handle) = nil then Continue;
@@ -304,10 +341,41 @@ begin
     d := Abs(FSync[i].Sprite.Position.X - x) +
       Abs(FSync[i].Sprite.Position.Y - y);
     if d > FSyncMaxErr then FSyncMaxErr := d;
-    if Abs(a - FSync[i].InitAngle) > 1e-3 then Inc(FSyncAngleMoved);
+    if Abs(a - FSync[i].InitAngle) > 1e-3 then
+    begin
+      Inc(FSyncAngleMoved);
+      if SyncRot then Inc(FSyncRotMoved);
+    end;
     FSync[i].Sprite.Position.SetPoint(x, y, 0);
+    // F484：body 的角度也必须写回 sprite；否则物理在转、画面不转（“打滑”视觉）。
+    if SyncRot then
+      FSync[i].Sprite.Rotation := a * 180 / Pi;
     Inc(Result);
   end;
+end;
+
+procedure TLevelScene.ApplyHidden(Lookup: THiddenLookup);
+var
+  i: Integer;
+begin
+  for i := 0 to High(FSync) do
+    SetSpriteVisible(FSync[i].Handle, not Lookup(FSync[i].Handle));
+  for i := 0 to FHudClickCount - 1 do
+    if FHudClicks[i].Sprite <> nil then
+      SetSpriteVisible(FHudClicks[i].Handle, not Lookup(FHudClicks[i].Handle));
+end;
+
+procedure TLevelScene.SetSpriteVisible(Handle: Integer; Visible: Boolean);
+var
+  i: Integer;
+begin
+  if Handle = 0 then Exit;
+  for i := 0 to High(FSync) do
+    if FSync[i].Handle = Handle then
+      FSync[i].Sprite.Visible := Visible;
+  for i := 0 to FHudClickCount - 1 do
+    if (FHudClicks[i].Handle = Handle) and (FHudClicks[i].Sprite <> nil) then
+      FHudClicks[i].Sprite.Visible := Visible;
 end;
 
 function TLevelScene.NearestBody(X, Y: Double; out Handle: Integer;
@@ -439,7 +507,8 @@ const
   HUD_H = 369.5;   // 设计空间半高
 var
   M: TSceneModel;
-  i: Integer;
+  i, oi, oiPrev: Integer;
+  Order: array of Integer;
   O: TSceneObj;
   Top, Bot: string;
   EnvBuf: array[0..15] of Char;
@@ -464,15 +533,28 @@ begin
       if not AddHud(Top, 0, 0, 1018, 369.5, 1) then Exit;
       if not AddHud(Bot, 0, 369.5, 1018, 369.5, 1) then Exit;
     end;
-    for i := 0 to M.Count - 1 do
+    // F486：按 TGraphObjectList 的 root 顺序铺对象（back→medium→front→hints→root0），
+    // HUD 最后；同一 root 内保持 Lua 调用顺序（稳定插入排序）。
+    SetLength(Order, M.Count);
+    for i := 0 to M.Count - 1 do Order[i] := i;
+    for i := 1 to High(Order) do
     begin
-      O := M.ObjectAt(i);
-      if (O.Kind = 'Add_AlphaHudSprite') and (O.Alpha <= 0.0) then
+      oi := i;
+      while (oi > 0) and
+        (SceneRank(M.ObjectAt(Order[oi])) < SceneRank(M.ObjectAt(Order[oi - 1]))) do
       begin
-        if not ForceEndBox then
-          Continue;
-        O.Alpha := 1.0;
+        oiPrev := Order[oi];
+        Order[oi] := Order[oi - 1];
+        Order[oi - 1] := oiPrev;
+        Dec(oi);
       end;
+    end;
+    for oi := 0 to High(Order) do
+    begin
+      i := Order[oi];
+      O := M.ObjectAt(i);
+      if (O.Alpha <= 0.0) and (O.Kind = 'Add_AlphaHudSprite') and ForceEndBox then
+        O.Alpha := 1.0;
       if O.Space = 1 then
       begin
         // SceneModel 的 HUD 坐标是**中心**（设计像素，y 向下）；AddHud 收左上角。
@@ -481,6 +563,8 @@ begin
       end
       else if not AddWorld(O.Asset, O.X, O.Y, O.Angle, O.W * 0.5, O.H * 0.5,
         O.Alpha, O.Handle) then Exit;
+      if O.Hidden then
+        SetSpriteVisible(O.Handle, False);
     end;
     if not AddHud('mbtn_1.png', 921.5, -40.5, 127, 129, 1) then Exit;
     if not AddHud('mbtn_2.png', 921.5, -40.5, 127, 129, 0) then Exit;

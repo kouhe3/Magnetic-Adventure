@@ -1647,6 +1647,7 @@ begin
   LuaLogBegin(L, 'Do_ShowCommand');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Do_ShowCommand');
+  LuaShowCommand(v1);
   Result := 0;
   LuaLogEnd(id);
 end;
@@ -1659,6 +1660,7 @@ begin
   LuaLogBegin(L, 'Do_HideCommand');
   v1 := LuaOptInt(L, 1, 0);
   id := NextId('Do_HideCommand');
+  LuaHideCommand(v1);
   Result := 0;
   LuaLogEnd(id);
 end;

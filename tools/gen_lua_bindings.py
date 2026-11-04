@@ -37,6 +37,8 @@ DYN_RE = re.compile(r"^(\d+)\.\.([^:]*):(\w+)=(\S+)$")
 # 钩子放在 NextId 之后、返回值 push 之前；只写 b2 状态，不改 JSONL 与返回值。
 HOOKS = {
     "Do_LevelComplete": ["  LevelComplete := True;"],
+    "Do_HideCommand": ["  LuaHideCommand(v1);"],
+    "Do_ShowCommand": ["  LuaShowCommand(v1);"],
     "Set_VisibleHintButton": ["  HintVisible := v1 <> 0;"],
     "Set_HideTimeHint": ["  HintHideTime := v1;"],
     "Add_SimplePhysicObject": ["  PhysAddSimplePhysicObject(id, v1, v2, v3);"],

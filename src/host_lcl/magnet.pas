@@ -950,6 +950,9 @@ var
   g_Loop: THostLoop = nil;
   g_LoopTimer: TTimer = nil;
   g_LoopSteps, g_LoopCalls, g_LoopStartMs, g_LoopMs: Integer;
+  // F488：Tick 是 16 ms，但物理步长 0.01 s；按实时累积补步，避免模拟比原版慢 1.6×。
+  g_PhysAccumMs: Integer = 0;
+  g_LastPhysMs: Integer = 0;
   g_LoopScrCalls, g_LoopScrMoved: Integer;
   g_LoopMoveCalls: Integer;
   g_LoopSpawnCalls, g_LoopSpawnCreated: Integer;
@@ -967,6 +970,7 @@ var
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
   g_LevelIndex: Integer = -1;
+  g_hiddenVer: Integer = -1;   // F485：Do_HideCommand/Do_ShowCommand 集合版本
   g_LuaProgressOn: Boolean = False;
 
 procedure EnterStage(const S: string);
@@ -1238,6 +1242,7 @@ begin
   // 没有这个问题：那时上下文还没创建，上传被延迟到首帧）。
   if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
     g_Viewer.Buffer.RenderingContext.Activate;
+  EnterStage('stage=post_activate');
   BuildOk := False;
   try
     BuildOk := g_Level.BuildFromModel(EnvStr('HOST_LUA_LOG'), EnvStr('HOST_PAK_DIR'),
@@ -1250,6 +1255,10 @@ begin
     if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
       g_Viewer.Buffer.RenderingContext.Deactivate;
   end;
+  EnterStage('stage=post_build_model');
+  g_Level.ApplyHidden(@EventsHidden);
+  EnterStage('stage=post_hidden');
+  g_hiddenVer := HiddenVersion;
   EnterStage('stage=post_build ok=' + BoolToStr(BuildOk, True) +
     ' sprites=' + IntToStr(g_Level.Sprites));
   // 已知缺失素材（level 20 的 symbol_back）会让 BuildFromModel 返回 False，
@@ -1277,12 +1286,20 @@ begin
   g_MagReal := EnvFlag('HOST_MAG_REAL');
   g_MagRealDown := False;
   g_MagRealCalls := 0;
-  g_DampCoeff := StrToFloatDef(EnvStr('HOST_MAG_DAMPING'), 0.0);
+  // F454：原版磁铁有全局线性 -12·v 与角 -30·w 阻尼；实机拖拽默认对齐，
+  // 力回放/自驱路径仍默认 0（由 env 显式给）。
+  if g_MagReal then
+    g_DampCoeff := StrToFloatDef(EnvStr('HOST_MAG_DAMPING'), 30.0)
+  else
+    g_DampCoeff := StrToFloatDef(EnvStr('HOST_MAG_DAMPING'), 0.0);
   // T6.4b-4d：自驱磁铁模型（F454）——力律、body-local 抓取点、两类阻尼。
   SelfMode := EnvFlag('HOST_MAG_SELF');
   LocalX := StrToFloatDef(EnvStr('HOST_MAG_LOCALX'), 0.0);
   LocalY := StrToFloatDef(EnvStr('HOST_MAG_LOCALY'), 0.0);
-  LinDamp := StrToFloatDef(EnvStr('HOST_MAG_LINDAMP'), 0.0);
+  if g_MagReal then
+    LinDamp := StrToFloatDef(EnvStr('HOST_MAG_LINDAMP'), 12.0)
+  else
+    LinDamp := StrToFloatDef(EnvStr('HOST_MAG_LINDAMP'), 0.0);
   g_MagLocalX := LocalX;
   g_MagLocalY := LocalY;
   g_LinDamp := LinDamp;
@@ -1292,6 +1309,8 @@ begin
     PhysGetBodyPos(g_MagTargetId, g_MagLastX, g_MagLastY, MagIA);
   g_LevelIndex := Index;
   g_InLevel := True;
+  g_PhysAccumMs := 0;
+  g_LastPhysMs := Integer(GetTickCount);
   WriteTraceIndex('level', Index);
   HintClickFromEnv;
   if g_Viewer <> nil then
@@ -1596,13 +1615,15 @@ begin
     Rewrite(ptf);
     WriteLn(ptf, 'bodies=', SyncCount, ' objects=', g_Level.SyncObjects,
       ' steps=', Steps, ' angle_moved=', g_Level.SyncAngleMoved,
+      ' rot_moved=', g_Level.SyncRotMoved,
       ' sync_first=', FormatFloat('0.000000000', SyncFirst),
       ' sync_after=', FormatFloat('0.000000000', SyncAfter),
       ' contacts=', g_contacts, ' persist_nil=', g_persistNil,
       ' persist_fired=', g_persistFired, ' trace=', g_contactTrace);
     CloseFile(ptf);
     EnterStage('stage=phys bodies=' + IntToStr(SyncCount) +
-      ' angle_moved=' + IntToStr(g_Level.SyncAngleMoved));
+      ' angle_moved=' + IntToStr(g_Level.SyncAngleMoved) +
+      ' rot_moved=' + IntToStr(g_Level.SyncRotMoved));
     // T6.4d-5：注入 Do_LevelComplete()（Lua 全局存在则调用；无论是否存在都置标志），
     // 然后走 menu→level→menu 的状态切换。
     if EnvFlag('HOST_FIRE_COMPLETE') then
@@ -1747,6 +1768,7 @@ var
   rc2: Integer;
   tf: TextFile;
   elapsed: Integer;
+  msNow, msDelta: Integer;
   n, pid, moveCalls, sid, skind, sstyle: Integer;
   px, py, pa, dx, dy, d, f, sx, sy, sa: Double;
   pt: TPoint;
@@ -1754,6 +1776,13 @@ var
   wx, wy: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
+  // F488：按实时累积物理步（10 ms/步），而不是每 16 ms Tick 只走一步。
+  msNow := Integer(GetTickCount);
+  msDelta := msNow - g_LastPhysMs;
+  g_LastPhysMs := msNow;
+  if msDelta < 0 then msDelta := 0;
+  if msDelta > 100 then msDelta := 100;
+  Inc(g_PhysAccumMs, msDelta);
   if EnvStr('HOST_SCRPOS_GET') <> '' then
   begin
     pid := StrToIntDef(EnvStr('HOST_SCRPOS_GET'), 0);
@@ -1819,6 +1848,9 @@ begin
     end;
     g_MagRealDown := down;
   end;
+  while g_PhysAccumMs >= 10 do
+  begin
+  Dec(g_PhysAccumMs, 10);
   if g_MagOn and (g_MagTargetId <> 0) then
   begin
     PhysGetBodyPos(g_MagTargetId, px, py, pa);
@@ -1860,6 +1892,7 @@ begin
       g_MagLastX := px;
       g_MagLastY := py;
     end;
+  end;
   end;
   // T6.4b-3a：运行时 Add_* 生成的对象补 sprite（GL 上下文需 current）。
   if SpawnCount > 0 then
@@ -1910,6 +1943,11 @@ begin
     ScrPosReset;
   end;
   g_Level.SyncPhysics;
+  if HiddenVersion <> g_hiddenVer then
+  begin
+    g_Level.ApplyHidden(@EventsHidden);
+    g_hiddenVer := HiddenVersion;
+  end;
   // T6.4b-2b：Lua DoLevelComplete 置位后写副本存档并回菜单（真实完成链）。
   if LevelComplete then
   begin

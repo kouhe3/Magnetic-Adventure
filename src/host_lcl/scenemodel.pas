@@ -47,6 +47,7 @@ type
     Space: Integer;  // 0=world, 1=ndc
     Root: Integer;
     Handle: Integer;
+    Hidden: Boolean;  // F485：Do_HideCommand 命中（渲染时不建/不画）
     HasPivot: Boolean;
     PivotX, PivotY: Double;
     InitAngle: Double;
@@ -312,6 +313,7 @@ begin
   O.Space := 0;
   O.Root := 0;
   O.Handle := 0;
+  O.Hidden := False;
   O.HasPivot := False;
   O.PivotX := 0.0;
   O.PivotY := 0.0;
@@ -527,6 +529,7 @@ var
 
 begin
   Result := False;
+  if FileName = '' then Exit;   // 空路径会让 FPC Reset 卡住（HOST_LUA_LOG 未设）
   Clear;
   Materials := TStringList.Create;
   try
@@ -601,6 +604,34 @@ begin
         O.Alpha := 1.0;
         O.Root := IntArg(Args, 0);
         AddHandle(Ret, AddObject(O));
+      end
+      else if (Name = 'Do_HideCommand') or (Name = 'Do_ShowCommand') then
+      begin
+        // F485：JSONL 里的显示/隐藏命令决定静态可见性（原版只画活动气泡）。
+        n := IntArg(Args, 0);
+        k := FindHandle(n);
+        if k >= 0 then
+        begin
+          if Name = 'Do_HideCommand' then
+          begin
+            FObjects[k].Alpha := 0.0;
+            FObjects[k].Hidden := True;
+          end
+          else
+          begin
+            FObjects[k].Alpha := 1.0;
+            FObjects[k].Hidden := False;
+          end;
+        end
+        else
+        begin
+          k := FindHud(n);
+          if k >= 0 then
+          begin
+            if Name = 'Do_HideCommand' then Huds[k].Alpha := 0.0
+            else Huds[k].Alpha := 1.0;
+          end;
+        end;
       end
       else if (Name = 'Add_CloseButton') or (Name = 'Add_NextButton') then
       begin

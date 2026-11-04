@@ -39,6 +39,11 @@ function EventsFireForce(L: TLuaState; ObjId: Integer; Fx, Fy: Double;
   out Calls: Integer): Integer;
 function EventsHasEvent(ObjId: Integer; const Event: string): Boolean;
 function EventsFireClick(L: TLuaState; ObjId: Integer; out Calls: Integer): Integer;
+// F485：Do_HideCommand / Do_ShowCommand 的静态/运行时可见性状态（原版只画活动气泡）。
+procedure LuaHideCommand(Id: Integer);
+procedure LuaShowCommand(Id: Integer);
+function EventsHidden(Id: Integer): Boolean;
+function HiddenVersion: Integer;
 
 implementation
 
@@ -56,12 +61,60 @@ var
   gBindings: array of TEventBinding;
   gLastAngle: array of Double;
   gHasAngle: array of Boolean;
+  gHidden: array of Integer;
+  gHiddenCount: Integer;
+  gHiddenVer: Integer;
 
 procedure EventsReset;
 begin
   SetLength(gBindings, 0);
   SetLength(gLastAngle, 0);
   SetLength(gHasAngle, 0);
+  SetLength(gHidden, 0);
+  gHiddenCount := 0;
+  gHiddenVer := 0;
+end;
+
+procedure LuaHideCommand(Id: Integer);
+var
+  i: Integer;
+begin
+  if Id = 0 then Exit;
+  for i := 0 to gHiddenCount - 1 do
+    if gHidden[i] = Id then Exit;
+  if gHiddenCount >= Length(gHidden) then
+    SetLength(gHidden, gHiddenCount + 32);
+  gHidden[gHiddenCount] := Id;
+  Inc(gHiddenCount);
+  Inc(gHiddenVer);
+end;
+
+procedure LuaShowCommand(Id: Integer);
+var
+  i: Integer;
+begin
+  for i := 0 to gHiddenCount - 1 do
+    if gHidden[i] = Id then
+    begin
+      gHidden[i] := gHidden[gHiddenCount - 1];
+      Dec(gHiddenCount);
+      Inc(gHiddenVer);
+      Exit;
+    end;
+end;
+
+function EventsHidden(Id: Integer): Boolean;
+var
+  i: Integer;
+begin
+  for i := 0 to gHiddenCount - 1 do
+    if gHidden[i] = Id then Exit(True);
+  Result := False;
+end;
+
+function HiddenVersion: Integer;
+begin
+  Result := gHiddenVer;
 end;
 
 procedure EventsAdd(ObjId: Integer; const Event, FuncName: string);
