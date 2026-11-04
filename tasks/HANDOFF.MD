@@ -1,9 +1,11 @@
 # 交接文档 — Magnetic Adventure 复刻
 
 > 写给下一个接手的 agent，自包含：读这一份 + 三份文档就能开工。
-> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F452**。
+> 写于 2026-10-30（**L2-B 工具链考古那一轮之后**），最后更新 **2026-11-04**（§0 追加 **T6.4f-visual-2b/F468**；此前 **T6.4b-x `B2CI_FAKE_MAGNET`**、力律勘误 F386 与 **测试关卡/私有桌面 F387/F388**；此前 T6.4a-r-2f level 4 动态项、T6.4b 鼠标拖拽首段与 CI mover 两段通关、10-function matching pilot、五批叶子/带 call 对拍、T6.3d 收口 50/2/0 仍在下方）。`work` 分支；台账到 **F468**。
 
 ## 0. 一句话现状
+
+**2026-11-04 T6.4f-visual-2b 收口（F468）**：提示按钮三位数字是同一个 180 秒倒计时的十进制位（`N=180−floor(t+0.38)`，`t=[0x665334]+0x30`）；十位不是常量（8→7→6→5）。宿主 `SetHintCells` 支持 `auto`/`?` 由关卡时间算三位：t=12.233 → (1,6,8) 对零售 frame 1662 `pairs=5 mismatches=0`、t=1.0 → (1,7,9)、显式 1,7,8 不变；6 门禁 + `phys_sweep` 50/2/0，window 待补。
 
 **2026-10-31 更新**：T6.3/b0 完成（F249/F250）——Lua 的 `Add_*` 句柄是**堆对象指针**（工厂返回 `sub_583300`/`sub_58C500` 对象，`push eax; lua_pushinteger`），句柄校验 `sub_40AB90` 会解引用 `[handle]`；111 个脚本对句柄无算术、无 `io.` ⇒ 我方可用任意稳定 id，唯一硬要求是无效句柄回退（`Add_JointNail` → 0.0）。运行时证据用 `work/probe_objtable.py`（外部 `ReadProcessMemory` 读 `dword_665334` 对象管理器）。
 

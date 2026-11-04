@@ -126,14 +126,14 @@
 - [x] T6.4d-1 宿主 `HOST_CLICK` → 按档案 LastCompleteLevel 进关 + `HOST_TRACE`（进程内命令入口）：正例 index=20/3、lua_bind_ab 0 差、两次序列相同；点空白/无档案/坏档案/51 四条负例无 level 依据：F435
 - [x] T6.4d-2 LCL 真实点击 + 运行时场景切换：`THostMouseHandler` 命中 Play → `TMenuScene.Clear`/`Free` → `BuildFromModel`；正例 index=20/3、sprites=21/60、lua_bind_ab 0 差；点空白/坏档案无 level 依据：F436
 - [x] T6.4d-3 宿主进关后物理步进 + 图形同步：`PhysStart` → `HOST_PHYS_STEPS` → `SyncPhysics` → `phys.log`；level 0 bodies=3/objects=15 angle_moved=3 sync_after=0，负例无 phys.log 依据：F437
-- [ ] T6.4f 提示按钮 [?]：按钮对象 `[lm+0x3C]`（5 sprite，alpha=+0x2C）；强制 alpha 后 draw 46→56。**逐 draw 与 TEXTURE 矩阵两条判据都被证伪**（F458、F460：同 fill A/A 地板 0.2 > fill A/B 0.1）；数字是 1 Hz 递减计数器（F462）→ 判据改为「同一关卡时间下 tex 66/67/68 的 `tm`/`uv_t` 相同」，先做 T6.4f-oracle-1 依据：F457、F458、F460、F461、F462
+- [ ] T6.4f 提示按钮 [?]：按钮对象 `[lm+0x3C]`（5 sprite，alpha=+0x2C）；强制 alpha 后 draw 46→56。**逐 draw 与 TEXTURE 矩阵两条判据都被证伪**（F458、F460：同 fill A/A 地板 0.2 > fill A/B 0.1）；数字是 1 Hz 递减计数器（F462）→ 判据改为「同一关卡时间下 tex 66/67/68 的 `tm`/`uv_t` 相同」，数字位已由 F468 归因；视觉填充仍 blocked（F458/F460） 依据：F457、F458、F460、F461、F462
 - [x] T6.4f-dispatch 提示按钮点击派发：generator hooks `Set_VisibleHintButton/Set_HideTimeHint` + `HintHitTest`/`DoShowHintNow`/`HOST_HINT_CLICK`；夹具 `hint_o/e` marker → 正例 (99,99)、负例保持 (0,0)；7 门禁/52 关 selftest 绿 依据：F459
 - [x] T6.4g GLFFI02 的 TEXTURE 矩阵已进 draw 列表：`tools/gl_drawlist.py` 输出 `tm[16]`/`uv_t`（`--texmat`）；实证 tex 66/67/68 是 scale=0.1 的图集选格、tex 64/65 identity；fill 与时间的归因由 T6.4f-oracle-1 接力 依据：F460、F461
 - [x] T6.4f-oracle-1 数字格锚定游戏时间：`k=(10−floor(t+p))%10`，`t=[0x665334]+0x30` float，p∈(0.375,0.394]；内部样本 75/75 依据：F463
 - [x] T6.4f-visual-0 宿主渲染提示按钮 5 sprite（hintwood/helptime/numsatl，材质库选格）；5/5 逐 draw 对齐（bbox ≤0.0045、tm/uv_t 0） 依据：F461、F463、F464
 - [ ] T6.4f-visual-1 两遍 hint draw 归因：给 `direct_drive` 加 root 隐藏探针，验证第二遍是 front/hints 两个 root 各挂一份；像素层另证 依据：F465
 - [x] T6.4f-visual-2a 第三位按 `t` 自动选格：`HOST_HINT_CELLS=1,7,?` + `HOST_LEVEL_TIME=1.0` → 9，对 aa25 帧 5/5 依据：F464
-- [ ] T6.4f-visual-2b 数字 a/b 两位来源（当前恒 1,7，规则未定） 依据：F464
+- [x] T6.4f-visual-2b 数字三位同一倒计时：三位 = `N=180−floor(t+0.38)` 的百/十/个位；长窗口 256 个数字帧 `mismatches=0`（负例 `--base=181` 200 失配），十位 run 8→7→6→5；宿主 `SetHintCells` 支持 `auto`/`?`（t=12.233 → (1,6,8) 对零售 frame 1662 5/5、t=1.0 → (1,7,9)、显式 1,7,8 不变） 依据：F468
 - [x] T6.4d-4 持久 Lua state + `DoProgress`：`HOST_KEEP_LUA=1` 保留 state，`EnterLevel` 每步 `PCall('DoProgress',0.01)`；level 3 calls=100 rc=0、lua_bind_ab 187/187、sync_after=0；负例 `HOST_LUA_PROGRESS=0` 无日志、`HOST_KEEP_LUA=0` calls=0 依据：F438
 - [x] T6.4d-5 完成信号 + 返回菜单：`bind_Do_LevelComplete` 置 `LevelComplete`，`ExitLevel` 清关卡/重建菜单；trace `boot,menu,level,menu,exit`、`menu_after layers=21`；负例 `HOST_FIRE_COMPLETE=0` 无第二个 menu 依据：F439
 - [x] T6.4d-6 持续帧循环：`THostLoop` + 16 ms `TTimer`，`HOST_LOOP_MS` 到时写 `loop.log`；level 3 `steps=39 calls=39 ms=1016`；负例 `HOST_LOOP=0` 无日志 依据：F442

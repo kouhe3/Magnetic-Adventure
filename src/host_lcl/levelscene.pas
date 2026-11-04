@@ -560,16 +560,30 @@ end;
 
 procedure TLevelScene.SetHintCells(const Cells: string; Time: Double);
 var
-  a, b, c: Integer;
+  a, b, c, n: Integer;
+  S: string;
 begin
   if FHintLib = nil then Exit;
-  a := ParseHintCell(Cells, 0, 0);
-  b := ParseHintCell(Cells, 1, 0);
-  // 第三位：'?' 或省略时按 F463 的规律从游戏时间算（k=(10-floor(t+0.38)) mod 10）。
-  if (Pos('?', Cells) > 0) or (ParseHintCell(Cells, 2, -1) < 0) then
-    c := (10 - Trunc(Time + 0.38)) mod 10
+  // F468：三位数字是同一个 180 秒倒计时 N = 180 - floor(t+0.38) 的百/十/个位；
+  // 'auto'、空串或 '?' 从关卡时间算，显式数字保持原样（t>=180 未观测，钳到 0）。
+  n := 180 - Trunc(Time + 0.38);
+  if n < 0 then n := 0;
+  S := Trim(Cells);
+  if (S = '') or SameText(S, 'auto') then
+  begin
+    a := n div 100 mod 10;
+    b := n div 10 mod 10;
+    c := n mod 10;
+  end
   else
-    c := ParseHintCell(Cells, 2, 0);
+  begin
+    a := ParseHintCell(S, 0, -1);
+    b := ParseHintCell(S, 1, -1);
+    c := ParseHintCell(S, 2, -1);
+    if a < 0 then a := n div 100 mod 10;
+    if b < 0 then b := n div 10 mod 10;
+    if c < 0 then c := n mod 10;
+  end;
   FHintDigits[0].Material.LibMaterialName := 'hint_digit_' + IntToStr(a);
   FHintDigits[1].Material.LibMaterialName := 'hint_digit_' + IntToStr(b);
   FHintDigits[2].Material.LibMaterialName := 'hint_digit_' + IntToStr(c);
