@@ -74,7 +74,8 @@ HOOKS = {
     "Set_PhysFilterData": ["  PhysSetPhysFilter(v1, v2, v3, v4);"],
     "Re_Filter": ["  PhysReFilter(v1);"],
     "Add_MetallScrew": ["  PhysAddMetallScrew(id, v2, v3, v4, v5);"],
-    "Add_MetallGear": ["  PhysAddMetallGear(id, v2, v3, v4, v5);"],
+    "Add_MetallGear": ["  PhysAddMetallGear(id, v2, v3, v4, v5);",
+                        "  SpawnAdd(id, 1, Round(v5), v2, v3, v4);"],
     "Attach_ShapePolygon": ["  PhysAttachShapePolygon(v1, v2, v3, v4, v5, @pts[0]);"],
     # Add_Rope：动态角度表（F289）；Get_RopePhysItem 的真实返回值（0 基）也在 HOOKS 里覆盖。
     "Add_Rope": ["  PhysAddRope(id, v2, v3, v4, n, @ang[0]);"],
@@ -264,7 +265,7 @@ def main():
     parts.append("// 由 tools/gen_lua_bindings.py 从 mapping/lua-binding-args.csv 生成，勿手改。")
     parts.append("// 144 个 Lua 绑定壳：按参数表读参 + 桩返回值（T6.3/a1，F239/F201）。")
     parts.append("// 桩语义：Add_* 返回递增 id（1001 起，对齐 tools/lua_probe.cpp），其余 0。")
-    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
+    parts.append("interface\n\nuses LuaDll, LuaLog, LuaEvents, PhysWorld;\n\nconst\n  ScrPosMax = 64;\n\ntype\n  TScrPosRec = record\n    Id: Integer;\n    X, Y, Angle: Double;\n  end;\n  TScrPosLookup = function(Id: Integer; out X, Y, Angle: Double): Boolean;\n\nvar\n  LevelComplete: Boolean;  // T6.4d-5：Do_LevelComplete 绑定的完成标志\n  ScrPosCount: Integer;    // T6.4d-7：本帧 Set_ScrObjPos 队列\n  ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;\n  ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退\n\nconst\n  SpawnMax = 32;\n\ntype\n  TSpawnRec = record\n    Id, Kind, Style: Integer;\n    X, Y, Angle: Double;\n  end;\n\nvar\n  SpawnCount: Integer;\n  Spawn: array[0..SpawnMax - 1] of TSpawnRec;\n\nfunction SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\nprocedure SpawnReset;\n\nfunction ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;\nprocedure ScrPosReset;\n\nfunction NextId(const Name: string): Integer;\nprocedure ResetIds;\nprocedure RegisterBindings(L: TLuaState);\n\nimplementation\n\nconst\n  kViewAspect = 1018.0 / 739.0;  // 客户区/GL viewport（F154/F179）\n\nvar\n  g_nextId: Integer = 1000;\n  g_camX, g_camY: Double;\n  g_viewW, g_viewH: Double;\n")
     parts.append("function NextId(const Name: string): Integer;\nbegin\n"
                  "  if (Length(Name) >= 4) and (Copy(Name, 1, 4) = 'Add_') then\n  begin\n"
                  "    Inc(g_nextId);\n    Result := g_nextId;\n  end\n  else\n    Result := 0;\nend;\n\n"
@@ -283,12 +284,28 @@ def main():
                  "    X := ScrPos[Index].X;\n    Y := ScrPos[Index].Y;\n"
                  "    Angle := ScrPos[Index].Angle;\n  end\n  else\n  begin\n"
                  "    Id := 0; X := 0; Y := 0; Angle := 0;\n  end;\nend;\n")
+    parts.append("procedure SpawnReset;\nbegin\n  SpawnCount := 0;\nend;\n\n"
+                 "procedure SpawnAdd(Id, Kind, Style: Integer; X, Y, Angle: Double);\nbegin\n"
+                 "  if SpawnCount < SpawnMax then\n  begin\n"
+                 "    Spawn[SpawnCount].Id := Id;\n"
+                 "    Spawn[SpawnCount].Kind := Kind;\n"
+                 "    Spawn[SpawnCount].Style := Style;\n"
+                 "    Spawn[SpawnCount].X := X;\n"
+                 "    Spawn[SpawnCount].Y := Y;\n"
+                 "    Spawn[SpawnCount].Angle := Angle;\n"
+                 "    Inc(SpawnCount);\n  end;\nend;\n\n"
+                 "function SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;\n"
+                 "begin\n  Result := (Index >= 0) and (Index < SpawnCount);\n"
+                 "  if Result then\n  begin\n"
+                 "    Id := Spawn[Index].Id; Kind := Spawn[Index].Kind; Style := Spawn[Index].Style;\n"
+                 "    X := Spawn[Index].X; Y := Spawn[Index].Y; Angle := Spawn[Index].Angle;\n"
+                 "  end\n  else\n  begin\n    Id := 0; Kind := 0; Style := 0; X := 0; Y := 0; Angle := 0;\n  end;\nend;\n")
     for row in rows:
         parts.append(gen_binding(row) + "\n")
     reg = ["procedure RegisterBindings(L: TLuaState);", "begin"]
     reg.append("  g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;")
     reg.append("  LevelComplete := False;")
-    reg.append("  ScrPosReset;")
+    reg.append("  ScrPosReset;\n  SpawnReset;")
     for row in rows:
         name = row["lua_name"]
         reg.append("  Lua.PushCClosure(L, Pointer(@bind_%s), 0);" % name)

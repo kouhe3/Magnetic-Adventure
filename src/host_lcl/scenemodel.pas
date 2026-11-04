@@ -87,6 +87,9 @@ type
 function ParseCallLine(const Line: string; out Name: string;
   var Args: TArgs; out ArgCount, Ret: Integer): Boolean;
 
+function MetalGearAsset(Style: Integer): string;
+function MetalGearSide(Style: Integer): Double;
+
 implementation
 
 type
@@ -114,6 +117,18 @@ const
     ('wbox_1.png', 'wbox_2.png', 'wbox_3.png');
   WOOD_BOX_SIDE = 4.702;
   NAIL_SIZE = 1.6;
+
+function MetalGearAsset(Style: Integer): string;
+begin
+  if (Style >= 1) and (Style <= 3) then Result := METAL_GEAR_ASSET[Style]
+  else Result := '';
+end;
+
+function MetalGearSide(Style: Integer): Double;
+begin
+  if (Style >= 1) and (Style <= 3) then Result := METAL_GEAR_SIDE[Style]
+  else Result := 0;
+end;
 
 function AllDigits(const S: string): Boolean;
 var

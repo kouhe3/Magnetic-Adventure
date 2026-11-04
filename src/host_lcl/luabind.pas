@@ -23,6 +23,22 @@ var
   ScrPos: array[0..ScrPosMax - 1] of TScrPosRec;
   ScrPosLookup: TScrPosLookup = nil;  // T6.4b-2b-0：graph 对象位置回退
 
+const
+  SpawnMax = 32;
+
+type
+  TSpawnRec = record
+    Id, Kind, Style: Integer;
+    X, Y, Angle: Double;
+  end;
+
+var
+  SpawnCount: Integer;
+  Spawn: array[0..SpawnMax - 1] of TSpawnRec;
+
+function SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;
+procedure SpawnReset;
+
 function ScrPosAt(Index: Integer; out Id: Integer; out X, Y, Angle: Double): Boolean;
 procedure ScrPosReset;
 
@@ -86,6 +102,39 @@ begin
   else
   begin
     Id := 0; X := 0; Y := 0; Angle := 0;
+  end;
+end;
+
+procedure SpawnReset;
+begin
+  SpawnCount := 0;
+end;
+
+procedure SpawnAdd(Id, Kind, Style: Integer; X, Y, Angle: Double);
+begin
+  if SpawnCount < SpawnMax then
+  begin
+    Spawn[SpawnCount].Id := Id;
+    Spawn[SpawnCount].Kind := Kind;
+    Spawn[SpawnCount].Style := Style;
+    Spawn[SpawnCount].X := X;
+    Spawn[SpawnCount].Y := Y;
+    Spawn[SpawnCount].Angle := Angle;
+    Inc(SpawnCount);
+  end;
+end;
+
+function SpawnAt(Index: Integer; out Id, Kind, Style: Integer; out X, Y, Angle: Double): Boolean;
+begin
+  Result := (Index >= 0) and (Index < SpawnCount);
+  if Result then
+  begin
+    Id := Spawn[Index].Id; Kind := Spawn[Index].Kind; Style := Spawn[Index].Style;
+    X := Spawn[Index].X; Y := Spawn[Index].Y; Angle := Spawn[Index].Angle;
+  end
+  else
+  begin
+    Id := 0; Kind := 0; Style := 0; X := 0; Y := 0; Angle := 0;
   end;
 end;
 
@@ -171,6 +220,7 @@ begin
   v5 := LuaOptNumber(L, 5, 0.0);
   id := NextId('Add_MetallGear');
   PhysAddMetallGear(id, v2, v3, v4, v5);
+  SpawnAdd(id, 1, Round(v5), v2, v3, v4);
   Lua.PushInteger(L, id);
   Result := 1;
   LuaLogEnd(id);
@@ -2746,6 +2796,7 @@ begin
   g_camX := 0.0; g_camY := 0.0; g_viewW := 0.0; g_viewH := 0.0;
   LevelComplete := False;
   ScrPosReset;
+  SpawnReset;
   Lua.PushCClosure(L, Pointer(@bind_Do_Command), 0);
   Lua.SetField(L, LUA_GLOBALSINDEX, PChar('Do_Command'));
   Lua.PushCClosure(L, Pointer(@bind_Add_WoodBox), 0);

@@ -62,6 +62,8 @@ type
     function SetSpritePos(Handle: Integer; X, Y, Angle: Double): Boolean;
     // T6.4b-2b-0：按句柄读 sprite 位置/角度（graph 对象的 Get_ScrObjPos 回退）。
     function GetSpritePos(Handle: Integer; out X, Y, Angle: Double): Boolean;
+    // T6.4b-3a：运行时 Add_MetallGear 生成了新物理体；这里补 sprite 并记入 FSync。
+    function AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;
     property Log: string read FLog;
     property Sprites: Integer read FSprites;
     property SyncObjects: Integer read FSyncCount;
@@ -298,6 +300,21 @@ begin
       Result := True;
       Exit;
     end;
+end;
+
+function TLevelScene.AddRuntimeGear(Id, Style: Integer; X, Y, Angle: Double): Boolean;
+var
+  asset: string;
+  side: Double;
+begin
+  asset := MetalGearAsset(Style);
+  side := MetalGearSide(Style);
+  if (asset = '') or (side <= 0) then
+  begin
+    Result := False;
+    Exit;
+  end;
+  Result := AddWorld(asset, X, Y, Angle, side * 0.5, side * 0.5, 1, Id);
 end;
 
 function TLevelScene.BuildFromModel(const JsonlPath, PakDir: string; Time: Double): Boolean;

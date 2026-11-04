@@ -155,6 +155,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-2b 测试关真实完成链（F446）**：测试 pak（`ci_fake_magnet build --o test_lvl_o --e test_lvl_e`）+ 解包目录 `work/pak_test_lua`；`Tick` 检测 `LevelComplete` → `WriteLastCompleteLevel(g_LevelIndex+1)` → `ExitLevel`。正例私有桌面：`boot,menu,level(1),menu,exit`、`menu_after layers=21`、`profile.py diff` `1 -> 2`；负例 mag=0：6 s `steps=240 onmove_calls=0`、无第二个 menu、diff 0。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：测试关不是原版关卡；只覆盖 level 1 slot。
 
+- **2026-11-04 T6.4b-3a 运行时 gear 图形（F447）**：生成器给 `Add_MetallGear` 加 `SpawnAdd`；`Tick` 消费队列（GL 上下文 Activate/Deactivate）；`TLevelScene.AddRuntimeGear` 走 `AddWorld` 并记 `FSync`；`scenemodel` 导出 `MetalGearAsset/Side`。夹具 `tests/levels/spawn_o.lua`/`spawn_e.lua`（螺丝 (0,0)→chalk (3,0) 后生成 gear）。私有桌面：`spawn.log calls=1 created=1`、`scrpos_get id=1004` 可读；负例 mag=0 无日志。回归 `phys_sweep` 50/2/0、`verify --only` 6 门禁 PASS（`window` 待补）。边界：只覆盖 `Add_MetallGear` style 1；测试关不是原版。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

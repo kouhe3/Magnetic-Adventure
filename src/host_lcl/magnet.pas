@@ -851,6 +851,7 @@ var
   g_LoopSteps, g_LoopCalls, g_LoopStartMs, g_LoopMs: Integer;
   g_LoopScrCalls, g_LoopScrMoved: Integer;
   g_LoopMoveCalls: Integer;
+  g_LoopSpawnCalls, g_LoopSpawnCreated: Integer;
   g_MagOn: Boolean = False;
   g_MagX, g_MagY, g_MagLastX, g_MagLastY: Double;
   g_MagTargetId: Integer = 0;
@@ -963,6 +964,7 @@ begin
   // 初始化阶段的 Set_ScrObjPos 已由 SceneModel 回放到 JSONL；清空队列，
   // 让 loop 里的 scrpos_calls 只统计运行期 DoProgress 的调用。
   ScrPosReset;
+  SpawnReset;  // 清初始化阶段的 Spawn（运行时生成的才在 Tick 里消费）
   // T6.4b-2a：帧循环的磁铁 target 与 OnMove 派发用全局状态。
   g_MagOn := EnvFlag('HOST_MAG_BUTTON');
   g_MagX := StrToFloatDef(EnvStr('HOST_MAG_X'), 0.0);
@@ -1088,6 +1090,8 @@ begin
     g_LoopScrCalls := 0;
     g_LoopScrMoved := 0;
     g_LoopMoveCalls := 0;
+    g_LoopSpawnCalls := 0;
+    g_LoopSpawnCreated := 0;
     g_LuaProgressOn := EnvFlag('HOST_LUA_PROGRESS');
     if g_Loop = nil then
       g_Loop := THostLoop.Create;
@@ -1183,8 +1187,8 @@ var
   rc2: Integer;
   tf: TextFile;
   elapsed: Integer;
-  n, pid, moveCalls: Integer;
-  px, py, pa, dx, dy, d, f: Double;
+  n, pid, moveCalls, sid, skind, sstyle: Integer;
+  px, py, pa, dx, dy, d, f, sx, sy, sa: Double;
 begin
   if (not g_InLevel) or (g_Level = nil) then Exit;
   if EnvStr('HOST_SCRPOS_GET') <> '' then
@@ -1227,6 +1231,31 @@ begin
       g_MagLastX := px;
       g_MagLastY := py;
     end;
+  end;
+  // T6.4b-3a：运行时 Add_* 生成的对象补 sprite（GL 上下文需 current）。
+  if SpawnCount > 0 then
+  begin
+    if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+      g_Viewer.Buffer.RenderingContext.Activate;
+    try
+      n := 0;
+      while (n < SpawnCount) and SpawnAt(n, sid, skind, sstyle, sx, sy, sa) do
+      begin
+        Inc(g_LoopSpawnCalls);
+        if (skind = 1) and (g_Level <> nil) then
+          if g_Level.AddRuntimeGear(sid, sstyle, sx, sy, sa) then
+            Inc(g_LoopSpawnCreated);
+        Inc(n);
+      end;
+    finally
+      if (g_Viewer <> nil) and g_Viewer.Buffer.RenderingContext.IsValid then
+        g_Viewer.Buffer.RenderingContext.Deactivate;
+    end;
+    SpawnReset;
+    AssignFile(tf, ExePath('spawn.log'));
+    Rewrite(tf);
+    WriteLn(tf, 'calls=', g_LoopSpawnCalls, ' created=', g_LoopSpawnCreated);
+    CloseFile(tf);
   end;
   if g_LuaProgressOn and (g_levelLua <> nil) then
   begin
