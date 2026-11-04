@@ -633,6 +633,70 @@ def dispatch(hp, pi, desk, pid, index, settle):
     return lm, app, win, ht, stub_addr
 
 
+def dispatch_app(hp, pi, desk, pid, app, index, settle):
+    """Switch level from a non-MENU state (e.g. completion panel); caller passes app."""
+    win = dd.find_window(pid, desk)
+    if not app or not win:
+        raise SystemExit("app/window not found")
+    tid = dd.user32.GetWindowThreadProcessId(win[0], None)
+    ht = dd.k32.OpenThread(dd.THREAD_SUSPEND_RESUME | dd.THREAD_GET_CONTEXT |
+                           dd.THREAD_SET_CONTEXT, False, tid)
+    psapi = ctypes.WinDLL("psapi")
+    mods = (ctypes.c_void_p * 64)()
+    need = wt.DWORD()
+    psapi.EnumProcessModules(ctypes.c_void_p(hp), mods, ctypes.sizeof(mods),
+                             ctypes.byref(need))
+    base = mods[0] or 0x400000
+    stub_addr = dd.k32.VirtualAllocEx(hp, None, 0x1000,
+                                      dd.MEM_COMMIT | dd.MEM_RESERVE,
+                                      dd.PAGE_EXECUTE_READWRITE)
+
+    def hijack():
+        dd.k32.SuspendThread(ctypes.c_void_p(ht))
+        ctx = dd.CONTEXT()
+        ctx.ContextFlags = dd.CONTEXT_FULL
+        dd.k32.GetThreadContext(ctypes.c_void_p(ht), ctypes.byref(ctx))
+        stub = dd.build_stub(stub_addr, app, index, ctx.Eip,
+                             base + (0x560880 - 0x400000))
+        buf = ctypes.create_string_buffer(stub, len(stub))
+        wr = ctypes.c_size_t(0)
+        dd.k32.WriteProcessMemory(hp, ctypes.c_void_p(stub_addr), buf, len(stub),
+                                  ctypes.byref(wr))
+        ctx.Eip = stub_addr
+        ctx.ContextFlags = dd.CONTEXT_FULL
+        dd.k32.SetThreadContext(ctypes.c_void_p(ht), ctypes.byref(ctx))
+        dd.k32.ResumeThread(ctypes.c_void_p(ht))
+
+    s = None
+    for attempt in range(3):
+        hijack()
+        t0 = time.time()
+        entered = False
+        while time.time() - t0 < 10:
+            s = dd.state(hp, app)
+            lm_now = s[1]
+            if (s[2] == 1 and s[3] == index and s[4] and lm_now
+                    and dd.u8(hp, lm_now + 8) == 1):
+                entered = True
+                break
+            if dd.k32.WaitForSingleObject(pi.hProcess, 0) == 0:
+                raise SystemExit("exited during level entry")
+            time.sleep(0.1)
+        print("dispatch_app attempt %d entered=%s state=%s" %
+              (attempt, entered, s), flush=True)
+        if not entered:
+            continue
+        t0 = time.time()
+        while time.time() - t0 < max(settle, 3.0):
+            if dd.u8(hp, app + 0x10) == 1:
+                time.sleep(0.2)
+                if dd.u8(hp, app + 0x10) == 1:
+                    return s[1], app, win, ht, stub_addr
+            time.sleep(0.1)
+        print("attempt %d did not arm app16=%s" %
+              (attempt, dd.u8(hp, app + 0x10)), flush=True)
+    raise SystemExit("level not reached")
+
 def hud_sprite_states(hp, mgr):
     """Diagnostic alias for direct_drive.hud_sprites (single source of truth)."""
     return dd.hud_sprites(hp, mgr)
@@ -987,6 +1051,24 @@ def run(a):
             print("complete %s after %.2fs state=%s" %
                   (out["complete"], time.time() - t0, out["complete_state"]),
                   flush=True)
+        if a.advance_after_complete and out["complete"]:
+            try:
+                dispatch_app(hp, pi, desk, pid, app, a.level + 1, a.settle)
+                time.sleep(3.0)
+                out["advanced"] = True
+                print("advanced to level", a.level + 1, flush=True)
+                try:
+                    import subprocess as _sp
+                    rr = _sp.run([sys.executable, os.path.join("tools", "profile.py"),
+                                  "get", "LastCompleteLevel"],
+                                 capture_output=True, text=True)
+                    print("profile level after advance:", (rr.stdout or rr.stderr).strip(),
+                          flush=True)
+                except Exception as e:
+                    print("profile read failed:", e, flush=True)
+            except Exception as e:
+                out["advanced"] = False
+                print("advance failed:", e, flush=True)
         note_fg("end")
         out["fg_same"] = (user32.GetForegroundWindow() == prev_fg)
         out["fg_before"] = prev_fg
@@ -1008,8 +1090,17 @@ def run(a):
         return 0 if out["pass"] else 1
     finally:
         try:
-            dd.remote_exit(hp, pi)
-            out["exit_clean"] = dd.k32.WaitForSingleObject(pi.hProcess, 0) == 0
+            if a.exit_mode == "wmclose":
+                win = dd.find_window(pi.dwProcessId, desk)
+                if win:
+                    dd.user32.PostMessageW(win[0], 0x0010, 0, 0)
+                    out["exit_clean"] = dd.k32.WaitForSingleObject(pi.hProcess, 15000) == 0
+                else:
+                    dd.remote_exit(hp, pi)
+                    out["exit_clean"] = dd.k32.WaitForSingleObject(pi.hProcess, 0) == 0
+            else:
+                dd.remote_exit(hp, pi)
+                out["exit_clean"] = dd.k32.WaitForSingleObject(pi.hProcess, 0) == 0
         except Exception:
             out["exit_clean"] = False
         try:
@@ -1095,6 +1186,10 @@ def main():
     r.add_argument("--require-fg", action="store_true",
                    help="fail when the game window ever becomes the user's foreground")
     r.add_argument("--json", default=None)
+    r.add_argument("--exit-mode", choices=("clean", "wmclose"), default="clean",
+                   help="clean=remote ExitProcess; wmclose=PostMessage(WM_CLOSE) then wait")
+    r.add_argument("--advance-after-complete", action="store_true",
+                   help="after the completion panel, dispatch level+1 (profile-write probe)")
     r.set_defaults(func=run)
 
     a = ap.parse_args()

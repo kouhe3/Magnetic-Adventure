@@ -35,7 +35,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     args += ["-FE" + out, "-FU" + out, pas]
     r = subprocess.run(args, capture_output=True, text=True, errors="replace")
-    tail = (r.stdout or "").strip().splitlines()[-6:]
+    tail = (r.stdout or "").strip().splitlines()[-40:]
     print("\n".join(tail))
     if r.returncode != 0:
         print("STDERR:", (r.stderr or "")[-2000:])

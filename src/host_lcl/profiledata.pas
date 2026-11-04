@@ -292,12 +292,39 @@ begin
   end;
 end;
 
+// 原版保存时把 CompletedLevels 过滤到 <= LastCompleteLevel（F466：15-16-17-18 + level 1 → 空）。
+function FilterCompleted(const S: string; Level: Integer): string;
+var
+  p, n, code: Integer;
+  part: string;
+begin
+  Result := '';
+  p := 1;
+  while p <= Length(S) do
+  begin
+    while (p <= Length(S)) and (S[p] = '-') do Inc(p);
+    part := '';
+    while (p <= Length(S)) and (S[p] <> '-') do
+    begin
+      part := part + S[p];
+      Inc(p);
+    end;
+    if part <> '' then
+    begin
+      Val(part, n, code);
+      if (code = 0) and (n <= Level) then
+        Result := Result + '-' + IntToStr(n);
+    end;
+  end;
+end;
+
 function WriteLastCompleteLevel(const Path: string; Level: Integer): Boolean;
 var
   fs: TFileStream;
   raw, enc: TByteArray;
-  size, i, count, activeCount, activeIndex, keyLine: Integer;
-  text, err, key, val, newLine: string;
+  size, i, count, activeCount, activeIndex, keyLine, compLine: Integer;
+  oldLevel: Integer;
+  oldList, text, err, key, val, newLine: string;
   sl: TStringList;
   inBlock, blockActive: Boolean;
   blockStart: Integer;
@@ -376,18 +403,33 @@ begin
     end;
 
     keyLine := -1;
+    compLine := -1;
+    oldLevel := 0;
+    oldList := '';
     for i := blocks[activeIndex].StartLine + 1 to blocks[activeIndex].StopLine - 1 do
       if Pos('=', sl[i]) > 0 then
-        if CompareText(Trim(Copy(sl[i], 1, Pos('=', sl[i]) - 1)),
-          'LastCompleteLevel') = 0 then
+      begin
+        key := Trim(Copy(sl[i], 1, Pos('=', sl[i]) - 1));
+        val := StripQuotes(Copy(sl[i], Pos('=', sl[i]) + 1, MaxInt));
+        if CompareText(key, 'LastCompleteLevel') = 0 then
         begin
           keyLine := i;
-          Break;
+          oldLevel := StrToIntDef(val, 0);
+        end
+        else if CompareText(key, 'CompletedLevels') = 0 then
+        begin
+          compLine := i;
+          oldList := val;
         end;
+      end;
     if keyLine < 0 then Exit;
-
+    // 原版不回退进度：写 max(old, Level)（F466）。
+    if oldLevel > Level then Level := oldLevel;
     newLine := 'LastCompleteLevel = "' + IntToStr(Level) + '"';
     text := ReplaceLineLF(text, keyLine, newLine);
+    if compLine >= 0 then
+      text := ReplaceLineLF(text, compLine,
+        'CompletedLevels = "' + FilterCompleted(oldList, Level) + '"');
     enc := EncodeProfile(text);
     fs := TFileStream.Create(Path, fmCreate);
     try

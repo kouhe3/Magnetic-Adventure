@@ -120,7 +120,9 @@
 - [x] T6.4d-0b win/complete 状态：`lm`/`app`/`mgr` dword 无翻转；图元 +1 是烟花；`+0x1F0` 可见性无翻转；F416 的 `+0x30`/`+0x2f0` 候选**已证伪**（F425：未完成 4 关 nonzero=98/99/99/99，通用滑动倒计时）。**完成锚点 = `TGraphObjectList` 里的 `TGlAlphaHudSpriteObject`（bEndLevelBox，size 0x30）的 `+0x2C` 0→1.0**（F426：`Do_ShowCommand` 0x59A0B0 → vmt[0x50] 0x5937C0 case 0x17 写 +0x2C；原版完成 timing2 +5.01 s 0→1.0），已并入 `direct_drive --trace` 的 `complete`（正例写字段 1.0 后 1.0 s 记录、1.5 s 复位回 level；负例未完成 6 s 无）。依据：F414、F415、F416、F425、F426
 - [x] T6.4d-0b2 完成链 CI 驱动稳定性：完成信号修正为任一 size-0x30 HUD sprite 的 `+0x2C` 相对基线 0→1（`bHintComplete`；`bEndLevelBox` 恒 0）；no-nudge 3/3 + nudge 3/3 PASS，检测 2.91–2.97 s。依据：F430、F431
 - [x] T6.4c-2 宿主完成写副本档案：`WriteLastCompleteLevel`（UTF-16LE+XOR 0xB8/逐行替换）；level 3 完成 → 副本 `3 -> 4`、`profile.py diff` 仅一行；负例 `HOST_SAVE_PROFILE=0` diff 0 依据：F441
-- [ ] T6.4c 存档/配置写入（`profile.py diff` → `diffs=0`） 依据：F01、F171
+- [x] T6.4c 存档写入对齐：原版写集 = `LastCompleteLevel=max(old,index+1)` + `CompletedLevels` 过滤；宿主同基线 `profile.py diff`=0 依据：F466
+- [x] T6.4c-3 `CompletedLevels` 过滤 + `max` 语义：`profiledata.pas` `FilterCompleted`；`15-16-17-18`+进度1 → 空，与原版一致 依据：F466
+- [ ] T6.4c-4 配置写入（`cfg.ini`/音量/全屏）——GameTop 安装目录无 `cfg.ini`，需先定位实际配置文件 依据：F01、F466
 - [x] T6.4d-1 宿主 `HOST_CLICK` → 按档案 LastCompleteLevel 进关 + `HOST_TRACE`（进程内命令入口）：正例 index=20/3、lua_bind_ab 0 差、两次序列相同；点空白/无档案/坏档案/51 四条负例无 level 依据：F435
 - [x] T6.4d-2 LCL 真实点击 + 运行时场景切换：`THostMouseHandler` 命中 Play → `TMenuScene.Clear`/`Free` → `BuildFromModel`；正例 index=20/3、sprites=21/60、lua_bind_ab 0 差；点空白/坏档案无 level 依据：F436
 - [x] T6.4d-3 宿主进关后物理步进 + 图形同步：`PhysStart` → `HOST_PHYS_STEPS` → `SyncPhysics` → `phys.log`；level 0 bodies=3/objects=15 angle_moved=3 sync_after=0，负例无 phys.log 依据：F437
