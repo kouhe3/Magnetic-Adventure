@@ -173,6 +173,8 @@ Lua 侧已经起步：vendor Lua 5.1.5（未改动），pak 里 **111 个脚本 
 
 - **2026-11-04 T6.4b-4e-r 真实鼠标 local 捕获（F456）**：`MagRealLog` 增 `local=`；用户离开后 `--active` 用真实 SendInput 两次正例 `down target=1002 local=-0.013055,-0.024476`（|local|=0.0277）、trace `boot,menu,level,menu,exit`、副本 `1→2`、PASS；空点负例 `down-miss`、无第二个 menu、diff 0、FAIL。顺带补跑 `window` 门禁：**全量 `verify.py` 7 门禁 PASS**（window 1.7 s `diffs=0`）、`phys_sweep` 50/2/0。边界：只覆盖 test level；sprite 旋转同步仍缺。
 
+- **2026-11-04 T6.4f 提示按钮判据重评（F457/F458）**：`direct_drive.py` 增 `--force-hint`/`--hint-info`/`--force-hint-show`，`capture_gl_levels.py` 透传。按钮是引擎对象 `[lm+0x3C]`（5 sprite，alpha 在 sprite+0x2C；未到可用态 alpha=0）；强制 alpha=1 后 level 4 draw 46→56（`hintwood`×2 + `numsatl`×3）。**fill 0 与 2.5 的 bbox/UV/alpha 逐字段相同** ⇒ 填充/数字状态不在 draw 列表（很可能 texture matrix）⇒ 原「强制 `+0x5C` 后逐 draw `mismatches=0`」判据被证伪。T6.4f 转 blocked，新任务 T6.4g（GLFFI02 记录 TEXTURE 矩阵 / 前台像素 A/B）。
+
 ## 0.1 勘误（F209/F210，2026-10-30，**优先于下文所有 L2-B 数字**）
 
 下文凡是「逐单元百分比」（`GLLCLViewer.o` 95.6%、`GLObjects` 63.7%、`GLBitmapFont` 22.6%…）**全部作废**：`tools/code_match.py units` 当时把候选侧偏移拿去查目标侧偏移集合，量到的是"该单元地址窗在目标里被覆盖多少"，与单元内容无关（F209）。修好后的口径与结果：

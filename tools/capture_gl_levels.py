@@ -102,7 +102,8 @@ def frame_draw_counts(log):
     return len(fb), counts
 
 
-def capture_one(level, out_dir, game_dir, t0, t1, timeout, gap):
+def capture_one(level, out_dir, game_dir, t0, t1, timeout, gap, force_hint=None,
+                force_hint_show=False):
     log = (out_dir / ("lvl%02d_gl.bin" % level)).resolve()
     drive = out_dir / ("lvl%02d_drive.jsonl" % level)
     env = os.environ.copy()
@@ -113,6 +114,10 @@ def capture_one(level, out_dir, game_dir, t0, t1, timeout, gap):
            "--levels", str(level), "--out", str(drive),
            "--exit-mode", "wmclose", "--timeout", str(timeout),
            "--gap", str(gap)]
+    if force_hint is not None:
+        cmd += ["--force-hint", str(force_hint)]
+    if force_hint_show:
+        cmd += ["--force-hint-show"]
     r = subprocess.run(cmd, env=env, capture_output=True, text=True, errors="replace")
     tail = (r.stdout or "") + (r.stderr or "")
     ok = r.returncode == 0 and log.exists() and log.stat().st_size > 0
@@ -196,6 +201,10 @@ def main():
     ap.add_argument("--t1", type=int, default=24000, help="window end ms from DLL load")
     ap.add_argument("--timeout", type=float, default=20.0)
     ap.add_argument("--gap", type=float, default=1.5)
+    ap.add_argument("--force-hint", type=float, default=None,
+                    help="T6.4f: write [0x665334]+0x5C after level entry")
+    ap.add_argument("--force-hint-show", action="store_true",
+                    help="T6.4f: write alpha=1 to the hint button sprites")
     ap.add_argument("--settle-offset", type=int, default=25,
                     help="判据帧 = settled + offset（淡入/入场动画稳定后）")
     ap.add_argument("--retries", type=int, default=1,
@@ -234,7 +243,8 @@ def main():
         row = None
         for attempt in range(1 + a.retries):
             print("lvl%02d capture ..." % level, flush=True)
-            row = capture_one(level, out_dir, a.dir, a.t0, a.t1, a.timeout, a.gap)
+            row = capture_one(level, out_dir, a.dir, a.t0, a.t1, a.timeout,
+                              a.gap, a.force_hint, a.force_hint_show)
             row = summarize(row, a.settle_offset)
             if row["ok"] and not row.get("error"):
                 break

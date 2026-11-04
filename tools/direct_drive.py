@@ -165,6 +165,18 @@ def u8(hp, addr):
     return b[0] if b else None
 
 
+def rf32(hp, addr):
+    b = rpm(hp, addr, 4)
+    return struct.unpack("<f", b)[0] if b and len(b) == 4 else None
+
+
+def wf32(hp, addr, value):
+    buf = ctypes.create_string_buffer(struct.pack("<f", value), 4)
+    got = ctypes.c_size_t(0)
+    return bool(k32.WriteProcessMemory(hp, ctypes.c_void_p(addr), buf, 4,
+                                       ctypes.byref(got)))
+
+
 def state(hp, app=None):
     mgr = u32(hp, 0x665334)
     lm = u32(hp, mgr + 0xA0) if mgr else None
@@ -494,6 +506,12 @@ def main():
                     help="seconds to observe alpha counters after each level")
     ap.add_argument("--alpha-hz", type=float, default=20.0,
                     help="alpha counter sampling rate")
+    ap.add_argument("--force-hint", type=float, default=None,
+                    help="T6.4f: after level entry write [0x665334]+0x5C = VALUE")
+    ap.add_argument("--hint-info", action="store_true",
+                    help="T6.4f: dump the hint button object/sprite fields")
+    ap.add_argument("--force-hint-show", action="store_true",
+                    help="T6.4f: write alpha=1 to all five hint button sprites")
     a = ap.parse_args()
 
     if a.alpha_scan and os.path.exists(a.alpha_scan):
@@ -633,6 +651,61 @@ def main():
                     break
             emit({"index": idx, "ok": ok, "ms": int((time.time() - t0) * 1000),
                   "state": last, "lm8": u8(hp, lm + 8)})
+            if ok and a.force_hint is not None:
+                tw = time.time()
+                mgr_now = None
+                fill_now = 0.0
+                while time.time() - tw < 2.0:
+                    mgr_now = u32(hp, 0x665334)
+                    if mgr_now:
+                        fill_now = rf32(hp, mgr_now + 0x58) or 0.0
+                        if fill_now > 0:
+                            break
+                    time.sleep(0.05)
+                if mgr_now:
+                    wf32(hp, mgr_now + 0x5C, a.force_hint)
+                    emit({"event": "force_hint", "index": idx,
+                          "mgr": mgr_now, "fill": fill_now,
+                          "value": a.force_hint})
+            if ok and a.hint_info:
+                mgr_now = u32(hp, 0x665334)
+                lm_now = u32(hp, mgr_now + 0xA0) if mgr_now else None
+                btn = u32(hp, lm_now + 0x3C) if lm_now else None
+                info = {}
+                if btn:
+                    for off in (0x14, 0x2C, 0x30, 0x58, 0x5C, 0x74, 0x78,
+                                0x7C, 0x80, 0x90, 0x94):
+                        info["b%02x" % off] = u32(hp, btn + off)
+                    p14 = u32(hp, btn + 0x14)
+                    if p14:
+                        p8 = u32(hp, p14 + 8)
+                        info["p14_8"] = p8
+                        if p8:
+                            info["vis45"] = u8(hp, p8 + 0x45)
+                    sprites = []
+                    for i in range(5):
+                        sp = u32(hp, btn + 0x60 + 4 * i)
+                        row = {"p": sp}
+                        if sp:
+                            row["vis"] = u8(hp, sp + 5)
+                            row["a44"] = rf32(hp, sp + 0x2C)
+                            row["head"] = [u32(hp, sp + 4 * k) for k in range(8)]
+                        sprites.append(row)
+                    info["sprites"] = sprites
+                emit({"event": "hint_info", "index": idx, "btn": btn,
+                      "info": info})
+            if ok and a.force_hint_show:
+                mgr_now = u32(hp, 0x665334)
+                lm_now = u32(hp, mgr_now + 0xA0) if mgr_now else None
+                btn = u32(hp, lm_now + 0x3C) if lm_now else None
+                shown = 0
+                if btn:
+                    for i in range(5):
+                        sp = u32(hp, btn + 0x60 + 4 * i)
+                        if sp and wf32(hp, sp + 0x2C, 1.0):
+                            shown += 1
+                emit({"event": "force_hint_show", "index": idx,
+                      "btn": btn, "sprites": shown})
             if ok and a.alpha_scan:
                 alpha_rows = []
                 t_a = time.time()
