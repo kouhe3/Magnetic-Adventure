@@ -512,6 +512,8 @@ def main():
                     help="T6.4f: dump the hint button object/sprite fields")
     ap.add_argument("--force-hint-show", action="store_true",
                     help="T6.4f: write alpha=1 to all five hint button sprites")
+    ap.add_argument("--force-endbox", action="store_true",
+                    help="T6.4d: write +0x2C=1.0 to every size-0x30 HUD sprite")
     ap.add_argument("--hint-sample", default=None,
                     help="T6.4f: periodically dump mgr/lm/btn fields (JSONL)")
     ap.add_argument("--hint-sample-secs", type=float, default=8.0,
@@ -702,6 +704,14 @@ def main():
                     info["sprites"] = sprites
                 emit({"event": "hint_info", "index": idx, "btn": btn,
                       "info": info})
+            if ok and a.force_endbox:
+                mgr_now = u32(hp, 0x665334)
+                shown = 0
+                for p_, sz_, c2c_, vis_ in hud_sprites(hp, mgr_now):
+                    if sz_ == 0x30 and wf32(hp, p_ + 0x2C, 1.0):
+                        shown += 1
+                emit({"event": "force_endbox", "index": idx,
+                      "mgr": mgr_now, "shown": shown})
             if ok and a.force_hint_show:
                 mgr_now = u32(hp, 0x665334)
                 lm_now = u32(hp, mgr_now + 0xA0) if mgr_now else None
